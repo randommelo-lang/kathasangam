@@ -26,7 +26,6 @@ services:
   - type: web
     name: kathasangam-frontend
     runtime: static
-    plan: free
     staticPublishPath: .
     routes:
       - type: rewrite

@@ -3,6 +3,7 @@ services:
   - type: web
     name: kathasangam-backend
     env: rust
+    rootDir: backend
     plan: free
     buildCommand: cargo build --release --bin kathasangam-backend
     startCommand: ./target/release/kathasangam-backend

@@ -1,0 +1,40 @@
+# Rust / Cargo
+/target/
+/backend/target/
+**/*.rs.bk
+Cargo.lock
+
+# Environment / Secrets
+.env
+backend/.env
+*.env
+*.key
+*.pem
+
+# Meilisearch Data & Executables
+/data.ms/
+/dumps/
+/meilisearch-windows-amd64.exe
+meilisearch*
+
+# IDEs & System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Project Docs / Drafts 
+README.md
+security.md
+plan.md
+Idea.md
+
+# Build & Logs
+node_modules/
+*.log
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+

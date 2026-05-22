@@ -1,0 +1,39 @@
+services:
+  # 1. Rust API Backend
+  - type: web
+    name: kathasangam-backend
+    env: rust
+    plan: free
+    buildCommand: cargo build --release --bin kathasangam-backend
+    startCommand: ./target/release/kathasangam-backend
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: MEILI_URL
+        value: http://localhost:7700
+      - key: MEILI_MASTER_KEY
+        sync: false
+
+  # 2. Static Frontend
+  - type: static
+    name: kathasangam-frontend
+    plan: free
+    publishPath: .
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://kathasangam-backend.onrender.com/api/*
+      - type: rewrite
+        source: /uploads/*
+        destination: https://kathasangam-backend.onrender.com/uploads/*
+      - type: rewrite
+        source: /*
+        destination: /index.html

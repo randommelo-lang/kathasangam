@@ -27,8 +27,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         let query = &args[1];
         println!("Running query: {}", query);
-        let rows = sqlx::query(query).execute(&pool).await?;
-        println!("Query executed successfully! Rows affected: {}", rows.rows_affected());
+        if query.trim().to_uppercase().starts_with("SELECT") {
+            use sqlx::{Row, Column};
+            let rows = sqlx::query(query).fetch_all(&pool).await?;
+            println!("Fetched {} rows:", rows.len());
+            for (i, row) in rows.iter().enumerate() {
+                print!("  Row {}: ", i);
+                for col in row.columns() {
+                    let name = col.name();
+                    if let Ok(val) = row.try_get::<String, _>(name) {
+                        print!("{}: {:?}, ", name, val);
+                    } else if let Ok(val) = row.try_get::<i32, _>(name) {
+                        print!("{}: {}, ", name, val);
+                    } else if let Ok(val) = row.try_get::<uuid::Uuid, _>(name) {
+                        print!("{}: {}, ", name, val);
+                    } else {
+                        print!("{}: <unknown/other>, ", name);
+                    }
+                }
+                println!();
+            }
+        } else {
+            let rows = sqlx::query(query).execute(&pool).await?;
+            println!("Query executed successfully! Rows affected: {}", rows.rows_affected());
+        }
     }
 
     Ok(())

@@ -6,7 +6,7 @@ mod middleware;
 
 
 use axum::{
-    routing::{get, patch, post},
+    routing::{get, patch, post, delete},
     Router,
 };
 
@@ -92,6 +92,10 @@ async fn main() {
             "/chapters/:story_id/:index/comments",
             get(routes::comments::list_comments)
                 .post(routes::comments::create_comment),
+        )
+        .route(
+            "/comments/:id",
+            delete(routes::comments::delete_comment),
         )
 
         // LIBRARY

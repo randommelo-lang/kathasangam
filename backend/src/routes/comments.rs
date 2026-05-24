@@ -23,9 +23,9 @@ pub async fn list_comments(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
             .ok_or(StatusCode::NOT_FOUND)?;
 
-    let rows: Vec<(String, String)> =
+    let rows: Vec<(Uuid, Option<Uuid>, String, String)> =
         sqlx::query_as(
-            "SELECT c.content, COALESCE(p.username, 'Reader') \
+            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader') \
              FROM comments c \
              LEFT JOIN profiles p ON c.user_id = p.id \
              WHERE c.chapter_id = $1 \
@@ -38,7 +38,9 @@ pub async fn list_comments(
 
     Ok(Json(
         rows.into_iter()
-            .map(|(text, username)| CommentResponse {
+            .map(|(id, user_id, text, username)| CommentResponse {
+                id,
+                user_id,
                 user: username,
                 text,
             })
@@ -86,8 +88,59 @@ pub async fn create_comment(
     Ok((
         StatusCode::CREATED,
         Json(CommentResponse {
+            id,
+            user_id: Some(user_id),
             user: username,
             text: body.text,
         }),
     ))
+}
+
+/// DELETE /api/comments/:id
+pub async fn delete_comment(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(comment_id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    // 1. Fetch the comment to check user_id
+    let comment: Option<(Option<Uuid>,)> = sqlx::query_as("SELECT user_id FROM comments WHERE id = $1")
+        .bind(comment_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let comment_user_id = comment
+        .ok_or(StatusCode::NOT_FOUND)?
+        .0;
+
+    // 2. Check if current user is the owner
+    let mut is_authorized = false;
+    if comment_user_id == Some(auth.user_id) {
+        is_authorized = true;
+    } else {
+        // 3. Otherwise, check user's role in profiles
+        let role: Option<(String,)> = sqlx::query_as("SELECT role::text FROM profiles WHERE id = $1")
+            .bind(auth.user_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        if let Some((r,)) = role {
+            if r == "admin" || r == "moderator" {
+                is_authorized = true;
+            }
+        }
+    }
+
+    if !is_authorized {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // 4. Delete the comment
+    sqlx::query("DELETE FROM comments WHERE id = $1")
+        .bind(comment_id)
+        .execute(&pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::NO_CONTENT)
 }

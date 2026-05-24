@@ -727,7 +727,16 @@
         return el("li", "chapter-item", [el("strong", null, item.title), el("span", "mini-meta", (i + 1) + " / " + item.status + " / " + item.access), button("Open", "btn", { action: "openChapter", index: String(i) })]);
       })]),
       el("aside", "panel", [el("h2", null, "Comments"),
-        chapter.comments.length ? list(chapter.comments, "activity-list", function (c) { return el("li", "activity-item", [el("strong", null, c.user), el("span", null, c.text)]); }) : el("div", "empty", "No comments yet."),
+        chapter.comments.length ? list(chapter.comments, "activity-list", function (c) {
+          var canDelete = (state.user && c.user_id === state.user.id) || ["moderator", "admin"].indexOf(state.role) !== -1;
+          return el("li", "activity-item", [
+            el("div", "comment-header", [
+              el("strong", null, c.user),
+              canDelete ? button("Delete", "btn danger btn-sm", { action: "deleteComment", id: c.id }) : null
+            ]),
+            el("span", null, c.text)
+          ]);
+        }) : el("div", "empty", "No comments yet."),
         commentForm()
       ])
     ]));
@@ -895,6 +904,16 @@
         }
         hydrateGenres();
         render();
+      });
+    }
+    if (action === "deleteComment") {
+      if (!window.confirm("Are you sure you want to delete this comment?")) return;
+      apiDelete("/comments/" + target.dataset.id).then(function () {
+        notify("Comment deleted.");
+        return api("/stories");
+      }).then(function (s) { state.stories = s; render(); }).catch(function (err) {
+        console.error("Failed to delete comment:", err);
+        notify("Failed to delete comment.");
       });
     }
     if (action === "resolveReport" || action === "escalateReport") {

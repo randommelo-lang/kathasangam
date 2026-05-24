@@ -1364,3 +1364,15 @@ h2 {
   to { transform: rotate(360deg); }
 }
 
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  min-height: auto;
+}
+

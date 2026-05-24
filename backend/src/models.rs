@@ -165,6 +165,8 @@ pub struct CommentRow {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct CommentResponse {
+    pub id: Uuid,
+    pub user_id: Option<Uuid>,
     pub user: String,
     pub text: String,
 }

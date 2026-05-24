@@ -101,8 +101,8 @@ pub async fn list_chapters(
                 .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        let comment_rows: Vec<(String, String)> = sqlx::query_as(
-            "SELECT c.content, COALESCE(p.username, 'Reader') \
+        let comment_rows: Vec<(Uuid, Option<Uuid>, String, String)> = sqlx::query_as(
+            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader') \
              FROM comments c \
              LEFT JOIN profiles p ON c.user_id = p.id \
              WHERE c.chapter_id = $1 \
@@ -146,7 +146,9 @@ pub async fn list_chapters(
             pages,
             comments: comment_rows
                 .into_iter()
-                .map(|(text, username)| CommentResponse {
+                .map(|(id, user_id, text, username)| CommentResponse {
+                    id,
+                    user_id,
                     user: username,
                     text,
                 })

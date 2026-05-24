@@ -797,6 +797,10 @@
     });
     var active = userStories.find(function (s) { return s.id === currentStoryId; }) || userStories[0] || { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
 
+    if (active.id && currentStoryId !== active.id) {
+      currentStoryId = active.id;
+    }
+
     view.appendChild(el("div", "layout-two", [
       el("section", null, [
         el("div", "toolbar", [el("h2", null, "Series workspace"), button("New chapter", "btn primary", { action: "newChapter" })]),
@@ -876,8 +880,17 @@
     if (action === "comicPage") { moveComicPage(Number(target.dataset.step)); }
     if (action === "theme") { readerTheme = readerTheme === "dark" ? "light" : "dark"; render(); }
     if (action === "openChapter") { currentChapterIndex = Number(target.dataset.index); currentComicPageIndex = 0; window.location.hash = "reader"; render(); }
+    if (action === "manageStory") {
+      currentStoryId = target.dataset.id;
+      render();
+    }
     if (action === "newChapter") {
-      var story = getCurrentStudioStory(); var num = story.chapters.length + 1;
+      var story = getCurrentStudioStory();
+      if (!story || !story.id) {
+        notify("Please create a story first before adding chapters.");
+        return;
+      }
+      var num = story.chapters.length + 1;
       apiPost("/stories/" + story.id + "/chapters", { title: "Draft Chapter " + num }).then(function () {
         return api("/stories");
       }).then(function (s) { state.stories = s; notify("Draft chapter created."); render(); });
@@ -998,16 +1011,24 @@
     var tpl = document.getElementById("storyCardTemplate"); var card = tpl.content.firstElementChild.cloneNode(true);
     card.querySelector(".cover-art").style.setProperty("--cover", story.cover);
     card.querySelector(".cover-badge").textContent = story.type;
-    var ob = card.querySelector(".cover-button"); ob.dataset.action = "openStory"; ob.dataset.id = story.id; ob.setAttribute("aria-label", "Open " + story.title);
+    var ob = card.querySelector(".cover-button"); 
+    ob.dataset.action = options.manage ? "manageStory" : "openStory";
+    ob.dataset.id = story.id; 
+    ob.setAttribute("aria-label", (options.manage ? "Manage " : "Open ") + story.title);
     card.querySelector(".story-meta").textContent = story.genre + " / " + story.author + " / " + formatNumber(story.views) + " reads";
     card.querySelector("h2").textContent = story.title;
     card.querySelector("p").textContent = story.description;
     var tags = card.querySelector(".tag-row"); story.tags.forEach(function (t) { tags.appendChild(el("span", "tag", t)); });
     var actions = card.querySelector(".story-actions");
-    actions.appendChild(button("Read", "btn primary", { action: "openStory", id: story.id }));
-    actions.appendChild(button(state.library.indexOf(story.id) === -1 ? "Follow" : "Following", "btn", { action: "follow", id: story.id }));
-    actions.appendChild(button("Tip", "btn", { action: "tip", id: story.id }));
-    if (options.manage) actions.appendChild(button("Delete", "btn danger", { action: "deleteStory", id: story.id }, !canDeleteStory(story)));
+    if (options.manage) {
+      actions.appendChild(button("Manage", "btn success", { action: "manageStory", id: story.id }));
+      actions.appendChild(button("Read", "btn", { action: "openStory", id: story.id }));
+      actions.appendChild(button("Delete", "btn danger", { action: "deleteStory", id: story.id }, !canDeleteStory(story)));
+    } else {
+      actions.appendChild(button("Read", "btn primary", { action: "openStory", id: story.id }));
+      actions.appendChild(button(state.library.indexOf(story.id) === -1 ? "Follow" : "Following", "btn", { action: "follow", id: story.id }));
+      actions.appendChild(button("Tip", "btn", { action: "tip", id: story.id }));
+    }
     return card;
   }
   function canDeleteStory(story) {

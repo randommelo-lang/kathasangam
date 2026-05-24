@@ -170,7 +170,7 @@ pub async fn create_chapter(
     verify_story_owner_or_admin(&pool, auth.user_id, story_id).await?;
 
     // Get the next sort order
-    let (max_order,): (i64,) =
+    let (max_order,): (i32,) =
         sqlx::query_as("SELECT COALESCE(MAX(sort_order), -1) FROM chapters WHERE story_id = $1")
             .bind(story_id)
             .fetch_one(&pool)

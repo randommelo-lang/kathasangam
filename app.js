@@ -783,14 +783,18 @@
 
   // ── Studio ──
   function renderStudio() {
-    var active = getCurrentStory();
+    var userStories = state.stories.filter(function (s) {
+      return state.user && s.author_id === state.user.id;
+    });
+    var active = userStories.find(function (s) { return s.id === currentStoryId; }) || userStories[0] || { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
+
     view.appendChild(el("div", "layout-two", [
       el("section", null, [
         el("div", "toolbar", [el("h2", null, "Series workspace"), button("New chapter", "btn primary", { action: "newChapter" })]),
-        storyGrid(state.stories, { manage: true }),
+        storyGrid(userStories, { manage: true }),
         el("section", "panel", [el("h2", null, "Chapter plan"), list(active.chapters, "chapter-list", function (ch, i) {
           return el("li", "chapter-item", [el("strong", null, ch.title), el("span", "mini-meta", ch.status + " / " + ch.access + " / " + (ch.words || "Chitrānk") + " words"),
-            el("div", "button-row", [button(ch.status === "published" ? "Move to draft" : "Publish", "btn", { action: "toggleChapterStatus", index: String(i) }), button("Read", "btn", { action: "openChapter", index: String(i) })])]);
+            el("div", "button-row", [button(ch.status === "published" ? "Move to draft" : "Publish", "btn", { action: "toggleChapterStatus", id: ch.id }), button("Read", "btn", { action: "openChapter", index: String(i) })])]);
         })])
       ]),
       el("aside", null, [
@@ -831,6 +835,12 @@
     ]);
   }
   function commentForm() {
+    if (!state.user) {
+      return el("div", "comment-login-prompt", [
+        el("p", null, "Please log in to post a comment."),
+        button("Log In", "btn primary", { action: "loginToComment" })
+      ]);
+    }
     return form("commentForm", [field("Add comment", textarea("comment", "")), submitButton("Post comment", "btn primary")]);
   }
 
@@ -839,6 +849,7 @@
     var target = e.target.closest("[data-action]"); if (!target) return;
     var action = target.dataset.action;
     if (action === "go") window.location.hash = target.dataset.view;
+    if (action === "loginToComment") { openAuthModal(); }
     if (action === "filter") { filterType = target.dataset.value; render(); }
     if (action === "readerMode") { readerMode = target.dataset.value; currentComicPageIndex = 0; render(); }
     if (action === "openStory") { currentStoryId = target.dataset.id; currentChapterIndex = 0; currentComicPageIndex = 0; window.location.hash = "reader"; }
@@ -857,14 +868,14 @@
     if (action === "theme") { readerTheme = readerTheme === "dark" ? "light" : "dark"; render(); }
     if (action === "openChapter") { currentChapterIndex = Number(target.dataset.index); currentComicPageIndex = 0; window.location.hash = "reader"; render(); }
     if (action === "newChapter") {
-      var story = getCurrentStory(); var num = story.chapters.length + 1;
+      var story = getCurrentStudioStory(); var num = story.chapters.length + 1;
       apiPost("/stories/" + story.id + "/chapters", { title: "Draft Chapter " + num }).then(function () {
         return api("/stories");
       }).then(function (s) { state.stories = s; notify("Draft chapter created."); render(); });
     }
     if (action === "toggleChapterStatus") {
-      var st = getCurrentStory(); var key = st.id + ":" + target.dataset.index;
-      apiPatch("/chapters/" + key + "/status").then(function (r) {
+      var chapterId = target.dataset.id;
+      apiPatch("/chapters/" + chapterId + "/status").then(function (r) {
         notify(r.title + " is now " + r.status + "."); return api("/stories");
       }).then(function (s) { state.stories = s; render(); });
     }
@@ -918,9 +929,17 @@
     if (e.target.dataset.form === "commentForm") {
       var comment = new FormData(e.target).get("comment").trim(); if (!comment) return;
       var story = getCurrentStory();
-      apiPost("/chapters/" + story.id + "/" + currentChapterIndex + "/comments", { user: "You", text: comment }).then(function () {
+      var chapter = getCurrentChapter(story);
+      if (!chapter || !chapter.id) {
+        notify("No chapter selected.");
+        return;
+      }
+      apiPost("/chapters/" + story.id + "/" + chapter.sort_order + "/comments", { user: "You", text: comment }).then(function () {
         return api("/stories");
-      }).then(function (s) { state.stories = s; notify("Comment posted."); render(); });
+      }).then(function (s) { state.stories = s; notify("Comment posted."); render(); }).catch(function (err) {
+        console.error("Failed to post comment:", err);
+        notify("Failed to post comment. Please log in.");
+      });
     }
   }
 
@@ -934,6 +953,12 @@
     });
   }
   function getCurrentStory() { return state.stories.find(function (s) { return s.id === currentStoryId; }) || state.stories[0] || { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 }; }
+  function getCurrentStudioStory() {
+    var userStories = state.stories.filter(function (s) {
+      return state.user && s.author_id === state.user.id;
+    });
+    return userStories.find(function (s) { return s.id === currentStoryId; }) || userStories[0] || { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
+  }
   function getCurrentChapter(story) {
     if (!story.chapters || !story.chapters.length) return { title: "", status: "", access: "", words: 0, reads: 0, likes: 0, content: [], comments: [] };
     if (currentChapterIndex >= story.chapters.length) currentChapterIndex = 0;

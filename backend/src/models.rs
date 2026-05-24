@@ -103,6 +103,8 @@ pub struct ChapterRow {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct ChapterResponse {
+    pub id: Uuid,
+    pub sort_order: i32,
     pub title: String,
     pub status: String,
     pub access: String,

@@ -67,17 +67,6 @@ pub async fn list_chapters(
     if let Some(ref user) = auth {
         if Some(user.user_id) == story_author_id {
             show_all = true;
-        } else {
-            let role: Option<(String,)> = sqlx::query_as("SELECT role::text FROM profiles WHERE id = $1")
-                .bind(user.user_id)
-                .fetch_optional(&pool)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            if let Some((r,)) = role {
-                if r == "admin" || r == "moderator" {
-                    show_all = true;
-                }
-            }
         }
     }
 
@@ -144,6 +133,8 @@ pub async fn list_chapters(
         };
 
         chapters.push(ChapterResponse {
+            id: ch.id,
+            sort_order: ch.sort_order,
             title: ch.title.clone(),
             status: ch.status.clone(),
             access: ch.access.clone(),

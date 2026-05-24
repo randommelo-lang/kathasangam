@@ -322,16 +322,6 @@ pub async fn build_story_response(
     if let Some(user) = auth {
         if Some(user.user_id) == row.author_id {
             show_all = true;
-        } else {
-            let role: Option<(String,)> = sqlx::query_as("SELECT role::text FROM profiles WHERE id = $1")
-                .bind(user.user_id)
-                .fetch_optional(pool)
-                .await?;
-            if let Some((r,)) = role {
-                if r == "admin" || r == "moderator" {
-                    show_all = true;
-                }
-            }
         }
     }
 
@@ -393,6 +383,8 @@ pub async fn build_story_response(
         };
 
         chapters.push(ChapterResponse {
+            id: ch.id,
+            sort_order: ch.sort_order,
             title: ch.title.clone(),
             status: ch.status.clone(),
             access: ch.access.clone(),

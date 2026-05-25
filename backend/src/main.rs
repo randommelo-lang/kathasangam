@@ -87,6 +87,11 @@ async fn main() {
             patch(routes::chapters::toggle_chapter_status),
         )
 
+        .route(
+            "/chapters/:chapter_id",
+            delete(routes::chapters::delete_chapter),
+        )
+
         // COMMENTS
         .route(
             "/chapters/:story_id/:index/comments",

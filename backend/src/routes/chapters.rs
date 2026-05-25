@@ -246,3 +246,68 @@ pub async fn toggle_chapter_status(
         serde_json::json!({ "title": row.title, "status": new_status }),
     ))
 }
+
+/// DELETE /api/chapters/:chapter_id
+pub async fn delete_chapter(
+    auth: AuthUser,
+    State(pool): State<PgPool>,
+    Path(chapter_id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    let row: ChapterRow = sqlx::query_as("SELECT * FROM chapters WHERE id = $1")
+        .bind(chapter_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Verify user is story owner or admin
+    verify_story_owner_or_admin(&pool, auth.user_id, row.story_id).await?;
+
+    let mut tx = pool.begin().await.map_err(|e| {
+        eprintln!("Failed to start transaction: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    sqlx::query("DELETE FROM comments WHERE chapter_id = $1")
+        .bind(chapter_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to delete comments: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    sqlx::query("DELETE FROM chapter_content WHERE chapter_id = $1")
+        .bind(chapter_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to delete chapter content: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    sqlx::query("DELETE FROM chapter_pages WHERE chapter_id = $1")
+        .bind(chapter_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to delete chapter pages: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    sqlx::query("DELETE FROM chapters WHERE id = $1")
+        .bind(chapter_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to delete chapter: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    tx.commit().await.map_err(|e| {
+        eprintln!("Failed to commit transaction: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}

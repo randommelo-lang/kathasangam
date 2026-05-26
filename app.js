@@ -575,7 +575,7 @@
     genreFilter.addEventListener("change", render);
     view.addEventListener("click", handleViewClick);
     view.addEventListener("input", handleViewInput);
-    view.addEventListener("submit", handleViewSubmit);
+    document.addEventListener("submit", handleViewSubmit);
   }
 
   function bindAuthEvents() {

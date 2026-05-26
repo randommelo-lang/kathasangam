@@ -127,6 +127,13 @@ pub struct CreateChapterRequest {
     pub access: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateChapterRequest {
+    pub title: String,
+    pub content: Vec<String>,
+    pub status: Option<String>,
+}
+
 // ── Chapter content / pages ──
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]

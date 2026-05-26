@@ -6,7 +6,7 @@ mod middleware;
 
 
 use axum::{
-    routing::{get, patch, post, delete},
+    routing::{get, patch, post, delete, put},
     Router,
 };
 
@@ -89,7 +89,8 @@ async fn main() {
 
         .route(
             "/chapters/:chapter_id",
-            delete(routes::chapters::delete_chapter),
+            put(routes::chapters::update_chapter)
+                .delete(routes::chapters::delete_chapter),
         )
 
         // COMMENTS

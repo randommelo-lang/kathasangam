@@ -49,6 +49,7 @@
   var currentStoryId = "";
   var currentChapterIndex = 0;
   var currentComicPageIndex = 0;
+  var editingChapterId = "";
   var filterType = "all";
   var readerMode = "scroll";
   var readerTheme = "light";
@@ -300,6 +301,9 @@
   }
   function apiPatch(path, body) {
     return api(path, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  }
+  function apiPut(path, body) {
+    return api(path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   }
   function apiDelete(path) {
     return api(path, { method: "DELETE" });
@@ -634,7 +638,7 @@
 
   // ── Render ──
   function render() {
-    var allowed = ["discover", "library", "reader", "studio", "moderation"];
+    var allowed = ["discover", "library", "reader", "studio", "moderation", "editor"];
     if (allowed.indexOf(currentView) === -1) currentView = "discover";
     var canModerate = canModerateRole();
     var moderationLink = document.querySelector('[data-nav="moderation"]');
@@ -646,13 +650,14 @@
     document.querySelectorAll("[data-nav]").forEach(function (link) {
       link.classList.toggle("active", link.dataset.nav === currentView);
     });
-    pageTitle.textContent = { discover: "Discover", library: "Library", reader: "Reader", studio: "Author Studio", moderation: "Moderation" }[currentView];
+    pageTitle.textContent = { discover: "Discover", library: "Library", reader: "Reader", studio: "Author Studio", moderation: "Moderation", editor: "Chapter Editor" }[currentView];
     view.innerHTML = "";
     if (currentView === "discover") renderDiscover();
     if (currentView === "library") renderLibrary();
     if (currentView === "reader") renderReader();
     if (currentView === "studio") renderStudio();
     if (currentView === "moderation") renderModeration();
+    if (currentView === "editor") renderEditor();
   }
 
   // ── Discover ──
@@ -1061,7 +1066,7 @@
 
           // Buttons
           el("div", "studio-btn-row", [
-            iconButton("Continue Writing", "btn primary orange-glow-btn", { action: "newChapter" }, "icon-pencil"),
+            iconButton("Continue Writing", "btn primary orange-glow-btn", { action: "continueWriting" }, "icon-pencil"),
             iconButton("Manage", "btn", { action: "manageStory", id: active.id }, "icon-gear"),
             iconButton("View Story", "btn", { action: "openStory", id: active.id }, "icon-book"),
             iconButton("", "btn danger", { action: "deleteStory", id: active.id }, "icon-trash")
@@ -1088,7 +1093,7 @@
             el("div", "timeline-actions", [
               el("span", "timeline-words", (ch.words || "0") + " words"),
               el("span", statusClass, ch.status),
-              iconButton("", "btn btn-sm", { action: "toggleChapterStatus", id: ch.id }, "icon-edit"),
+              iconButton("", "btn btn-sm", { action: "editChapter", id: ch.id }, "icon-edit"),
               iconButton("", "btn btn-sm", { action: "openChapter", index: String(i) }, "icon-book"),
               iconButton("", "btn btn-sm danger", { action: "deleteChapter", id: ch.id }, "icon-trash")
             ])
@@ -1224,6 +1229,176 @@
     view.appendChild(gridLayout);
   }
 
+  // ── Chapter Editor ──
+  function saveChapterFromEditor(status) {
+    var titleEl = document.querySelector(".editor-title-input");
+    var contentEl = document.querySelector(".editor-textarea");
+    if (!titleEl || !contentEl) return;
+    
+    var newTitle = titleEl.value.trim();
+    if (!newTitle) {
+      notify("Chapter title cannot be empty.");
+      return;
+    }
+    
+    var text = contentEl.value.trim();
+    var paragraphs = text ? text.split(/\n\s*\n/) : [];
+    paragraphs = paragraphs.map(function(p) { return p.trim(); }).filter(Boolean);
+
+    var payload = {
+      title: newTitle,
+      content: paragraphs,
+      status: status
+    };
+
+    apiPut("/chapters/" + editingChapterId, payload).then(function() {
+      return api("/stories");
+    }).then(function (s) {
+      state.stories = s;
+      notify("Chapter saved.");
+      currentView = "studio";
+      window.location.hash = "studio";
+      render();
+    }).catch(function (err) {
+      console.error(err);
+      notify("Failed to save chapter.");
+    });
+  }
+
+  function renderEditor() {
+    var story = getCurrentStudioStory();
+    if (!story || !story.id) {
+      currentView = "studio";
+      window.location.hash = "studio";
+      render();
+      return;
+    }
+    var chapter = null;
+    for (var i = 0; i < story.chapters.length; i++) {
+      if (story.chapters[i].id === editingChapterId) {
+        chapter = story.chapters[i];
+        break;
+      }
+    }
+    if (!chapter) {
+      notify("Chapter not found.");
+      currentView = "studio";
+      window.location.hash = "studio";
+      render();
+      return;
+    }
+
+    var titleInput = el("input", "editor-title-input");
+    titleInput.type = "text";
+    titleInput.value = chapter.title;
+    titleInput.placeholder = "Chapter Title";
+
+    var contentText = "";
+    if (chapter.content && chapter.content.length) {
+      contentText = chapter.content.join("\n\n");
+    }
+    var textarea = el("textarea", "editor-textarea");
+    textarea.value = contentText;
+    textarea.placeholder = "Write your chapter content here. Separate paragraphs with double newlines.";
+
+    var wordCountEl = el("span", "editor-word-count", "0 words");
+    function updateWordCount() {
+      var text = textarea.value.trim();
+      var count = text ? text.split(/\s+/).length : 0;
+      wordCountEl.textContent = formatNumber(count) + " words";
+    }
+    textarea.addEventListener("input", updateWordCount);
+    
+    var initialCount = contentText.trim() ? contentText.trim().split(/\s+/).length : 0;
+    wordCountEl.textContent = formatNumber(initialCount) + " words";
+
+    var uploadStatus = el("span", "mini-meta", "");
+    var fileInput = el("input", null);
+    fileInput.type = "file";
+    fileInput.accept = ".docx,.txt";
+    fileInput.style.display = "none";
+    fileInput.addEventListener("change", function (e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      uploadStatus.textContent = "Processing " + file.name + "...";
+      
+      var reader = new FileReader();
+      if (file.name.endsWith(".txt")) {
+        reader.onload = function (evt) {
+          textarea.value = evt.target.result;
+          updateWordCount();
+          uploadStatus.textContent = "Extracted text from " + file.name;
+        };
+        reader.readAsText(file);
+      } else if (file.name.endsWith(".docx")) {
+        reader.onload = function (evt) {
+          var arrayBuffer = evt.target.result;
+          if (window.mammoth) {
+            window.mammoth.extractRawText({ arrayBuffer: arrayBuffer })
+              .then(function (result) {
+                textarea.value = result.value;
+                updateWordCount();
+                uploadStatus.textContent = "Extracted text from " + file.name;
+              })
+              .catch(function (err) {
+                console.error(err);
+                uploadStatus.textContent = "Extraction failed: " + err.message;
+              });
+          } else {
+            uploadStatus.textContent = "Mammoth.js library is not loaded.";
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        uploadStatus.textContent = "Unsupported file format.";
+      }
+    });
+
+    var uploadBtn = el("label", "btn", [
+      el("span", "icon icon-document"),
+      " Extract from DOCX / TXT"
+    ]);
+    uploadBtn.style.cursor = "pointer";
+    uploadBtn.appendChild(fileInput);
+
+    var uploadSection = el("div", "editor-upload-section", [
+      uploadBtn,
+      uploadStatus
+    ]);
+
+    var saveDraftBtn = button("Save Draft", "btn", { action: "saveChapterDraft" });
+    var publishBtn = button("Publish", "btn primary orange-glow-btn", { action: "publishChapter" });
+    var cancelBtn = button("Cancel", "btn danger", { action: "cancelEditChapter" });
+
+    var actionsRow = el("div", "editor-actions-row", [
+      publishBtn,
+      saveDraftBtn,
+      cancelBtn
+    ]);
+
+    var editorPanel = el("section", "panel editor-panel", [
+      el("div", "editor-header", [
+        el("h2", null, "Chapter Editor"),
+        el("span", "mini-meta", "Story: " + story.title)
+      ]),
+      el("div", "form-grid", [
+        el("label", "field", [
+          el("span", null, "Chapter Title"),
+          titleInput
+        ]),
+        uploadSection,
+        el("label", "field", [
+          el("span", null, "Chapter Content"),
+          textarea
+        ]),
+        wordCountEl,
+        actionsRow
+      ])
+    ]);
+
+    view.appendChild(editorPanel);
+  }
+
   // ── Moderation ──
   function renderModeration() {
     var canMod = canModerateRole();
@@ -1311,6 +1486,52 @@
       apiPost("/stories/" + story.id + "/chapters", { title: "Draft Chapter " + num }).then(function () {
         return api("/stories");
       }).then(function (s) { state.stories = s; notify("Draft chapter created."); render(); });
+    }
+    if (action === "editChapter") {
+      editingChapterId = target.dataset.id;
+      currentView = "editor";
+      window.location.hash = "editor";
+      render();
+    }
+    if (action === "continueWriting") {
+      var story = getCurrentStudioStory();
+      if (!story || !story.id) {
+        notify("Please create a story first before adding chapters.");
+        return;
+      }
+      if (story.chapters && story.chapters.length) {
+        var lastCh = story.chapters[story.chapters.length - 1];
+        editingChapterId = lastCh.id;
+        currentView = "editor";
+        window.location.hash = "editor";
+        render();
+      } else {
+        apiPost("/stories/" + story.id + "/chapters", { title: "Draft Chapter 1" }).then(function () {
+          return api("/stories");
+        }).then(function (s) {
+          state.stories = s;
+          var updatedStory = getCurrentStudioStory();
+          if (updatedStory && updatedStory.chapters.length) {
+            var newCh = updatedStory.chapters[updatedStory.chapters.length - 1];
+            editingChapterId = newCh.id;
+            currentView = "editor";
+            window.location.hash = "editor";
+          }
+          notify("Draft chapter created.");
+          render();
+        });
+      }
+    }
+    if (action === "saveChapterDraft") {
+      saveChapterFromEditor("draft");
+    }
+    if (action === "publishChapter") {
+      saveChapterFromEditor("published");
+    }
+    if (action === "cancelEditChapter") {
+      currentView = "studio";
+      window.location.hash = "studio";
+      render();
     }
     if (action === "toggleChapterStatus") {
       var chapterId = target.dataset.id;

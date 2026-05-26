@@ -346,3 +346,101 @@ pub async fn delete_chapter(
 
     Ok(StatusCode::NO_CONTENT)
 }
+
+/// PUT /api/chapters/:chapter_id
+pub async fn update_chapter(
+    auth: AuthUser,
+    State(pool): State<PgPool>,
+    Path(chapter_id): Path<Uuid>,
+    Json(body): Json<UpdateChapterRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let row: ChapterRow = sqlx::query_as("SELECT * FROM chapters WHERE id = $1")
+        .bind(chapter_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to fetch chapter: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Verify user is story owner or admin
+    verify_story_owner_or_admin(&pool, auth.user_id, row.story_id).await?;
+
+    let mut tx = pool.begin().await.map_err(|e| {
+        eprintln!("Failed to start transaction: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Update chapter title and status if provided
+    if let Some(status) = body.status {
+        sqlx::query("UPDATE chapters SET title = $1, status = $2 WHERE id = $3")
+            .bind(&body.title)
+            .bind(&status)
+            .bind(chapter_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                eprintln!("Failed to update chapter: {:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    } else {
+        sqlx::query("UPDATE chapters SET title = $1 WHERE id = $2")
+            .bind(&body.title)
+            .bind(chapter_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                eprintln!("Failed to update chapter: {:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    }
+
+    // Delete old content
+    sqlx::query("DELETE FROM chapter_content WHERE chapter_id = $1")
+        .bind(chapter_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to delete old chapter content: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Insert new paragraphs
+    let mut total_words = 0;
+    for (idx, para) in body.content.iter().enumerate() {
+        total_words += para.split_whitespace().count() as i32;
+
+        let content_id = Uuid::new_v4();
+        sqlx::query("INSERT INTO chapter_content (id, chapter_id, sort_order, paragraph) VALUES ($1, $2, $3, $4)")
+            .bind(content_id)
+            .bind(chapter_id)
+            .bind(idx as i32)
+            .bind(para)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                eprintln!("Failed to insert chapter content paragraph: {:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    }
+
+    // Update chapter word count
+    sqlx::query("UPDATE chapters SET words = $1 WHERE id = $2")
+        .bind(total_words)
+        .bind(chapter_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to update chapter word count: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    tx.commit().await.map_err(|e| {
+        eprintln!("Failed to commit transaction: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::OK)
+}
+

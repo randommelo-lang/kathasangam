@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -67,13 +69,9 @@ pub async fn list_stories(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-        let mut responses = Vec::new();
-        for row in &rows {
-            let resp = build_story_response(&pool, row, auth.as_ref())
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            responses.push(resp);
-        }
+        let mut responses = build_story_responses_batch(&pool, &rows, auth.as_ref())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         // Sort responses to match Meilisearch order
         responses.sort_by_key(|r| ids.iter().position(|&id| id == r.id).unwrap_or(usize::MAX));
@@ -88,15 +86,12 @@ pub async fn list_stories(
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
 
-        for row in &rows {
-            let resp = build_story_response(&pool, row, auth.as_ref())
-                .await
-                .map_err(|e| {
-                    eprintln!("Error building story response: {:?}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-            results.push(resp);
-        }
+        results = build_story_responses_batch(&pool, &rows, auth.as_ref())
+            .await
+            .map_err(|e| {
+                eprintln!("Error building story response: {:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
         if let Some(ref q) = params.q {
             let q = q.to_lowercase();
@@ -284,30 +279,22 @@ pub async fn create_story(
 
 /// GET /api/stats
 pub async fn get_stats(State(pool): State<PgPool>) -> Result<Json<StatsResponse>, StatusCode> {
-    let (published,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM stories WHERE status = 'published'")
-            .fetch_one(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let (views,): (i64,) = sqlx::query_as("SELECT COALESCE(SUM(views), 0) FROM stories")
-        .fetch_one(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let (followers,): (i64,) = sqlx::query_as("SELECT COALESCE(SUM(followers), 0) FROM stories")
-        .fetch_one(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let (open_reports,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM reports WHERE status = 'open'")
-            .fetch_one(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let row: (i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT \
+         (SELECT COUNT(*) FROM stories WHERE status = 'published'), \
+         (SELECT COALESCE(SUM(views), 0) FROM stories), \
+         (SELECT COALESCE(SUM(followers), 0) FROM stories), \
+         (SELECT COUNT(*) FROM reports WHERE status = 'open')"
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(StatsResponse {
-        published,
-        views,
-        followers,
-        open_reports,
+        published: row.0,
+        views: row.1,
+        followers: row.2,
+        open_reports: row.3,
     }))
 }
 
@@ -318,94 +305,199 @@ pub async fn build_story_response(
     row: &StoryRow,
     auth: Option<&AuthUser>,
 ) -> Result<StoryResponse, sqlx::Error> {
-    let mut show_all = false;
-    if let Some(user) = auth {
-        if Some(user.user_id) == row.author_id {
-            show_all = true;
+    let mut responses = build_story_responses_batch(pool, std::slice::from_ref(row), auth).await?;
+    Ok(responses.swap_remove(0))
+}
+
+pub async fn build_story_responses_batch(
+    pool: &PgPool,
+    rows: &[StoryRow],
+    auth: Option<&AuthUser>,
+) -> Result<Vec<StoryResponse>, sqlx::Error> {
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Split story IDs into owned vs non-owned for chapter visibility
+    let mut owned_ids: Vec<Uuid> = Vec::new();
+    let mut non_owned_ids: Vec<Uuid> = Vec::new();
+    for row in rows {
+        let show_all = auth
+            .map(|u| Some(u.user_id) == row.author_id)
+            .unwrap_or(false);
+        if show_all {
+            owned_ids.push(row.id);
+        } else {
+            non_owned_ids.push(row.id);
         }
     }
 
-    let chapter_rows: Vec<ChapterRow> = if show_all {
-        sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 ORDER BY sort_order")
-            .bind(row.id)
+    // Fetch chapters in two batches (owned see all, non-owned see published only)
+    let owned_chapters_fut = async {
+        if owned_ids.is_empty() {
+            Ok(Vec::new())
+        } else {
+            sqlx::query_as::<_, ChapterRow>(
+                "SELECT * FROM chapters WHERE story_id = ANY($1) ORDER BY sort_order",
+            )
+            .bind(&owned_ids)
             .fetch_all(pool)
-            .await?
-    } else {
-        sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 AND status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW()) ORDER BY sort_order")
-            .bind(row.id)
+            .await
+        }
+    };
+    let non_owned_chapters_fut = async {
+        if non_owned_ids.is_empty() {
+            Ok(Vec::new())
+        } else {
+            sqlx::query_as::<_, ChapterRow>(
+                "SELECT * FROM chapters WHERE story_id = ANY($1) AND status = 'published' \
+                 AND (scheduled_at IS NULL OR scheduled_at <= NOW()) ORDER BY sort_order",
+            )
+            .bind(&non_owned_ids)
             .fetch_all(pool)
-            .await?
+            .await
+        }
     };
 
-    let mut chapters = Vec::new();
-    for ch in &chapter_rows {
-        let content_rows: Vec<ContentRow> = sqlx::query_as(
-            "SELECT * FROM chapter_content WHERE chapter_id = $1 ORDER BY sort_order",
-        )
-        .bind(&ch.id)
-        .fetch_all(pool)
-        .await?;
+    let (owned_chapters, non_owned_chapters) =
+        tokio::try_join!(owned_chapters_fut, non_owned_chapters_fut)?;
 
-        let page_rows: Vec<PageRow> =
-            sqlx::query_as("SELECT * FROM chapter_pages WHERE chapter_id = $1 ORDER BY page_index")
-                .bind(&ch.id)
-                .fetch_all(pool)
-                .await?;
+    // Merge all chapter rows
+    let all_chapters: Vec<ChapterRow> = owned_chapters
+        .into_iter()
+        .chain(non_owned_chapters)
+        .collect();
 
-        let comment_rows: Vec<(Uuid, Option<Uuid>, String, String)> = sqlx::query_as(
-            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader') \
-             FROM comments c \
-             LEFT JOIN profiles p ON c.user_id = p.id \
-             WHERE c.chapter_id = $1 \
-             ORDER BY c.created_at"
-        )
-        .bind(&ch.id)
-        .fetch_all(pool)
-        .await?;
+    let all_chapter_ids: Vec<Uuid> = all_chapters.iter().map(|ch| ch.id).collect();
 
-        let content = if content_rows.is_empty() {
-            None
-        } else {
-            Some(content_rows.iter().map(|c| c.paragraph.clone()).collect())
-        };
-        let pages = if page_rows.is_empty() {
-            None
-        } else {
-            Some(
-                page_rows
-                    .iter()
-                    .map(|p| PageResponse {
-                        label: p.label.clone(),
-                        bg: p.bg.clone(),
-                    })
-                    .collect(),
-            )
-        };
-
-        chapters.push(ChapterResponse {
-            id: ch.id,
-            sort_order: ch.sort_order,
-            title: ch.title.clone(),
-            status: ch.status.clone(),
-            access: ch.access.clone(),
-            scheduled_at: ch.scheduled_at.clone(),
-            words: ch.words,
-            reads: ch.reads,
-            likes: ch.likes,
-            content,
-            pages,
-            comments: comment_rows
-                .into_iter()
-                .map(|(id, user_id, text, username)| CommentResponse {
-                    id,
-                    user_id,
-                    user: username,
-                    text,
-                })
-                .collect(),
-        });
+    // Group chapters by story_id
+    let mut chapters_by_story: HashMap<Uuid, Vec<&ChapterRow>> = HashMap::new();
+    for ch in &all_chapters {
+        chapters_by_story.entry(ch.story_id).or_default().push(ch);
     }
 
+    // If no chapters exist, return stories with empty chapter vecs
+    if all_chapter_ids.is_empty() {
+        return Ok(rows.iter().map(|row| assemble_story(row, Vec::new())).collect());
+    }
+
+    // Batch fetch content, pages, comments for ALL chapters at once
+    let content_fut = sqlx::query_as::<_, ContentRow>(
+        "SELECT * FROM chapter_content WHERE chapter_id = ANY($1) ORDER BY sort_order",
+    )
+    .bind(&all_chapter_ids)
+    .fetch_all(pool);
+
+    let pages_fut = sqlx::query_as::<_, PageRow>(
+        "SELECT * FROM chapter_pages WHERE chapter_id = ANY($1) ORDER BY page_index",
+    )
+    .bind(&all_chapter_ids)
+    .fetch_all(pool);
+
+    // Include c.chapter_id as first field so we can group by it
+    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String)>(
+        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader') \
+         FROM comments c \
+         LEFT JOIN profiles p ON c.user_id = p.id \
+         WHERE c.chapter_id = ANY($1) \
+         ORDER BY c.created_at",
+    )
+    .bind(&all_chapter_ids)
+    .fetch_all(pool);
+
+    let (all_content, all_pages, all_comments) =
+        tokio::try_join!(content_fut, pages_fut, comments_fut)?;
+
+    // Group by chapter_id
+    let mut content_map: HashMap<Uuid, Vec<ContentRow>> = HashMap::new();
+    for c in all_content {
+        content_map.entry(c.chapter_id).or_default().push(c);
+    }
+    let mut page_map: HashMap<Uuid, Vec<PageRow>> = HashMap::new();
+    for p in all_pages {
+        page_map.entry(p.chapter_id).or_default().push(p);
+    }
+    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String)>> =
+        HashMap::new();
+    for (chapter_id, id, user_id, text, username) in all_comments {
+        comment_map
+            .entry(chapter_id)
+            .or_default()
+            .push((id, user_id, text, username));
+    }
+
+    // Assemble responses
+    let responses = rows
+        .iter()
+        .map(|row| {
+            let chapter_rows = chapters_by_story.get(&row.id);
+            let chapters: Vec<ChapterResponse> = chapter_rows
+                .map(|chs| {
+                    chs.iter()
+                        .map(|ch| {
+                            let content_rows = content_map.get(&ch.id);
+                            let content = content_rows.and_then(|rows| {
+                                if rows.is_empty() {
+                                    None
+                                } else {
+                                    Some(rows.iter().map(|c| c.paragraph.clone()).collect())
+                                }
+                            });
+
+                            let page_rows = page_map.get(&ch.id);
+                            let pages = page_rows.and_then(|rows| {
+                                if rows.is_empty() {
+                                    None
+                                } else {
+                                    Some(
+                                        rows.iter()
+                                            .map(|p| PageResponse {
+                                                label: p.label.clone(),
+                                                bg: p.bg.clone(),
+                                            })
+                                            .collect(),
+                                    )
+                                }
+                            });
+
+                            let comment_rows = comment_map.remove(&ch.id).unwrap_or_default();
+                            let comments = comment_rows
+                                .into_iter()
+                                .map(|(id, user_id, text, username)| CommentResponse {
+                                    id,
+                                    user_id,
+                                    user: username,
+                                    text,
+                                })
+                                .collect();
+
+                            ChapterResponse {
+                                id: ch.id,
+                                sort_order: ch.sort_order,
+                                title: ch.title.clone(),
+                                status: ch.status.clone(),
+                                access: ch.access.clone(),
+                                scheduled_at: ch.scheduled_at,
+                                words: ch.words,
+                                reads: ch.reads,
+                                likes: ch.likes,
+                                content,
+                                pages,
+                                comments,
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            assemble_story(row, chapters)
+        })
+        .collect();
+
+    Ok(responses)
+}
+
+fn assemble_story(row: &StoryRow, chapters: Vec<ChapterResponse>) -> StoryResponse {
     let tags: Vec<String> = row
         .tags
         .as_array()
@@ -417,7 +509,7 @@ pub async fn build_story_response(
         })
         .unwrap_or_default();
 
-    Ok(StoryResponse {
+    StoryResponse {
         id: row.id,
         author_id: row.author_id,
         title: row.title.clone(),
@@ -436,7 +528,7 @@ pub async fn build_story_response(
         earnings: row.earnings,
         progress: row.progress,
         chapters,
-    })
+    }
 }
 
 fn random_cover() -> String {

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -84,67 +86,85 @@ pub async fn list_chapters(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     };
 
-    let mut chapters = Vec::new();
-    for ch in &rows {
-        let content_rows: Vec<ContentRow> = sqlx::query_as(
-            "SELECT * FROM chapter_content WHERE chapter_id = $1 ORDER BY sort_order",
-        )
-        .bind(&ch.id)
-        .fetch_all(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let chapter_ids: Vec<Uuid> = rows.iter().map(|ch| ch.id).collect();
+    if chapter_ids.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
 
-        let page_rows: Vec<PageRow> =
-            sqlx::query_as("SELECT * FROM chapter_pages WHERE chapter_id = $1 ORDER BY page_index")
-                .bind(&ch.id)
-                .fetch_all(&pool)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let content_fut = sqlx::query_as::<_, ContentRow>(
+        "SELECT * FROM chapter_content WHERE chapter_id = ANY($1) ORDER BY sort_order",
+    )
+    .bind(&chapter_ids)
+    .fetch_all(&pool);
 
-        let comment_rows: Vec<(Uuid, Option<Uuid>, String, String)> = sqlx::query_as(
-            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader') \
-             FROM comments c \
-             LEFT JOIN profiles p ON c.user_id = p.id \
-             WHERE c.chapter_id = $1 \
-             ORDER BY c.created_at"
-        )
-        .bind(&ch.id)
-        .fetch_all(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let pages_fut = sqlx::query_as::<_, PageRow>(
+        "SELECT * FROM chapter_pages WHERE chapter_id = ANY($1) ORDER BY page_index",
+    )
+    .bind(&chapter_ids)
+    .fetch_all(&pool);
 
-        let content = if content_rows.is_empty() {
-            None
-        } else {
-            Some(content_rows.iter().map(|c| c.paragraph.clone()).collect())
-        };
-        let pages = if page_rows.is_empty() {
-            None
-        } else {
-            Some(
-                page_rows
-                    .iter()
-                    .map(|p| PageResponse {
-                        label: p.label.clone(),
-                        bg: p.bg.clone(),
-                    })
-                    .collect(),
-            )
-        };
+    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String)>(
+        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader') \
+         FROM comments c \
+         LEFT JOIN profiles p ON c.user_id = p.id \
+         WHERE c.chapter_id = ANY($1) \
+         ORDER BY c.created_at",
+    )
+    .bind(&chapter_ids)
+    .fetch_all(&pool);
 
-        chapters.push(ChapterResponse {
-            id: ch.id,
-            sort_order: ch.sort_order,
-            title: ch.title.clone(),
-            status: ch.status.clone(),
-            access: ch.access.clone(),
-            scheduled_at: ch.scheduled_at.clone(),
-            words: ch.words,
-            reads: ch.reads,
-            likes: ch.likes,
-            content,
-            pages,
-            comments: comment_rows
+    let (all_content, all_pages, all_comments) =
+        tokio::try_join!(content_fut, pages_fut, comments_fut)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Group by chapter_id
+    let mut content_map: HashMap<Uuid, Vec<ContentRow>> = HashMap::new();
+    for c in all_content {
+        content_map.entry(c.chapter_id).or_default().push(c);
+    }
+    let mut page_map: HashMap<Uuid, Vec<PageRow>> = HashMap::new();
+    for p in all_pages {
+        page_map.entry(p.chapter_id).or_default().push(p);
+    }
+    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String)>> =
+        HashMap::new();
+    for (chapter_id, id, user_id, text, username) in all_comments {
+        comment_map
+            .entry(chapter_id)
+            .or_default()
+            .push((id, user_id, text, username));
+    }
+
+    let chapters = rows
+        .iter()
+        .map(|ch| {
+            let content_rows = content_map.get(&ch.id);
+            let content = content_rows.and_then(|rows| {
+                if rows.is_empty() {
+                    None
+                } else {
+                    Some(rows.iter().map(|c| c.paragraph.clone()).collect())
+                }
+            });
+
+            let page_rows = page_map.get(&ch.id);
+            let pages = page_rows.and_then(|rows| {
+                if rows.is_empty() {
+                    None
+                } else {
+                    Some(
+                        rows.iter()
+                            .map(|p| PageResponse {
+                                label: p.label.clone(),
+                                bg: p.bg.clone(),
+                            })
+                            .collect(),
+                    )
+                }
+            });
+
+            let comment_rows = comment_map.remove(&ch.id).unwrap_or_default();
+            let comments = comment_rows
                 .into_iter()
                 .map(|(id, user_id, text, username)| CommentResponse {
                     id,
@@ -152,9 +172,24 @@ pub async fn list_chapters(
                     user: username,
                     text,
                 })
-                .collect(),
-        });
-    }
+                .collect();
+
+            ChapterResponse {
+                id: ch.id,
+                sort_order: ch.sort_order,
+                title: ch.title.clone(),
+                status: ch.status.clone(),
+                access: ch.access.clone(),
+                scheduled_at: ch.scheduled_at,
+                words: ch.words,
+                reads: ch.reads,
+                likes: ch.likes,
+                content,
+                pages,
+                comments,
+            }
+        })
+        .collect();
 
     Ok(Json(chapters))
 }

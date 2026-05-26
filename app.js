@@ -305,22 +305,29 @@
     return api(path, { method: "DELETE" });
   }
 
+  // Token cache with TTL to avoid redundant getSession() on sequential calls
+  var _tokenCache = { token: null, expiresAt: 0 };
+  var TOKEN_TTL_MS = 4 * 60 * 1000; // 4 minutes
+
   async function api(path, options = {}) {
+    var now = Date.now();
+    var token = state.accessToken;
 
-    let token = state.accessToken; // Use cached token first
+    // Use cached token if still valid
+    if (!token && _tokenCache.token && now < _tokenCache.expiresAt) {
+      token = _tokenCache.token;
+      state.accessToken = token;
+    }
 
-    // If no cached token, try to get fresh session
+    // If no cached token, try to get fresh session (once)
     if (!token && supabaseClient) {
       try {
-        const {
-          data: { session }
-        } = await supabaseClient.auth.getSession();
-
+        const { data: { session } } = await supabaseClient.auth.getSession();
         token = session?.access_token;
         state.accessToken = token || null;
-
-        if (!token) {
-          console.warn(`[API ${path}] No active session - request will be unauthenticated`);
+        if (token) {
+          _tokenCache.token = token;
+          _tokenCache.expiresAt = now + TOKEN_TTL_MS;
         }
       } catch (err) {
         console.error(`[API ${path}] Failed to get session:`, err.message);
@@ -332,27 +339,15 @@
       "Content-Type": "application/json",
       ...(options.headers || {}),
     };
-
     if (token) {
       headers.Authorization = `Bearer ${token}`;
-      console.log(`[API ${path}] Attaching JWT token (first 20 chars: ${token.substring(0, 20)}...)`);
     }
 
-    const response = await fetch(
-      API_BASE_URL + `/api${path}`,
-      {
-        ...options,
-        headers,
-      }
-    );
+    const response = await fetch(API_BASE_URL + `/api${path}`, { ...options, headers });
 
     if (!response.ok) {
-
-      // Better debugging
       const text = await response.text();
-
       console.error(`[API ${path}] Error ${response.status}:`, text);
-
       throw new Error(response.status);
     }
 
@@ -553,12 +548,14 @@
       api("/stories").catch(function () { return []; }),
       api("/library/ids").catch(function () { return []; }),
       api("/reports").catch(function () { return []; }),
-      api("/notifications").catch(function () { return []; })
+      api("/notifications").catch(function () { return []; }),
+      api("/stats").catch(function () { return { published: 0, views: 0, followers: 0, open_reports: 0 }; })
     ]).then(function (results) {
       state.stories = results[0];
       state.library = results[1];
       state.reports = results[2];
       state.notifications = results[3];
+      state.stats = results[4];
       if (state.stories.length && !currentStoryId) currentStoryId = state.stories[0].id;
     });
   }
@@ -691,14 +688,11 @@
     view.appendChild(carousel);
     startCarouselAuto();
 
-    // Stats
-    api("/stats").then(function (s) {
-      var row = document.querySelector(".stats-row");
-      if (row) { row.innerHTML = ""; row.appendChild(metric("Published", s.published).firstChild || metric("Published", s.published)); }
-    });
+    // Stats — use cached state.stats from loadAll() instead of fetching per-render
+    var s = state.stats || {};
     view.appendChild(el("div", "stats-row", [
-      metric("Published", countPublished()), metric("Total reads", formatNumber(totalViews())),
-      metric("Followers", formatNumber(totalFollowers())), metric("Open reports", countOpenReports())
+      metric("Published", s.published || countPublished()), metric("Total reads", formatNumber(s.views || totalViews())),
+      metric("Followers", formatNumber(s.followers || totalFollowers())), metric("Open reports", s.open_reports || countOpenReports())
     ]));
 
     // Filter toolbar
@@ -1327,44 +1321,80 @@
     if (action === "deleteChapter") {
       var doomedId = target.dataset.id;
       if (!window.confirm("Are you sure you want to delete this chapter? This cannot be undone.")) return;
+      // Optimistic UI: remove chapter from state immediately
+      var backupStories = JSON.parse(JSON.stringify(state.stories));
+      state.stories.forEach(function (s) {
+        s.chapters = s.chapters.filter(function (ch) { return ch.id !== doomedId; });
+      });
+      currentChapterIndex = 0;
+      notify("Chapter deleted.");
+      render();
+      // Background sync
       apiDelete("/chapters/" + doomedId).then(function () {
-        notify("Chapter deleted.");
         return api("/stories");
       }).then(function (s) {
         state.stories = s;
-        currentChapterIndex = 0;
         render();
       }).catch(function (err) {
         console.error("Failed to delete chapter:", err);
-        notify("Failed to delete chapter.");
+        state.stories = backupStories;
+        notify("Failed to delete chapter. Restored.");
+        render();
       });
     }
     if (action === "deleteStory") {
       var doomed = state.stories.find(function (s) { return s.id === target.dataset.id; });
       if (!doomed || !canDeleteStory(doomed)) return;
       if (!window.confirm("Delete \"" + doomed.title + "\" and all of its chapters? This cannot be undone.")) return;
-      apiDelete("/stories/" + doomed.id).then(function (r) {
-        notify(r.message || "Story deleted.");
+      // Optimistic UI: remove story from state immediately
+      var backupStories = state.stories.slice();
+      var backupLibrary = state.library.slice();
+      state.stories = state.stories.filter(function (s) { return s.id !== doomed.id; });
+      state.library = state.library.filter(function (id) { return id !== doomed.id; });
+      if (currentStoryId === doomed.id) {
+        currentStoryId = state.stories[0] ? state.stories[0].id : "";
+        currentChapterIndex = 0;
+      }
+      hydrateGenres();
+      notify("Story deleted.");
+      render();
+      // Background sync
+      apiDelete("/stories/" + doomed.id).then(function () {
         return Promise.all([api("/stories"), api("/library/ids")]);
       }).then(function (results) {
         state.stories = results[0];
         state.library = results[1];
-        if (currentStoryId === doomed.id) {
-          currentStoryId = state.stories[0] ? state.stories[0].id : "";
-          currentChapterIndex = 0;
-        }
         hydrateGenres();
+        render();
+      }).catch(function (err) {
+        console.error("Failed to delete story:", err);
+        state.stories = backupStories;
+        state.library = backupLibrary;
+        hydrateGenres();
+        notify("Failed to delete story. Restored.");
         render();
       });
     }
     if (action === "deleteComment") {
       if (!window.confirm("Are you sure you want to delete this comment?")) return;
-      apiDelete("/comments/" + target.dataset.id).then(function () {
-        notify("Comment deleted.");
+      var commentId = target.dataset.id;
+      // Optimistic UI: remove comment from state immediately
+      var backupStories = JSON.parse(JSON.stringify(state.stories));
+      state.stories.forEach(function (s) {
+        s.chapters.forEach(function (ch) {
+          ch.comments = ch.comments.filter(function (c) { return c.id !== commentId; });
+        });
+      });
+      notify("Comment deleted.");
+      render();
+      // Background sync
+      apiDelete("/comments/" + commentId).then(function () {
         return api("/stories");
       }).then(function (s) { state.stories = s; render(); }).catch(function (err) {
         console.error("Failed to delete comment:", err);
-        notify("Failed to delete comment.");
+        state.stories = backupStories;
+        notify("Failed to delete comment. Restored.");
+        render();
       });
     }
     if (action === "resolveReport" || action === "escalateReport") {

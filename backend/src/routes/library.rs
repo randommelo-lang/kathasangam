@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::db::AuthUser;
 use crate::models::*;
-use crate::routes::stories::{build_story_response, fetch_story_row};
+use crate::routes::stories::build_story_responses_batch;
 
 /// GET /api/library
 pub async fn get_library(
@@ -17,18 +17,27 @@ pub async fn get_library(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let mut results = Vec::new();
-    for (sid,) in &story_ids {
-        let row = fetch_story_row(&pool, *sid)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        if let Some(r) = row {
-            let resp = build_story_response(&pool, &r, Some(&auth))
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            results.push(resp);
-        }
+    let ids: Vec<Uuid> = story_ids.into_iter().map(|(id,)| id).collect();
+    if ids.is_empty() {
+        return Ok(Json(Vec::new()));
     }
+
+    let rows: Vec<StoryRow> = sqlx::query_as(
+        "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, \
+         stories.title, stories.type, stories.genre, stories.language, stories.license, \
+         stories.status, stories.tags, stories.description, stories.cover, stories.followers, \
+         stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at \
+         FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id \
+         WHERE stories.id = ANY($1)",
+    )
+    .bind(&ids)
+    .fetch_all(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let results = build_story_responses_batch(&pool, &rows, Some(&auth))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(results))
 }

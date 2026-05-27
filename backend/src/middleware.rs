@@ -60,13 +60,14 @@ pub async fn rate_limit_middleware(
     // Path-specific limits
     let path = request.uri().path();
     let (limit, window_secs) = if path.contains("/upload/image") {
-        (10, 60) // Tight limit for image uploads: max 10 per minute
+        (30, 60) // Tight limit for image uploads: max 30 per minute
     } else {
         (100, 60) // General API limit: max 100 per minute
     };
 
-    if !limiter.check(ip, limit, Duration::from_secs(window_secs)) {
-        eprintln!("Rate limit exceeded for IP: {} on path: {}", path, path);
+    let ip_key = ip.clone();
+    if !limiter.check(ip_key, limit, Duration::from_secs(window_secs)) {
+        eprintln!("Rate limit exceeded for IP: {} on path: {}", ip, path);
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
 

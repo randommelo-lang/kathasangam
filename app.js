@@ -340,9 +340,11 @@
     }
 
     const headers = {
-      "Content-Type": "application/json",
       ...(options.headers || {}),
     };
+    if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
@@ -403,7 +405,7 @@
   function updateAuthUI() {
     if (state.user && state.profile) {
       var username = state.profile.username || state.user.email.split("@")[0];
-      var role = state.profile.role || "reader";
+      var role = (state.profile.role || "reader").toLowerCase();
       var initial = username.charAt(0).toUpperCase();
 
       authArea.innerHTML = "";
@@ -420,7 +422,7 @@
 
       var badge = document.createElement("select");
       badge.className = "auth-role-badge-select";
-      badge.dataset.role = role;
+      badge.dataset.role = role.toLowerCase();
       badge.title = "Click to change your role (Developer Switcher)";
 
       var userEmail = (state.user.email || "").toLowerCase();
@@ -670,7 +672,11 @@
     var track = el("div", "carousel-track");
     featured.forEach(function (story) {
       var slide = el("div", "carousel-slide");
-      var bg = el("div", "cover-bg"); bg.style.background = story.cover; slide.appendChild(bg);
+      var coverVal = story.cover;
+      if (coverVal && !coverVal.startsWith("url") && !coverVal.startsWith("linear-gradient") && !coverVal.startsWith("radial-gradient")) {
+        coverVal = "url('" + coverVal + "')";
+      }
+      var bg = el("div", "cover-bg"); bg.style.background = coverVal; slide.appendChild(bg);
       slide.appendChild(el("p", "carousel-eyebrow", story.genre + " · " + story.type));
       slide.appendChild(el("h2", "carousel-title", story.title));
       slide.appendChild(el("p", "carousel-desc", story.description));
@@ -994,7 +1000,8 @@
       // Active Story Card
       var coverEl = el("div", "studio-active-cover");
       if (active.cover) {
-        coverEl.style.backgroundImage = active.cover.startsWith("url") ? active.cover : "url('" + active.cover + "')";
+        var isUrlOrGradient = active.cover.startsWith("url") || active.cover.startsWith("linear-gradient") || active.cover.startsWith("radial-gradient");
+        coverEl.style.backgroundImage = isUrlOrGradient ? active.cover : "url('" + active.cover + "')";
       } else {
         coverEl.style.background = "linear-gradient(135deg, #333, #111)";
       }
@@ -1064,10 +1071,8 @@
             ]);
           })(),
 
-          // Buttons
           el("div", "studio-btn-row", [
             iconButton("Continue Writing", "btn primary orange-glow-btn", { action: "continueWriting" }, "icon-pencil"),
-            iconButton("Manage", "btn", { action: "manageStory", id: active.id }, "icon-gear"),
             iconButton("View Story", "btn", { action: "openStory", id: active.id }, "icon-book"),
             iconButton("", "btn danger", { action: "deleteStory", id: active.id }, "icon-trash")
           ])
@@ -1209,14 +1214,19 @@
     }
 
     // Quick Actions Panel
+    var actionsGrid = [
+      quickActionTile("icon-pencil", "New Chapter", "newChapter"),
+      quickActionTile("icon-document", "Quick Draft", "quickDraft"),
+      quickActionTile("icon-book", "Story Notes", "storyNotes"),
+      quickActionTile("icon-image", "Upload Cover", "uploadCover")
+    ];
+    if (active && active.cover && !active.cover.startsWith("linear-gradient") && !active.cover.startsWith("radial-gradient")) {
+      actionsGrid.push(quickActionTile("icon-trash", "Delete Cover", "deleteCover"));
+    }
+
     var quickActionsPanel = el("section", "panel", [
       el("h2", null, "Quick Actions"),
-      el("div", "quick-actions-grid", [
-        quickActionTile("icon-pencil", "New Chapter", "newChapter"),
-        quickActionTile("icon-document", "Quick Draft", "quickDraft"),
-        quickActionTile("icon-book", "Story Notes", "storyNotes"),
-        quickActionTile("icon-image", "Upload Cover", "uploadCover")
-      ])
+      el("div", "quick-actions-grid", actionsGrid)
     ]);
     rightColumnChildren.push(quickActionsPanel);
 
@@ -1252,6 +1262,7 @@
     };
 
     apiPut("/chapters/" + editingChapterId, payload).then(function() {
+      localStorage.removeItem("kathasangam_draft_" + editingChapterId);
       return api("/stories");
     }).then(function (s) {
       state.stories = s;
@@ -1312,6 +1323,63 @@
     var initialCount = contentText.trim() ? contentText.trim().split(/\s+/).length : 0;
     wordCountEl.textContent = formatNumber(initialCount) + " words";
 
+    // Auto-save setup
+    var draftKey = "kathasangam_draft_" + editingChapterId;
+    var autoSaveTimer = null;
+    function triggerAutoSave() {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(function() {
+        var draftData = {
+          title: titleInput.value,
+          content: textarea.value,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(draftKey, JSON.stringify(draftData));
+      }, 800);
+    }
+    titleInput.addEventListener("input", triggerAutoSave);
+    textarea.addEventListener("input", triggerAutoSave);
+
+    // Recovery banner
+    var cached = null;
+    try {
+      cached = JSON.parse(localStorage.getItem(draftKey));
+    } catch(e) {}
+
+    var banner = null;
+    if (cached && (cached.title !== chapter.title || cached.content !== contentText)) {
+      var restoreBtn = button("Restore Draft", "btn primary btn-sm");
+      var discardBtn = button("Discard", "btn danger btn-sm");
+      
+      var bannerText = "We found a newer unsaved draft from " + formatDate(cached.timestamp) + ". ";
+      banner = el("div", "editor-recovery-banner", [
+        el("span", null, bannerText),
+        el("div", { style: "display: flex; gap: 8px;" }, [restoreBtn, discardBtn])
+      ]);
+      banner.style.display = "flex";
+      banner.style.justifyContent = "space-between";
+      banner.style.alignItems = "center";
+      banner.style.padding = "10px 16px";
+      banner.style.marginBottom = "16px";
+      banner.style.background = "rgba(229, 124, 51, 0.12)";
+      banner.style.border = "1px solid var(--accent)";
+      banner.style.borderRadius = "var(--radius)";
+
+      restoreBtn.addEventListener("click", function() {
+        titleInput.value = cached.title;
+        textarea.value = cached.content;
+        updateWordCount();
+        banner.style.display = "none";
+        notify("Draft restored.");
+      });
+
+      discardBtn.addEventListener("click", function() {
+        localStorage.removeItem(draftKey);
+        banner.style.display = "none";
+        notify("Draft discarded.");
+      });
+    }
+
     var uploadStatus = el("span", "mini-meta", "");
     var fileInput = el("input", null);
     fileInput.type = "file";
@@ -1327,6 +1395,7 @@
         reader.onload = function (evt) {
           textarea.value = evt.target.result;
           updateWordCount();
+          triggerAutoSave();
           uploadStatus.textContent = "Extracted text from " + file.name;
         };
         reader.readAsText(file);
@@ -1338,6 +1407,7 @@
               .then(function (result) {
                 textarea.value = result.value;
                 updateWordCount();
+                triggerAutoSave();
                 uploadStatus.textContent = "Extracted text from " + file.name;
               })
               .catch(function (err) {
@@ -1381,6 +1451,7 @@
         el("h2", null, "Chapter Editor"),
         el("span", "mini-meta", "Story: " + story.title)
       ]),
+      banner,
       el("div", "form-grid", [
         el("label", "field", [
           el("span", null, "Chapter Title"),
@@ -1462,6 +1533,8 @@
     if (action === "openChapter") { currentChapterIndex = Number(target.dataset.index); currentComicPageIndex = 0; window.location.hash = "reader"; render(); }
     if (action === "manageStory") {
       currentStoryId = target.dataset.id;
+      currentView = "studio";
+      window.location.hash = "studio";
       render();
     }
     if (action === "openStoryModal") {
@@ -1474,7 +1547,67 @@
       notify("Story Notes feature is currently in prototype mode.");
     }
     if (action === "uploadCover") {
-      notify("Upload Cover feature is currently in prototype mode.");
+      var story = getCurrentStudioStory();
+      if (!story || !story.id) {
+        notify("Please select or create a story first.");
+        return;
+      }
+      
+      var fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.accept = "image/*";
+      fileInput.onchange = function(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        
+        notify("Uploading cover image...");
+        
+        var fd = new FormData();
+        fd.append("file", file);
+        
+        api("/upload/image", {
+          method: "POST",
+          body: fd
+        }).then(function(resp) {
+          if (!resp || !resp.url) throw new Error("Upload failed");
+          // Save cover to story
+          return apiPut("/stories/" + story.id, { cover: resp.url });
+        }).then(function() {
+          return api("/stories");
+        }).then(function(s) {
+          state.stories = s;
+          notify("Cover image updated successfully!");
+          render();
+        }).catch(function(err) {
+          console.error(err);
+          notify("Failed to upload cover: " + err.message);
+        });
+      };
+      fileInput.click();
+    }
+    if (action === "deleteCover") {
+      var story = getCurrentStudioStory();
+      if (!story || !story.id) {
+        notify("Please select or create a story first.");
+        return;
+      }
+      if (!confirm("Are you sure you want to remove the cover image and reset to default?")) {
+        return;
+      }
+      notify("Removing cover image...");
+      apiPut("/stories/" + story.id, { cover: "" })
+        .then(function() {
+          return api("/stories");
+        })
+        .then(function(s) {
+          state.stories = s;
+          notify("Cover image removed.");
+          render();
+        })
+        .catch(function(err) {
+          console.error(err);
+          notify("Failed to remove cover: " + err.message);
+        });
     }
     if (action === "newChapter") {
       var story = getCurrentStudioStory();
@@ -1529,6 +1662,31 @@
       saveChapterFromEditor("published");
     }
     if (action === "cancelEditChapter") {
+      var titleEl = document.querySelector(".editor-title-input");
+      var contentEl = document.querySelector(".editor-textarea");
+      var story = getCurrentStudioStory();
+      var chapter = null;
+      if (story) {
+        chapter = story.chapters.find(function(ch) { return ch.id === editingChapterId; });
+      }
+      
+      var hasChanges = false;
+      if (titleEl && contentEl && chapter) {
+        var originalText = "";
+        if (chapter.content && chapter.content.length) {
+          originalText = chapter.content.join("\n\n");
+        }
+        if (titleEl.value !== chapter.title || contentEl.value !== originalText) {
+          hasChanges = true;
+        }
+      }
+      
+      if (hasChanges) {
+        if (!window.confirm("You have unsaved changes. Are you sure you want to discard them?")) {
+          return;
+        }
+      }
+      localStorage.removeItem("kathasangam_draft_" + editingChapterId);
       currentView = "studio";
       window.location.hash = "studio";
       render();
@@ -1698,7 +1856,11 @@
   function storyCard(story, options) {
     options = options || {};
     var tpl = document.getElementById("storyCardTemplate"); var card = tpl.content.firstElementChild.cloneNode(true);
-    card.querySelector(".cover-art").style.setProperty("--cover", story.cover);
+    var coverVal = story.cover;
+    if (coverVal && !coverVal.startsWith("url") && !coverVal.startsWith("linear-gradient") && !coverVal.startsWith("radial-gradient")) {
+      coverVal = "url('" + coverVal + "')";
+    }
+    card.querySelector(".cover-art").style.setProperty("--cover", coverVal);
     card.querySelector(".cover-badge").textContent = story.type;
     var ob = card.querySelector(".cover-button"); 
     ob.dataset.action = options.manage ? "manageStory" : "openStory";

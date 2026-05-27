@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    .badge {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: inline-block;
+      margin: 10px;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 32px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h2>Test Base64 Backgrounds</h2>
+  
+  <div style="margin-bottom: 20px;">
+    <h3>1. Admin (Gold/Crown)</h3>
+    <div id="admin-badge" class="badge"></div>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <h3>2. Moderator (Teal/Shield)</h3>
+    <div id="moderator-badge" class="badge"></div>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <h3>3. Author (Gold/Quill)</h3>
+    <div id="author-badge" class="badge"></div>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <h3>4. Reader (Blue/Book)</h3>
+    <div id="reader-badge" class="badge"></div>
+  </div>
+
+  <script>
+    // Copy background-image from styles.css dynamically or inline them
+    // We will inject the inline styles from styles.css to test
+    const styleSheet = document.createElement("style");
+    document.head.appendChild(styleSheet);
+    
+    // Fetch styles.css to parse the background images
+    fetch("styles.css")
+      .then(r => r.text())
+      .then(css => {
+        // Extract the rules for each selector
+        const rules = [
+          { id: "admin-badge", role: "admin" },
+          { id: "moderator-badge", role: "moderator" },
+          { id: "author-badge", role: "author" },
+          { id: "reader-badge", role: "reader" }
+        ];
+        
+        rules.forEach(rule => {
+          const regex = new RegExp(`\\.auth-role-badge-select\\[data-role="${rule.role}" i\\]\\s*\\{([^\\}]+)\\}`, "i");
+          const match = css.match(regex);
+          if (match) {
+            styleSheet.sheet.insertRule(`#${rule.id} { ${match[1]} }`, 0);
+          } else {
+            console.error("No match for " + rule.role);
+          }
+        });
+      });
+  </script>
+</body>
+</html>

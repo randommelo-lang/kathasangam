@@ -214,6 +214,65 @@ pub async fn delete_story(
     Ok(Json(serde_json::json!({ "message": "Story deleted." })))
 }
 
+/// PUT /api/stories/:id
+pub async fn update_story(
+    State(pool): State<PgPool>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateStoryRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Check if the story exists and retrieve its author_id
+    let row = fetch_story_row(&pool, id)
+        .await
+        .map_err(|e| {
+            eprintln!("Database error checking story ownership: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Only allow updating if the user is the author
+    if row.author_id != Some(auth.user_id) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Build update query dynamically
+    let title = body.title.unwrap_or(row.title);
+    let genre = body.genre.unwrap_or(row.genre);
+    let description = body.description.unwrap_or(row.description);
+    let mut cover = body.cover.unwrap_or(row.cover);
+    if cover.is_empty() {
+        cover = random_cover();
+    }
+    let status = body.status.unwrap_or(row.status);
+
+    sqlx::query(
+        "UPDATE stories SET title = $1, genre = $2, description = $3, cover = $4, status = $5 WHERE id = $6"
+    )
+    .bind(&title)
+    .bind(&genre)
+    .bind(&description)
+    .bind(&cover)
+    .bind(&status)
+    .bind(id)
+    .execute(&pool)
+    .await
+    .map_err(|e| {
+        eprintln!("Database error updating story: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Re-index story in Meilisearch
+    let pool_clone = pool.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::search::index_story(&pool_clone, id).await {
+            eprintln!("⚠️ Failed to re-index story {} in Meilisearch: {}", id, e);
+        }
+    });
+
+    Ok(Json(serde_json::json!({ "message": "Story updated." })))
+}
+
+
 /// POST /api/stories
 pub async fn create_story(
     State(pool): State<PgPool>,

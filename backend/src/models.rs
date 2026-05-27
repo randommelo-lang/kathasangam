@@ -78,6 +78,16 @@ pub struct CreateStoryRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct UpdateStoryRequest {
+    pub title: Option<String>,
+    pub genre: Option<String>,
+    pub description: Option<String>,
+    pub cover: Option<String>,
+    pub status: Option<String>,
+}
+
+
+#[derive(Debug, Deserialize)]
 pub struct StoryQuery {
     pub q: Option<String>,
     pub genre: Option<String>,

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <!-- Teal/Green Glow Filter -->
+    <filter id="tealGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Gradients for Left (Light) and Right (Dark) halves -->
+    <linearGradient id="shieldLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#76eed4" />
+      <stop offset="50%" stop-color="#2bbba9" />
+      <stop offset="100%" stop-color="#147c6f" />
+    </linearGradient>
+
+    <linearGradient id="shieldRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#148072" />
+      <stop offset="50%" stop-color="#0b544b" />
+      <stop offset="100%" stop-color="#05332d" />
+    </linearGradient>
+
+    <!-- Inner Shield Gradients -->
+    <linearGradient id="innerLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a3f7e5" />
+      <stop offset="100%" stop-color="#209c8d" />
+    </linearGradient>
+
+    <linearGradient id="innerRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#116d62" />
+      <stop offset="100%" stop-color="#043831" />
+    </linearGradient>
+
+    <!-- Star Gradient -->
+    <linearGradient id="starGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#7be7d4" />
+    </linearGradient>
+  </defs>
+
+  <!-- Teal Glow Underlay -->
+  <g filter="url(#tealGlow)" opacity="0.6">
+    <path d="M 60 20 Q 40 18, 32 30 Q 30 65, 60 98 Q 90 65, 88 30 Q 80 18, 60 20 Z" fill="#2bbba9" />
+  </g>
+
+  <!-- Outer Shield - Left Half -->
+  <path d="M 60 20 Q 40 18, 32 30 Q 30 65, 60 98 Z" fill="url(#shieldLeft)" />
+
+  <!-- Outer Shield - Right Half -->
+  <path d="M 60 20 Q 80 18, 88 30 Q 90 65, 60 98 Z" fill="url(#shieldRight)" />
+
+  <!-- Inner Rim - Left Half -->
+  <path d="M 60 26 Q 44 24, 38 34 Q 36 62, 60 90 Z" fill="url(#innerLeft)" />
+
+  <!-- Inner Rim - Right Half -->
+  <path d="M 60 26 Q 76 24, 82 34 Q 84 62, 60 90 Z" fill="url(#innerRight)" />
+
+  <!-- Divider Groove Line -->
+  <line x1="60" y1="20" x2="60" y2="98" stroke="#05332d" stroke-width="1.5" opacity="0.4" />
+
+  <!-- Star Symbol in the Center -->
+  <g filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.4))">
+    <!-- Star Left Half -->
+    <path d="M 60 42 L 64.5 51.5 L 75 53 L 67.5 60.5 L 69.5 71 L 60 65.5 Z" fill="url(#starGradient)" />
+    <!-- Star Right Half -->
+    <path d="M 60 42 L 55.5 51.5 L 45 53 L 52.5 60.5 L 50.5 71 L 60 65.5 Z" fill="url(#starGradient)" opacity="0.8" />
+  </g>
+
+  <!-- Highlight Gleams -->
+  <circle cx="60" cy="42" r="1.5" fill="#ffffff" />
+  <path d="M 38 34 L 60 26" stroke="#ffffff" stroke-width="1" opacity="0.4" stroke-linecap="round" />
+</svg>

@@ -20,6 +20,9 @@ async fn main() {
 
     dotenvy::dotenv().ok();
 
+    // Initialize cached JWT public key
+    crate::db::init_jwt_decoding_key();
+
     println!("🔶 KathaSangam Backend starting …");
 
     let rate_limiter = std::sync::Arc::new(middleware::RateLimiter::new());
@@ -66,6 +69,7 @@ async fn main() {
         .route(
             "/stories/:id",
             get(routes::stories::get_story)
+                .put(routes::stories::update_story)
                 .delete(routes::stories::delete_story),
         )
 

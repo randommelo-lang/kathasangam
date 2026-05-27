@@ -6,6 +6,7 @@ use axum::{
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use std::sync::OnceLock;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -22,6 +23,17 @@ pub struct AuthUser {
     pub user_id: Uuid,
 }
 
+pub static JWT_DECODING_KEY: OnceLock<DecodingKey> = OnceLock::new();
+
+pub fn init_jwt_decoding_key() {
+    let env_secret = std::env::var("SUPABASE_JWT_SECRET").expect("SUPABASE_JWT_SECRET is missing");
+    let pem_key = env_secret.replace("\\n", "\n");
+    let key = DecodingKey::from_ec_pem(pem_key.as_bytes()).expect("Failed to parse SUPABASE_JWT_SECRET as EC PEM key");
+    if JWT_DECODING_KEY.set(key).is_err() {
+        panic!("Failed to set JWT_DECODING_KEY OnceLock");
+    }
+}
+
 #[async_trait]
 impl<S> FromRequestParts<S> for AuthUser
 where
@@ -30,15 +42,6 @@ where
     type Rejection = StatusCode;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // 1. Get the secret string from .env
-        let env_secret = std::env::var("SUPABASE_JWT_SECRET").map_err(|e| {
-            eprintln!("Missing SUPABASE_JWT_SECRET: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-        // 2. Convert the literal "\n" text back into real newlines for the PEM parser
-        let pem_key = env_secret.replace("\\n", "\n");
-
         let auth_header = parts
             .headers
             .get("Authorization")
@@ -51,18 +54,17 @@ where
 
         let token = &auth_header[7..];
 
-        // 3. Parse as an Elliptic Curve (EC) PEM key
-        let decoding_key = DecodingKey::from_ec_pem(pem_key.as_bytes()).map_err(|e| {
-            eprintln!("Failed to parse Public Key PEM: {}", e);
+        let decoding_key = JWT_DECODING_KEY.get().ok_or_else(|| {
+            eprintln!("JWT decoding key is not initialized");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-        // 4. Set validation to expect ES256 (which matches your ECC P-256 key)
+        // Set validation to expect ES256 (which matches your ECC P-256 key)
         let mut validation = Validation::new(Algorithm::ES256);
         validation.validate_aud = true;
         validation.set_audience(&["authenticated"]);
 
-        let token_data = decode::<JwtClaims>(token, &decoding_key, &validation).map_err(|e| {
+        let token_data = decode::<JwtClaims>(token, decoding_key, &validation).map_err(|e| {
             eprintln!("JWT validation failed: {}", e);
             StatusCode::UNAUTHORIZED
         })?;

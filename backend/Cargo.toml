@@ -46,3 +46,7 @@ base64 = "0.22"
 # HTTP Client for Meilisearch
 reqwest = { version = "0.12", features = ["json"] }
 
+# Rate Limiter
+governor = "0.10.4"
+
+

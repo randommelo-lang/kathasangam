@@ -1,3 +1,4 @@
+use crate::db::AuthUser;
 use crate::models::UploadResponse;
 use axum::{extract::Multipart, http::StatusCode, Json};
 use uuid::Uuid;
@@ -75,7 +76,7 @@ async fn compress_image_with_bun(
 }
 
 /// POST /api/upload/image
-pub async fn upload_image(mut multipart: Multipart) -> Result<Json<UploadResponse>, StatusCode> {
+pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<Json<UploadResponse>, StatusCode> {
     while let Some(field) = multipart
         .next_field()
         .await

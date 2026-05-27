@@ -25,7 +25,7 @@ async fn main() {
 
     println!("🔶 KathaSangam Backend starting …");
 
-    let rate_limiter = std::sync::Arc::new(middleware::RateLimiter::new());
+    let rate_limiter = middleware::RateLimiter::new();
 
 
     let db_url = std::env::var("DATABASE_URL")

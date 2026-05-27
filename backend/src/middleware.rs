@@ -4,36 +4,38 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use std::collections::HashMap;
+use governor::{clock::DefaultClock, state::keyed::DefaultKeyedStateStore, Quota, RateLimiter as GovRateLimiter};
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::num::NonZeroU32;
+use std::sync::Arc;
+use std::time::Duration;
 
 pub struct RateLimiter {
-    requests: Mutex<HashMap<String, Vec<Instant>>>,
+    upload_limiter: GovRateLimiter<String, DefaultKeyedStateStore<String>, DefaultClock>,
+    general_limiter: GovRateLimiter<String, DefaultKeyedStateStore<String>, DefaultClock>,
 }
 
 impl RateLimiter {
-    pub fn new() -> Self {
-        Self {
-            requests: Mutex::new(HashMap::new()),
-        }
-    }
+    pub fn new() -> Arc<Self> {
+        let upload_quota = Quota::per_minute(NonZeroU32::new(30).unwrap());
+        let general_quota = Quota::per_minute(NonZeroU32::new(100).unwrap());
 
-    pub fn check(&self, key: String, max_requests: usize, window: Duration) -> bool {
-        let mut reqs = self.requests.lock().unwrap();
-        let now = Instant::now();
-        let client_reqs = reqs.entry(key).or_insert_with(Vec::new);
-        client_reqs.retain(|&t| {
-            // Avoid underflow / panics in duration_since if system clock shifts slightly
-            now > t && now.duration_since(t) < window
+        let limiter = Arc::new(Self {
+            upload_limiter: GovRateLimiter::keyed(upload_quota),
+            general_limiter: GovRateLimiter::keyed(general_quota),
         });
-        if client_reqs.len() >= max_requests {
-            false
-        } else {
-            client_reqs.push(now);
-            true
-        }
+
+        // Spawn a background task to prune stale entries every 10 minutes (600 seconds)
+        let limiter_clone = Arc::clone(&limiter);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(600)).await;
+                limiter_clone.upload_limiter.retain_recent();
+                limiter_clone.general_limiter.retain_recent();
+            }
+        });
+
+        limiter
     }
 }
 
@@ -57,16 +59,16 @@ pub async fn rate_limit_middleware(
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|| addr.ip().to_string());
 
-    // Path-specific limits
     let path = request.uri().path();
-    let (limit, window_secs) = if path.contains("/upload/image") {
-        (30, 60) // Tight limit for image uploads: max 30 per minute
+
+    // Check key against the appropriate limiter
+    let allowed = if path.contains("/upload/image") {
+        limiter.upload_limiter.check_key(&ip).is_ok()
     } else {
-        (100, 60) // General API limit: max 100 per minute
+        limiter.general_limiter.check_key(&ip).is_ok()
     };
 
-    let ip_key = ip.clone();
-    if !limiter.check(ip_key, limit, Duration::from_secs(window_secs)) {
+    if !allowed {
         eprintln!("Rate limit exceeded for IP: {} on path: {}", ip, path);
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }

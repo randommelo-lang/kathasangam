@@ -133,7 +133,8 @@ async fn main() {
         // REPORTS
         .route(
             "/reports",
-            get(routes::reports::list_reports),
+            get(routes::reports::list_reports)
+                .post(routes::reports::create_report),
         )
 
         .route(
@@ -155,17 +156,28 @@ async fn main() {
         // IMAGE UPLOAD
         .route(
             "/upload/image",
-            post(routes::upload::upload_image),
+            post(routes::upload::upload_image)
+                .layer(axum::extract::DefaultBodyLimit::max(5 * 1024 * 1024)),
         )
 
         // PROFILE
         .route(
             "/profile",
-            get(routes::profile::get_profile),
+            get(routes::profile::get_profile)
+                .put(routes::profile::update_profile)
+                .delete(routes::profile::delete_profile),
         )
         .route(
             "/profile/role",
             patch(routes::profile::update_profile_role),
+        )
+        .route(
+            "/profiles/:username",
+            get(routes::profile::get_public_profile),
+        )
+        .route(
+            "/profiles/check-username/:username",
+            get(routes::profile::check_username),
         )
 
         // CONFIG (public Supabase config for frontend)

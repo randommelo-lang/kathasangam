@@ -75,6 +75,36 @@ async fn compress_image_with_bun(
     }
 }
 
+fn validate_image_magic_bytes(data: &[u8]) -> bool {
+    if data.len() < 4 {
+        return false;
+    }
+    
+    // PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+    if data.starts_with(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
+        return true;
+    }
+    
+    // JPEG magic bytes: FF D8 FF
+    if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        return true;
+    }
+    
+    // WEBP magic bytes: RIFF (first 4 bytes) and WEBP (bytes 8-11)
+    if data.starts_with(&[0x52, 0x49, 0x46, 0x46]) && data.len() >= 12 {
+        if &data[8..12] == &[0x57, 0x45, 0x42, 0x50] {
+            return true;
+        }
+    }
+    
+    // GIF magic bytes: GIF8
+    if data.starts_with(&[0x47, 0x49, 0x46, 0x38]) {
+        return true;
+    }
+    
+    false
+}
+
 /// POST /api/upload/image
 pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<Json<UploadResponse>, StatusCode> {
     while let Some(field) = multipart
@@ -87,6 +117,11 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
             let filename = field.file_name().unwrap_or("upload.png").to_string();
             let mut ext = filename.rsplit('.').next().unwrap_or("png").to_string();
             let mut data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?.to_vec();
+
+            // Validate magic bytes before doing any processing or storage
+            if !validate_image_magic_bytes(&data) {
+                return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+            }
 
             // Attempt to compress image using Bun
             if let Some((compressed_data, new_ext)) = compress_image_with_bun(&data, &ext).await {

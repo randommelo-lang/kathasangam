@@ -1,5 +1,6 @@
 export function getRoute() {
-  return window.location.hash.replace("#", "") || "discover";
+  var hash = window.location.hash.replace("#", "");
+  return hash.split("?")[0] || "discover";
 }
 
 export function hydrateGenres(ctx) {
@@ -14,7 +15,7 @@ export function hydrateGenres(ctx) {
 }
 
 export function render(ctx) {
-  const allowed = ["discover", "library", "reader", "studio", "moderation", "editor"];
+  const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings"];
   if (allowed.indexOf(ctx.ui.currentView) === -1) ctx.ui.currentView = "discover";
 
   const canModerate = ctx.canModerateRole();
@@ -34,7 +35,9 @@ export function render(ctx) {
     reader: "Reader",
     studio: "Author Studio",
     moderation: "Moderation",
-    editor: "Chapter Editor"
+    editor: "Chapter Editor",
+    profile: "Profile",
+    settings: "Settings"
   }[ctx.ui.currentView];
 
   ctx.view.innerHTML = "";
@@ -44,4 +47,5 @@ export function render(ctx) {
   if (ctx.ui.currentView === "studio") ctx.renderStudio();
   if (ctx.ui.currentView === "moderation") ctx.renderModeration();
   if (ctx.ui.currentView === "editor") ctx.renderEditor();
+  if (ctx.ui.currentView === "profile" || ctx.ui.currentView === "settings") ctx.renderProfileSettings();
 }

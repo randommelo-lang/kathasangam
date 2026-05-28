@@ -1,4 +1,4 @@
-import { button, el, formatDate, formatNumber } from "./components.js";
+import { button, el, formatDate, formatNumber } from "./components.js?v=studio-20260528-profile-v3";
 
 export function saveChapterFromEditor(ctx, status) {
   const titleEl = document.querySelector(".editor-title-input");
@@ -11,9 +11,28 @@ export function saveChapterFromEditor(ctx, status) {
     return;
   }
 
-  const text = contentEl.value.trim();
-  let paragraphs = text ? text.split(/\n\s*\n/) : [];
-  paragraphs = paragraphs.map(function (p) { return p.trim(); }).filter(Boolean);
+  // Extract paragraphs from contenteditable div
+  const paragraphs = [];
+  const nodes = Array.from(contentEl.childNodes);
+  nodes.forEach(function (node) {
+    const text = node.textContent.trim();
+    if (!text) return; // Skip empty lines/paragraphs
+
+    let align = "left";
+    if (node.nodeType === 1) { // Node.ELEMENT_NODE
+      align = node.style.textAlign || "left";
+    }
+
+    if (align === "center") {
+      paragraphs.push("[center]" + text);
+    } else if (align === "right") {
+      paragraphs.push("[right]" + text);
+    } else if (align === "left") {
+      paragraphs.push("[left]" + text);
+    } else {
+      paragraphs.push(text);
+    }
+  });
 
   const payload = {
     title: newTitle,
@@ -66,49 +85,101 @@ export function renderEditor(ctx) {
   titleInput.value = chapter.title;
   titleInput.placeholder = "Chapter Title";
 
-  let contentText = "";
-  if (chapter.content && chapter.content.length) {
-    contentText = chapter.content.join("\n\n");
+  // Create contenteditable editor instead of textarea
+  const editorDiv = el("div", "editor-textarea");
+  editorDiv.contentEditable = "true";
+  editorDiv.setAttribute("role", "textbox");
+  editorDiv.placeholder = "Write your chapter content here. Press Enter to start a new paragraph.";
+
+  // Populate editor with existing paragraphs
+  function loadParagraphs(content) {
+    editorDiv.innerHTML = "";
+    if (content && content.length) {
+      content.forEach(function (para) {
+        let align = "left";
+        let cleanText = para;
+        if (para.startsWith("[center]")) {
+          align = "center";
+          cleanText = para.substring(8);
+        } else if (para.startsWith("[right]")) {
+          align = "right";
+          cleanText = para.substring(7);
+        } else if (para.startsWith("[left]")) {
+          align = "left";
+          cleanText = para.substring(6);
+        }
+        const p = el("p", null, cleanText);
+        p.style.textAlign = align;
+        editorDiv.appendChild(p);
+      });
+    } else {
+      const p = el("p", null, "");
+      editorDiv.appendChild(p);
+    }
   }
 
-  const textarea = el("textarea", "editor-textarea");
-  textarea.value = contentText;
-  textarea.placeholder = "Write your chapter content here. Separate paragraphs with double newlines.";
+  loadParagraphs(chapter.content);
 
   const wordCountEl = el("span", "editor-word-count", "0 words");
   function updateWordCount() {
-    const text = textarea.value.trim();
+    const text = editorDiv.textContent.trim();
     const count = text ? text.split(/\s+/).length : 0;
     wordCountEl.textContent = formatNumber(count) + " words";
   }
-  textarea.addEventListener("input", updateWordCount);
+  editorDiv.addEventListener("input", updateWordCount);
 
-  const initialCount = contentText.trim() ? contentText.trim().split(/\s+/).length : 0;
+  // Initialize word count
+  const initialText = editorDiv.textContent.trim();
+  const initialCount = initialText ? initialText.split(/\s+/).length : 0;
   wordCountEl.textContent = formatNumber(initialCount) + " words";
 
+  // Draft key & auto-save
   const draftKey = "kathasangam_draft_" + ctx.ui.editingChapterId;
   let autoSaveTimer = null;
   function triggerAutoSave() {
     clearTimeout(autoSaveTimer);
     autoSaveTimer = setTimeout(function () {
+      const paragraphs = [];
+      const nodes = Array.from(editorDiv.childNodes);
+      nodes.forEach(function (node) {
+        const text = node.textContent.trim();
+        if (!text) return;
+        let align = "left";
+        if (node.nodeType === 1) {
+          align = node.style.textAlign || "left";
+        }
+        if (align === "center") {
+          paragraphs.push("[center]" + text);
+        } else if (align === "right") {
+          paragraphs.push("[right]" + text);
+        } else if (align === "left") {
+          paragraphs.push("[left]" + text);
+        } else {
+          paragraphs.push(text);
+        }
+      });
+
       const draftData = {
         title: titleInput.value,
-        content: textarea.value,
+        content: paragraphs.join("\n\n"),
         timestamp: Date.now()
       };
       localStorage.setItem(draftKey, JSON.stringify(draftData));
     }, 800);
   }
   titleInput.addEventListener("input", triggerAutoSave);
-  textarea.addEventListener("input", triggerAutoSave);
+  editorDiv.addEventListener("input", triggerAutoSave);
 
+  // Restore draft banner
   let cached = null;
   try {
     cached = JSON.parse(localStorage.getItem(draftKey));
   } catch (e) {}
 
   let banner = null;
-  if (cached && (cached.title !== chapter.title || cached.content !== contentText)) {
+  // Get string representation of existing content to compare with draft
+  const currentTextString = (chapter.content || []).join("\n\n");
+  if (cached && (cached.title !== chapter.title || cached.content !== currentTextString)) {
     const restoreBtn = button("Restore Draft", "btn primary btn-sm");
     const discardBtn = button("Discard", "btn danger btn-sm");
 
@@ -128,7 +199,8 @@ export function renderEditor(ctx) {
 
     restoreBtn.addEventListener("click", function () {
       titleInput.value = cached.title;
-      textarea.value = cached.content;
+      const paras = cached.content.split(/\n\s*\n/);
+      loadParagraphs(paras);
       updateWordCount();
       banner.style.display = "none";
       ctx.notify("Draft restored.");
@@ -141,6 +213,7 @@ export function renderEditor(ctx) {
     });
   }
 
+  // File import/extract handler
   const uploadStatus = el("span", "mini-meta", "");
   const fileInput = el("input", null);
   fileInput.type = "file";
@@ -154,7 +227,9 @@ export function renderEditor(ctx) {
     const reader = new FileReader();
     if (file.name.endsWith(".txt")) {
       reader.onload = function (evt) {
-        textarea.value = evt.target.result;
+        const text = evt.target.result;
+        const paras = text ? text.split(/\n\s*\n/) : [];
+        loadParagraphs(paras.map(function (p) { return p.trim(); }));
         updateWordCount();
         triggerAutoSave();
         uploadStatus.textContent = "Extracted text from " + file.name;
@@ -166,7 +241,8 @@ export function renderEditor(ctx) {
         if (window.mammoth) {
           window.mammoth.extractRawText({ arrayBuffer: arrayBuffer })
             .then(function (result) {
-              textarea.value = result.value;
+              const paras = result.value ? result.value.split(/\n\s*\n/) : [];
+              loadParagraphs(paras.map(function (p) { return p.trim(); }));
               updateWordCount();
               triggerAutoSave();
               uploadStatus.textContent = "Extracted text from " + file.name;
@@ -197,6 +273,33 @@ export function renderEditor(ctx) {
     uploadStatus
   ]);
 
+  // Align toolbar buttons and listeners
+  const alignLeftBtn = button("Align Left", "btn btn-sm");
+  const alignCenterBtn = button("Align Center", "btn btn-sm");
+  const alignRightBtn = button("Align Right", "btn btn-sm");
+
+  alignLeftBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    document.execCommand("justifyLeft", false, null);
+    triggerAutoSave();
+  });
+  alignCenterBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    document.execCommand("justifyCenter", false, null);
+    triggerAutoSave();
+  });
+  alignRightBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    document.execCommand("justifyRight", false, null);
+    triggerAutoSave();
+  });
+
+  const alignToolbar = el("div", "editor-align-toolbar", [
+    alignLeftBtn,
+    alignCenterBtn,
+    alignRightBtn
+  ]);
+
   const actionsRow = el("div", "editor-actions-row", [
     button("Publish", "btn primary orange-glow-btn", { action: "publishChapter" }),
     button("Save Draft", "btn", { action: "saveChapterDraft" }),
@@ -216,8 +319,12 @@ export function renderEditor(ctx) {
       ]),
       uploadSection,
       el("label", "field", [
+        el("span", null, "Text Alignment"),
+        alignToolbar
+      ]),
+      el("label", "field", [
         el("span", null, "Chapter Content"),
-        textarea
+        editorDiv
       ]),
       wordCountEl,
       actionsRow

@@ -131,3 +131,37 @@ pub async fn list_audit_logs(
     Ok(Json(rows))
 }
 
+/// POST /api/reports
+pub async fn create_report(
+    auth: AuthUser,
+    State(pool): State<PgPool>,
+    Json(body): Json<CreateReportRequest>,
+) -> Result<Json<ReportRow>, StatusCode> {
+    if body.reason.trim().is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let target_type = body.target_type.to_lowercase();
+    if target_type != "story" && target_type != "chapter" && target_type != "comment" {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let row = sqlx::query_as::<_, ReportRow>(
+        "INSERT INTO reports (reporter_id, target_type, target_id, reason, status, severity) \
+         VALUES ($1, $2, $3, $4, 'open', 'medium') \
+         RETURNING id, reporter_id, target_type, target_id, reason, status, severity"
+    )
+    .bind(auth.user_id)
+    .bind(&target_type)
+    .bind(body.target_id)
+    .bind(body.reason.trim())
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| {
+        eprintln!("Database error creating report: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(row))
+}
+

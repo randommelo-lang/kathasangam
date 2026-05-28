@@ -212,6 +212,13 @@ pub struct UpdateReportRequest {
     pub status: String, // "resolved" or "escalated"
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CreateReportRequest {
+    pub target_type: String, // "story", "chapter", "comment"
+    pub target_id: Uuid,
+    pub reason: String,
+}
+
 // ── Notification ──
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]

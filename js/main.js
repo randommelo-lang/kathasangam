@@ -1,8 +1,8 @@
-import { state, ui } from "./state.js";
-import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js";
-import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js";
-import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js";
-import { analyticsMetricBox, button, calculateStars, el, field, form, formatDate, formatNumber, generateChartData, iconButton, input, list, metric, progress, quickActionTile, segmentButton, select, submitButton, svgEl, textarea, unique } from "./components.js";
+import { state, ui } from "./state.js?v=studio-20260528-profile-v3";
+import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js?v=studio-20260528-profile-v3";
+import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js?v=studio-20260528-profile-v3";
+import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js?v=studio-20260528-profile-v3";
+import { analyticsMetricBox, button, calculateStars, el, field, form, formatDate, formatNumber, generateChartData, iconButton, input, list, metric, progress, quickActionTile, segmentButton, select, submitButton, svgEl, textarea, unique } from "./components.js?v=studio-20260528-profile-v3";
 
 var view = document.getElementById("view");
 var pageTitle = document.getElementById("pageTitle");
@@ -38,6 +38,7 @@ var ctx = {
   renderStudio: renderStudio,
   renderModeration: renderModeration,
   renderEditor: renderEditor,
+  renderProfileSettings: renderProfileSettings,
   getCurrentStudioStory: getCurrentStudioStory,
   canModerateRole: canModerateRole,
   unique: unique
@@ -321,26 +322,84 @@ function updateAuthUI() {
   if (state.user && state.profile) {
     var username = state.profile.username || state.user.email.split("@")[0];
     var role = (state.profile.role || "reader").toLowerCase();
+    var avatarUrl = state.profile.avatar_url || "";
     var initial = username.charAt(0).toUpperCase();
+    var email = state.user.email || "";
 
     authArea.innerHTML = "";
-    var info = document.createElement("div");
-    info.className = "auth-user-info";
 
-    var avatar = document.createElement("span");
-    avatar.className = "auth-avatar";
-    avatar.textContent = initial;
+    // ── Dropdown Container ──
+    var menu = document.createElement("div");
+    menu.className = "account-menu";
 
-    var nameEl = document.createElement("span");
-    nameEl.className = "auth-username";
-    nameEl.textContent = username;
+    // ── Trigger Button ──
+    var trigger = document.createElement("button");
+    trigger.className = "account-trigger";
+    trigger.type = "button";
+    trigger.dataset.action = "accountToggle";
+    trigger.setAttribute("aria-haspopup", "true");
+    trigger.setAttribute("aria-expanded", "false");
 
+    var triggerAvatar = document.createElement("span");
+    triggerAvatar.className = "auth-avatar";
+    if (avatarUrl) {
+      triggerAvatar.style.backgroundImage = "url('" + avatarUrl + "')";
+      triggerAvatar.style.backgroundSize = "cover";
+      triggerAvatar.style.backgroundPosition = "center";
+      triggerAvatar.textContent = "";
+    } else {
+      triggerAvatar.textContent = initial;
+    }
+
+    var triggerName = document.createElement("span");
+    triggerName.className = "auth-username";
+    triggerName.textContent = username;
+
+    var triggerChevron = document.createElement("span");
+    triggerChevron.className = "account-chevron";
+    triggerChevron.textContent = "▼";
+
+    trigger.appendChild(triggerAvatar);
+    trigger.appendChild(triggerName);
+    trigger.appendChild(triggerChevron);
+
+    // ── Dropdown List ──
+    var dropdown = document.createElement("div");
+    dropdown.className = "account-dropdown";
+    dropdown.hidden = true;
+
+    // Header Card inside dropdown
+    var header = document.createElement("div");
+    header.className = "account-dropdown-header";
+
+    var headerAvatar = document.createElement("div");
+    headerAvatar.className = "profile-avatar-sm";
+    if (avatarUrl) {
+      headerAvatar.style.backgroundImage = "url('" + avatarUrl + "')";
+      headerAvatar.style.backgroundSize = "cover";
+      headerAvatar.style.backgroundPosition = "center";
+    } else {
+      headerAvatar.textContent = initial;
+    }
+
+    var headerInfo = document.createElement("div");
+    headerInfo.className = "account-dropdown-info";
+    headerInfo.appendChild(el("strong", null, username));
+    headerInfo.appendChild(el("span", null, email));
+
+    header.appendChild(headerAvatar);
+    header.appendChild(headerInfo);
+    dropdown.appendChild(header);
+
+    // Role switcher inside dropdown header
+    var badgeRow = el("div", "account-role-row");
+    var badgeLabel = el("span", "account-role-label", "Role:");
     var badge = document.createElement("select");
     badge.className = "auth-role-badge-select";
     badge.dataset.role = role.toLowerCase();
     badge.title = "Click to change your role (Developer Switcher)";
 
-    var userEmail = (state.user.email || "").toLowerCase();
+    var userEmail = email.toLowerCase();
     var allRoles = ["reader", "author", "moderator", "admin"];
     var roles = allRoles.filter(function (r) {
       if (r === "reader" || r === "author") return true;
@@ -365,45 +424,114 @@ function updateAuthUI() {
       changeUserRole(e.target.value);
     });
 
+    badgeRow.appendChild(badgeLabel);
+    badgeRow.appendChild(badge);
+    dropdown.appendChild(badgeRow);
+
+    var divider = document.createElement("div");
+    divider.className = "account-dropdown-divider";
+    dropdown.appendChild(divider);
+
+    // Dropdown Items
+    dropdown.appendChild(accountMenuButton("Profile", "profile"));
+    dropdown.appendChild(accountMenuButton("Settings", "settings"));
+    dropdown.appendChild(accountMenuButton("Library", "library"));
+    dropdown.appendChild(accountMenuButton("Author Studio", "studio"));
+
+    var divider2 = document.createElement("div");
+    divider2.className = "account-dropdown-divider";
+    dropdown.appendChild(divider2);
+
+    // Sign Out Button
     var signOutBtn = document.createElement("button");
-    signOutBtn.className = "btn auth-signout-btn";
+    signOutBtn.className = "account-menu-item danger";
     signOutBtn.type = "button";
+    signOutBtn.dataset.action = "accountSignOut";
     signOutBtn.textContent = "Sign Out";
-    signOutBtn.addEventListener("click", handleSignOut);
 
-    info.appendChild(avatar);
-    info.appendChild(nameEl);
-    info.appendChild(badge);
+    dropdown.appendChild(signOutBtn);
 
-    authArea.appendChild(info);
-    authArea.appendChild(signOutBtn);
+    menu.appendChild(trigger);
+    menu.appendChild(dropdown);
+    authArea.appendChild(menu);
   } else if (state.user) {
     // User logged in but profile not yet loaded
     var email = state.user.email || "";
+    var initial = email.charAt(0).toUpperCase();
+    var username = email.split("@")[0];
+
     authArea.innerHTML = "";
 
-    var info2 = document.createElement("div");
-    info2.className = "auth-user-info";
+    var menu = document.createElement("div");
+    menu.className = "account-menu";
 
-    var avatar2 = document.createElement("span");
-    avatar2.className = "auth-avatar";
-    avatar2.textContent = email.charAt(0).toUpperCase();
+    var trigger = document.createElement("button");
+    trigger.className = "account-trigger";
+    trigger.type = "button";
+    trigger.dataset.action = "accountToggle";
+    trigger.setAttribute("aria-haspopup", "true");
+    trigger.setAttribute("aria-expanded", "false");
 
-    var nameEl2 = document.createElement("span");
-    nameEl2.className = "auth-username";
-    nameEl2.textContent = email.split("@")[0];
+    var triggerAvatar = document.createElement("span");
+    triggerAvatar.className = "auth-avatar";
+    triggerAvatar.textContent = initial;
 
-    var signOutBtn2 = document.createElement("button");
-    signOutBtn2.className = "btn auth-signout-btn";
-    signOutBtn2.type = "button";
-    signOutBtn2.textContent = "Sign Out";
-    signOutBtn2.addEventListener("click", handleSignOut);
+    var triggerName = document.createElement("span");
+    triggerName.className = "auth-username";
+    triggerName.textContent = username;
 
-    info2.appendChild(avatar2);
-    info2.appendChild(nameEl2);
+    var triggerChevron = document.createElement("span");
+    triggerChevron.className = "account-chevron";
+    triggerChevron.textContent = "▼";
 
-    authArea.appendChild(info2);
-    authArea.appendChild(signOutBtn2);
+    trigger.appendChild(triggerAvatar);
+    trigger.appendChild(triggerName);
+    trigger.appendChild(triggerChevron);
+
+    var dropdown = document.createElement("div");
+    dropdown.className = "account-dropdown";
+    dropdown.hidden = true;
+
+    var header = document.createElement("div");
+    header.className = "account-dropdown-header";
+
+    var headerAvatar = document.createElement("div");
+    headerAvatar.className = "profile-avatar-sm";
+    headerAvatar.textContent = initial;
+
+    var headerInfo = document.createElement("div");
+    headerInfo.className = "account-dropdown-info";
+    headerInfo.appendChild(el("strong", null, username));
+    headerInfo.appendChild(el("span", null, email));
+
+    header.appendChild(headerAvatar);
+    header.appendChild(headerInfo);
+    dropdown.appendChild(header);
+
+    var divider = document.createElement("div");
+    divider.className = "account-dropdown-divider";
+    dropdown.appendChild(divider);
+
+    dropdown.appendChild(accountMenuButton("Profile", "profile"));
+    dropdown.appendChild(accountMenuButton("Settings", "settings"));
+    dropdown.appendChild(accountMenuButton("Library", "library"));
+    dropdown.appendChild(accountMenuButton("Author Studio", "studio"));
+
+    var divider2 = document.createElement("div");
+    divider2.className = "account-dropdown-divider";
+    dropdown.appendChild(divider2);
+
+    var signOutBtn = document.createElement("button");
+    signOutBtn.className = "account-menu-item danger";
+    signOutBtn.type = "button";
+    signOutBtn.dataset.action = "accountSignOut";
+    signOutBtn.textContent = "Sign Out";
+
+    dropdown.appendChild(signOutBtn);
+
+    menu.appendChild(trigger);
+    menu.appendChild(dropdown);
+    authArea.appendChild(menu);
   } else {
     // Logged out
     authArea.innerHTML = "";
@@ -415,6 +543,32 @@ function updateAuthUI() {
     btn.addEventListener("click", openAuthModal);
     authArea.appendChild(btn);
   }
+}
+
+// ── Account Dropdown Helpers ──
+function accountMenuButton(label, viewName) {
+  var btn = document.createElement("button");
+  btn.className = "account-menu-item";
+  btn.type = "button";
+  btn.dataset.action = "accountNav";
+  btn.dataset.view = viewName;
+  btn.textContent = label;
+  return btn;
+}
+
+function toggleAccountMenu() {
+  var menu = document.querySelector(".account-dropdown");
+  var trigger = document.querySelector(".account-trigger");
+  if (!menu) return;
+  menu.hidden = !menu.hidden;
+  if (trigger) trigger.setAttribute("aria-expanded", String(!menu.hidden));
+}
+
+function closeAccountMenu() {
+  var menu = document.querySelector(".account-dropdown");
+  var trigger = document.querySelector(".account-trigger");
+  if (menu) menu.hidden = true;
+  if (trigger) trigger.setAttribute("aria-expanded", "false");
 }
 
 // ── Bootstrap ──
@@ -499,10 +653,34 @@ function bindGlobalEvents() {
 }
 
 function bindAuthEvents() {
-  // Use event delegation on authArea for Sign In button (survives DOM replacement)
+  // Use event delegation on authArea for clicks (survives DOM replacement)
   authArea.addEventListener("click", function (e) {
     var target = e.target.closest("#signInBtn");
-    if (target) openAuthModal();
+    if (target) {
+      openAuthModal();
+      return;
+    }
+
+    var trigger = e.target.closest("[data-action='accountToggle']");
+    if (trigger) {
+      toggleAccountMenu();
+      return;
+    }
+
+    var nav = e.target.closest("[data-action='accountNav']");
+    if (nav) {
+      closeAccountMenu();
+      ui.currentView = nav.dataset.view;
+      window.location.hash = nav.dataset.view;
+      render();
+      return;
+    }
+
+    var signOut = e.target.closest("[data-action='accountSignOut']");
+    if (signOut) {
+      closeAccountMenu();
+      handleSignOut();
+    }
   });
 
   // Modal close button — use event delegation on the modal backdrop
@@ -538,11 +716,239 @@ function bindAuthEvents() {
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !authModal.hidden) closeAuthModal();
     if (e.key === "Escape" && storyModal && !storyModal.hidden) closeStoryModal();
+    if (e.key === "Escape") closeAccountMenu();
+  });
+
+  // Click outside dropdown to close it
+  document.addEventListener("click", function (e) {
+    if (!authArea.contains(e.target)) closeAccountMenu();
   });
 
   // Form submissions
   loginForm.addEventListener("submit", handleLogin);
   signupForm.addEventListener("submit", handleSignup);
+}
+
+// ── Profile & Settings ──
+function renderProfileSettings() {
+  var params = new URLSearchParams(window.location.hash.split("?")[1] || "");
+  var targetUsername = params.get("username");
+
+  if (targetUsername) {
+    state.publicProfiles = state.publicProfiles || {};
+    var cached = state.publicProfiles[targetUsername];
+    if (!cached) {
+      var loadingEl = el("div", "empty", "Loading profile...");
+      view.appendChild(loadingEl);
+      api("/profiles/" + encodeURIComponent(targetUsername))
+        .then(function (profile) {
+          state.publicProfiles[targetUsername] = profile;
+          render();
+        })
+        .catch(function (err) {
+          console.error("Error loading public profile:", err);
+          loadingEl.textContent = "Profile not found or failed to load.";
+        });
+      return;
+    }
+
+    var username = cached.username;
+    var role = (cached.role || "reader").toLowerCase();
+    var avatarUrl = cached.avatar_url || "";
+    var bio = cached.bio || "";
+    var initial = username.charAt(0).toUpperCase();
+
+    var avatarEl = el("div", "profile-avatar-lg");
+    if (avatarUrl) {
+      avatarEl.style.backgroundImage = "url('" + avatarUrl + "')";
+    } else {
+      avatarEl.textContent = initial;
+    }
+
+    var headerCard = el("section", "profile-header-card", [
+      avatarEl,
+      el("div", "profile-header-info", [
+        el("h2", "profile-display-name", username),
+        el("span", "auth-role-badge profile-role-badge " + role, role.charAt(0).toUpperCase() + role.slice(1))
+      ])
+    ]);
+    view.appendChild(headerCard);
+
+    var bioBlock = el("section", "profile-bio-card", [
+      el("h3", "profile-section-title", "About " + username),
+      el("p", "profile-bio-text", bio || "This user hasn't written a bio yet.")
+    ]);
+    view.appendChild(bioBlock);
+
+    var authorStories = state.stories.filter(function (s) {
+      return s.author === username;
+    });
+
+    var statsRow = el("div", "profile-stats-row", [
+      el("div", "profile-stat", [el("strong", null, String(authorStories.length)), el("span", null, "Stories")]),
+      el("div", "profile-stat", [el("strong", null, formatNumber(authorStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))), el("span", null, "Total Reads")]),
+      el("div", "profile-stat", [el("strong", null, formatNumber(authorStories.reduce(function (sum, s) { return sum + (s.followers || 0); }, 0))), el("span", null, "Followers")])
+    ]);
+    view.appendChild(statsRow);
+
+    if (authorStories.length) {
+      view.appendChild(el("h3", "profile-section-title", "Stories by " + username));
+      var grid = el("section", "story-grid");
+      authorStories.forEach(function (story) { grid.appendChild(storyCard(story, { manage: false })); });
+      view.appendChild(grid);
+    }
+    return;
+  }
+
+  if (!state.user || !state.profile) {
+    view.appendChild(el("div", "empty", "Please log in to view your profile."));
+    return;
+  }
+
+  var username = state.profile.username || state.user.email.split("@")[0];
+  var email = state.user.email || "";
+  var role = (state.profile.role || "reader").toLowerCase();
+  var avatarUrl = state.profile.avatar_url || "";
+  var initial = username.charAt(0).toUpperCase();
+  var isSettings = ui.currentView === "settings";
+
+  // Profile Header Card
+  var avatarEl = el("div", "profile-avatar-lg");
+  if (avatarUrl) {
+    avatarEl.style.backgroundImage = "url('" + avatarUrl + "')";
+  } else {
+    avatarEl.textContent = initial;
+  }
+
+  var headerCard = el("section", "profile-header-card", [
+    avatarEl,
+    el("div", "profile-header-info", [
+      el("h2", "profile-display-name", username),
+      el("p", "profile-email", email),
+      el("span", "auth-role-badge profile-role-badge " + role, role.charAt(0).toUpperCase() + role.slice(1))
+    ])
+  ]);
+  view.appendChild(headerCard);
+
+  // Tabs
+  var tabs = el("div", "profile-tabs", [
+    button("Profile", isSettings ? "profile-tab" : "profile-tab active", { action: "profileTab", value: "profile" }),
+    button("Settings", isSettings ? "profile-tab active" : "profile-tab", { action: "profileTab", value: "settings" })
+  ]);
+  view.appendChild(tabs);
+
+  if (!isSettings) {
+    // Profile View
+    var userStories = state.stories.filter(function (s) {
+      return state.user && s.author_id === state.user.id;
+    });
+
+    var statsRow = el("div", "profile-stats-row", [
+      el("div", "profile-stat", [el("strong", null, String(userStories.length)), el("span", null, "Stories")]),
+      el("div", "profile-stat", [el("strong", null, formatNumber(userStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))), el("span", null, "Total Reads")]),
+      el("div", "profile-stat", [el("strong", null, formatNumber(userStories.reduce(function (sum, s) { return sum + (s.followers || 0); }, 0))), el("span", null, "Followers")]),
+      el("div", "profile-stat", [el("strong", null, String(state.library.length)), el("span", null, "Following")])
+    ]);
+    view.appendChild(statsRow);
+
+    if (userStories.length) {
+      view.appendChild(el("h3", "profile-section-title", "Your Stories"));
+      var grid = el("section", "story-grid");
+      userStories.forEach(function (story) { grid.appendChild(storyCard(story, { manage: true })); });
+      view.appendChild(grid);
+    }
+  } else {
+    // Settings View
+    var uInput = input("text", username, { name: "username", placeholder: "Your username" });
+    var uHint = el("p", "username-hint", "");
+    uInput.addEventListener("input", function (e) {
+      var val = e.target.value.trim();
+      if (!val) {
+        uHint.textContent = "";
+        uHint.className = "username-hint";
+        return;
+      }
+      if (val === (state.profile ? state.profile.username : "")) {
+        uHint.textContent = "Your current username";
+        uHint.className = "username-hint available";
+        return;
+      }
+      uHint.textContent = "Checking...";
+      uHint.className = "username-hint checking";
+      
+      clearTimeout(uInput.timer);
+      uInput.timer = setTimeout(function () {
+        api("/profiles/check-username/" + encodeURIComponent(val))
+          .then(function (res) {
+            if (e.target.value.trim() !== val) return;
+            if (res.available) {
+              uHint.textContent = "Username is available";
+              uHint.className = "username-hint available";
+            } else {
+              uHint.textContent = "Username is already taken";
+              uHint.className = "username-hint taken";
+            }
+          })
+          .catch(function () {
+            if (e.target.value.trim() !== val) return;
+            uHint.textContent = "Error checking username";
+            uHint.className = "username-hint taken";
+          });
+      }, 500);
+    });
+
+    var bioTextarea = textarea("bio", state.profile.bio || "");
+    bioTextarea.className = "settings-bio-textarea";
+    bioTextarea.placeholder = "Write a short bio about yourself...";
+
+    var settingsPanel = el("section", "profile-settings-panel", [
+      el("h3", "profile-section-title", "Account Settings"),
+
+      el("div", "settings-group", [
+        el("label", "settings-label", "Username"),
+        el("div", "settings-field-row", [
+          uInput,
+          button("Update", "btn primary btn-sm", { action: "updateUsername" })
+        ]),
+        uHint
+      ]),
+
+      el("div", "settings-group", [
+        el("label", "settings-label", "Email"),
+        el("div", "settings-field-row", [
+          input("text", email, { name: "email", disabled: "true", placeholder: "Email address" })
+        ]),
+        el("p", "settings-hint", "Email changes are managed through your authentication provider.")
+      ]),
+
+      el("div", "settings-group", [
+        el("label", "settings-label", "Avatar URL"),
+        el("div", "settings-field-row", [
+          input("text", avatarUrl, { name: "avatar_url", placeholder: "https://example.com/avatar.jpg" }),
+          button("Update", "btn primary btn-sm", { action: "updateAvatar" })
+        ]),
+        el("p", "settings-hint", "Paste a URL to an image to use as your avatar.")
+      ]),
+
+      el("div", "settings-group", [
+        el("label", "settings-label", "Bio"),
+        el("div", "settings-field-row", [
+          bioTextarea
+        ]),
+        el("div", "settings-field-row", [
+          button("Update Bio", "btn primary btn-sm", { action: "updateBio" })
+        ]),
+        el("p", "settings-hint", "Tell other readers and authors about yourself.")
+      ]),
+
+      el("div", "settings-group settings-danger-zone", [
+        el("h4", null, "Danger Zone"),
+        el("p", "settings-hint", "Once you delete your account, there is no going back."),
+        button("Delete Account", "btn danger", { action: "deleteAccount" })
+      ])
+    ]);
+    view.appendChild(settingsPanel);
+  }
 }
 
 function hydrateGenres() { hydrateGenresModule(ctx); }
@@ -567,7 +973,12 @@ function renderDiscover() {
     slide.appendChild(el("p", "carousel-eyebrow", story.genre + " · " + story.type));
     slide.appendChild(el("h2", "carousel-title", story.title));
     slide.appendChild(el("p", "carousel-desc", story.description));
-    slide.appendChild(el("div", "carousel-meta", story.author + " · " + formatNumber(story.views) + " reads · " + formatNumber(story.followers) + " followers"));
+    var carouselMeta = el("div", "carousel-meta");
+    var authorLink = el("a", "story-author-link", story.author);
+    authorLink.href = "#profile?username=" + encodeURIComponent(story.author);
+    carouselMeta.appendChild(authorLink);
+    carouselMeta.appendChild(document.createTextNode(" · " + formatNumber(story.views) + " reads · " + formatNumber(story.followers) + " followers"));
+    slide.appendChild(carouselMeta);
     slide.appendChild(el("div", "button-row", [
       button("Read now", "btn primary", { action: "openStory", id: story.id }),
       button(state.library.indexOf(story.id) === -1 ? "Follow" : "Following", "btn", { action: "follow", id: story.id })
@@ -646,30 +1057,55 @@ function renderReader() {
   controls.push(progress(story.progress));
   view.appendChild(el("div", "reader-frame", [
     el("div", "reader-toolbar", [
-      el("div", null, [el("h2", null, story.title), el("div", "mini-meta", [story.author + " / " + chapter.title + " / " + chapter.access, chapter.status === "scheduled" ? " Scheduled " + formatDate(chapter.scheduledAt) : ""])]),
-      el("div", "button-row", [button("Prev", "btn", { action: "chapter", step: "-1" }), button("Next", "btn", { action: "chapter", step: "1" }), button(ui.readerTheme === "dark" ? "Light" : "Dark", "btn", { action: "theme" })])
+      el("div", null, [
+        el("h2", null, story.title),
+        el("div", "mini-meta", [
+          (function () {
+            var a = el("a", "story-author-link", story.author);
+            a.href = "#profile?username=" + encodeURIComponent(story.author);
+            return a;
+          })(),
+          " / " + chapter.title + " / " + chapter.access,
+          chapter.status === "scheduled" ? " Scheduled " + formatDate(chapter.scheduledAt) : ""
+        ])
+      ]),
+      el("div", "button-row", [
+        button("Prev", "btn", { action: "chapter", step: "-1" }),
+        button("Next", "btn", { action: "chapter", step: "1" }),
+        button(ui.readerTheme === "dark" ? "Light" : "Dark", "btn", { action: "theme" }),
+        state.user ? button("Report Content", "btn danger", { action: "reportContent", storyId: story.id, chapterId: chapter.id }) : null
+      ].filter(Boolean))
     ]),
     el("div", "reader-toolbar", controls),
     readerContent(story, chapter)
   ]));
-  view.appendChild(el("div", "layout-two", [
-    el("section", "panel", [el("h2", null, "Chapters"), list(story.chapters, "chapter-list", function (item, i) {
-      return el("li", "chapter-item", [el("strong", null, item.title), el("span", "mini-meta", (i + 1) + " / " + item.status + " / " + item.access), button("Open", "btn", { action: "openChapter", index: String(i) })]);
-    })]),
-    el("aside", "panel", [el("h2", null, "Comments"),
-      chapter.comments.length ? list(chapter.comments, "activity-list", function (c) {
-        var canDelete = (state.user && c.user_id === state.user.id) || ["moderator", "admin"].indexOf(state.role) !== -1;
-        return el("li", "activity-item", [
-          el("div", "comment-header", [
-            el("strong", null, c.user),
-            canDelete ? button("Delete", "btn danger btn-sm", { action: "deleteComment", id: c.id }) : null
-          ]),
-          el("span", null, c.text)
-        ]);
-      }) : el("div", "empty", "No comments yet."),
-      commentForm()
-    ])
-  ]));
+    view.appendChild(el("div", "layout-two", [
+      el("section", "panel", [el("h2", null, "Chapters"), list(story.chapters, "chapter-list", function (item, i) {
+        return el("li", "chapter-item", [el("strong", null, item.title), el("span", "mini-meta", (i + 1) + " / " + item.status + " / " + item.access), button("Open", "btn", { action: "openChapter", index: String(i) })]);
+      })]),
+      el("aside", "panel", [el("h2", null, "Comments"),
+        chapter.comments.length ? list(chapter.comments, "activity-list", function (c) {
+          var canDelete = (state.user && c.user_id === state.user.id) || ["moderator", "admin"].indexOf(state.role) !== -1;
+          var canReport = state.user && c.user_id !== state.user.id;
+          return el("li", "activity-item", [
+            el("div", "comment-header", [
+              (function () {
+                var a = el("a", "story-author-link", c.user);
+                a.style.fontWeight = "bold";
+                a.href = "#profile?username=" + encodeURIComponent(c.user);
+                return a;
+              })(),
+              el("div", "button-row", [
+                canReport ? button("Report", "btn text-btn btn-sm", { action: "reportComment", id: c.id }) : null,
+                canDelete ? button("Delete", "btn danger btn-sm", { action: "deleteComment", id: c.id }) : null
+              ].filter(Boolean))
+            ]),
+            el("span", null, c.text)
+          ]);
+        }) : el("div", "empty", "No comments yet."),
+        commentForm()
+      ])
+    ]));
 }
 
 function readerContent(story, chapter) {
@@ -682,7 +1118,25 @@ function readerContent(story, chapter) {
     })));
     return container;
   }
-  if (chapter.content) chapter.content.forEach(function (para) { container.appendChild(el("p", null, para)); });
+  if (chapter.content) {
+    chapter.content.forEach(function (para) {
+      var align = "left";
+      var cleanText = para;
+      if (para.startsWith("[center]")) {
+        align = "center";
+        cleanText = para.substring(8);
+      } else if (para.startsWith("[right]")) {
+        align = "right";
+        cleanText = para.substring(7);
+      } else if (para.startsWith("[left]")) {
+        align = "left";
+        cleanText = para.substring(6);
+      }
+      var p = el("p", null, cleanText);
+      p.style.textAlign = align;
+      container.appendChild(p);
+    });
+  }
   return container;
 }
 
@@ -1138,7 +1592,13 @@ function handleViewClick(e) {
         render();
       }).catch(function(err) {
         console.error(err);
-        notify("Failed to upload cover: " + err.message);
+        if (err.message === "413") {
+          notify("Upload failed: File is too large (max 5MB).");
+        } else if (err.message === "415") {
+          notify("Upload failed: Invalid format. Only PNG, JPG, WEBP, and GIF allowed.");
+        } else {
+          notify("Failed to upload cover: " + err.message);
+        }
       });
     };
     fileInput.click();
@@ -1342,6 +1802,109 @@ function handleViewClick(e) {
   }
   if (action === "scan") notify("Text scan completed. No blocked terms found.");
   if (action === "exportQueue") notify("Queue export prepared in memory for this prototype.");
+  if (action === "profileTab") { ui.currentView = target.dataset.value; window.location.hash = target.dataset.value; render(); }
+  if (action === "updateUsername") {
+    var row = target.closest(".settings-field-row");
+    var input = row ? row.querySelector("input[name='username']") : null;
+    var newUsername = input ? input.value.trim() : "";
+    if (!newUsername) {
+      notify("Username cannot be empty.");
+      return;
+    }
+    apiPut("/profile", { username: newUsername }).then(function () {
+      notify("Username updated successfully.");
+      if (state.profile) state.profile.username = newUsername;
+      render();
+    }).catch(function (err) {
+      console.error(err);
+      if (err.message === "409") {
+        notify("Username is already taken.");
+      } else {
+        notify("Failed to update username.");
+      }
+    });
+  }
+  if (action === "updateAvatar") {
+    var row = target.closest(".settings-field-row");
+    var input = row ? row.querySelector("input[name='avatar_url']") : null;
+    var newAvatarUrl = input ? input.value.trim() : "";
+    apiPut("/profile", { avatar_url: newAvatarUrl }).then(function () {
+      notify("Avatar URL updated successfully.");
+      if (state.profile) state.profile.avatar_url = newAvatarUrl;
+      render();
+    }).catch(function (err) {
+      console.error(err);
+      notify("Failed to update avatar.");
+    });
+  }
+  if (action === "updateBio") {
+    var panel = target.closest(".profile-settings-panel");
+    var textarea = panel ? panel.querySelector("textarea[name='bio']") : null;
+    var newBio = textarea ? textarea.value.trim() : "";
+    apiPut("/profile", { bio: newBio }).then(function () {
+      notify("Bio updated successfully.");
+      if (state.profile) state.profile.bio = newBio;
+      render();
+    }).catch(function (err) {
+      console.error(err);
+      notify("Failed to update bio.");
+    });
+  }
+  if (action === "deleteAccount") {
+    if (!window.confirm("ARE YOU SURE you want to delete your account? This will permanently delete your profile, stories, comments, and all related data. This action is irreversible!")) return;
+    apiDelete("/profile").then(function () {
+      notify("Account deleted successfully.");
+      handleSignOut();
+    }).catch(function (err) {
+      console.error(err);
+      notify("Failed to delete account.");
+    });
+  }
+  if (action === "reportContent") {
+    var storyId = target.dataset.storyId;
+    var chapterId = target.dataset.chapterId;
+    var option = window.prompt("Type 'story' to report the story, or 'chapter' to report the current chapter:");
+    if (!option) return;
+    option = option.trim().toLowerCase();
+    if (option !== "story" && option !== "chapter") {
+      notify("Invalid option. Please type 'story' or 'chapter'.");
+      return;
+    }
+    var reason = window.prompt("Please enter the reason for reporting this " + option + ":");
+    if (!reason || !reason.trim()) {
+      notify("Reporting requires a reason.");
+      return;
+    }
+    var targetId = option === "story" ? storyId : chapterId;
+    apiPost("/reports", {
+      target_type: option,
+      target_id: targetId,
+      reason: reason.trim()
+    }).then(function () {
+      notify("Report submitted successfully.");
+    }).catch(function (err) {
+      console.error(err);
+      notify("Failed to submit report. Please log in.");
+    });
+  }
+  if (action === "reportComment") {
+    var commentId = target.dataset.id;
+    var reason = window.prompt("Please enter the reason for reporting this comment:");
+    if (!reason || !reason.trim()) {
+      notify("Reporting requires a reason.");
+      return;
+    }
+    apiPost("/reports", {
+      target_type: "comment",
+      target_id: commentId,
+      reason: reason.trim()
+    }).then(function () {
+      notify("Report submitted successfully.");
+    }).catch(function (err) {
+      console.error(err);
+      notify("Failed to submit report. Please log in.");
+    });
+  }
   if (action === "carouselPrev") { moveCarousel(-1); startCarouselAuto(); }
   if (action === "carouselNext") { moveCarousel(1); startCarouselAuto(); }
   if (action === "carouselDot") goToSlide(Number(target.dataset.index));
@@ -1433,7 +1996,13 @@ function storyCard(story, options) {
   openButton.dataset.id = story.id;
   openButton.setAttribute("aria-label", (options.manage ? "Manage " : "Open ") + story.title);
 
-  card.querySelector(".story-meta").textContent = story.genre + " / " + story.author + " / " + formatNumber(story.views) + " reads";
+  var metaContainer = card.querySelector(".story-meta");
+  metaContainer.innerHTML = "";
+  metaContainer.appendChild(document.createTextNode(story.genre + " / "));
+  var authorLink = el("a", "story-author-link", story.author);
+  authorLink.href = "#profile?username=" + encodeURIComponent(story.author);
+  metaContainer.appendChild(authorLink);
+  metaContainer.appendChild(document.createTextNode(" / " + formatNumber(story.views) + " reads"));
   card.querySelector("h2").textContent = story.title;
   card.querySelector("p").textContent = story.description;
 

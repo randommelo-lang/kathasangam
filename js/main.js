@@ -1,8 +1,8 @@
-import { state, ui } from "./state.js?v=studio-20260528-profile-v3";
-import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js?v=studio-20260528-profile-v3";
-import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js?v=studio-20260528-profile-v3";
-import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js?v=studio-20260528-profile-v3";
-import { analyticsMetricBox, button, calculateStars, el, field, form, formatDate, formatNumber, generateChartData, iconButton, input, list, metric, progress, quickActionTile, segmentButton, select, submitButton, svgEl, textarea, unique } from "./components.js?v=studio-20260528-profile-v3";
+import { state, ui } from "./state.js?v=studio-20260528-profile-v11";
+import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js?v=studio-20260528-profile-v11";
+import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js?v=studio-20260528-profile-v11";
+import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js?v=studio-20260528-profile-v11";
+import { analyticsMetricBox, button, calculateStars, el, field, form, formatDate, formatNumber, generateChartData, iconButton, input, list, metric, progress, quickActionTile, segmentButton, select, submitButton, svgEl, textarea, unique } from "./components.js?v=studio-20260528-profile-v11";
 
 var view = document.getElementById("view");
 var pageTitle = document.getElementById("pageTitle");
@@ -69,10 +69,42 @@ function openStoryModal() {
     notify("Please log in to create a story.");
     return;
   }
+  var title = document.getElementById("storyModalTitle");
+  if (title) {
+    title.textContent = "Create New Story";
+  }
+  var subtitle = document.querySelector("#storyModal .auth-modal-subtitle");
+  if (subtitle) {
+    subtitle.textContent = "Start your series on KathaSangam";
+  }
   var content = document.getElementById("storyModalContent");
   if (content) {
     content.innerHTML = "";
     content.appendChild(storyForm());
+  }
+  var storyModal = document.getElementById("storyModal");
+  if (storyModal) {
+    storyModal.hidden = false;
+  }
+  document.body.style.overflow = "hidden";
+}
+
+function openStorySettingsModal(storyId) {
+  var story = state.stories.find(function (s) { return s.id === storyId; });
+  if (!story) return;
+
+  var title = document.getElementById("storyModalTitle");
+  if (title) {
+    title.textContent = "Story Settings";
+  }
+  var subtitle = document.querySelector("#storyModal .auth-modal-subtitle");
+  if (subtitle) {
+    subtitle.textContent = "Update your series metadata and preferences";
+  }
+  var content = document.getElementById("storyModalContent");
+  if (content) {
+    content.innerHTML = "";
+    content.appendChild(storySettingsForm(story));
   }
   var storyModal = document.getElementById("storyModal");
   if (storyModal) {
@@ -717,6 +749,43 @@ function bindAuthEvents() {
     if (e.key === "Escape" && !authModal.hidden) closeAuthModal();
     if (e.key === "Escape" && storyModal && !storyModal.hidden) closeStoryModal();
     if (e.key === "Escape") closeAccountMenu();
+
+    // Reader keyboard shortcuts
+    if (window.location.hash === "#reader" || window.location.hash === "reader") {
+      var active = document.activeElement;
+      if (active && (
+        active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.contentEditable === "true"
+      )) {
+        return;
+      }
+
+      if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+
+      var story = getCurrentStory();
+      var isComic = story.type === "Chitrānk";
+      if (e.key === "ArrowLeft") {
+        if (isComic && ui.readerMode === "pages") {
+          e.preventDefault();
+          moveComicPage(-1);
+        } else if (!isComic && ui.readerMode === "pages") {
+          e.preventDefault();
+          moveTextPage(-1);
+        }
+      } else if (e.key === "ArrowRight") {
+        if (isComic && ui.readerMode === "pages") {
+          e.preventDefault();
+          moveComicPage(1);
+        } else if (!isComic && ui.readerMode === "pages") {
+          e.preventDefault();
+          moveTextPage(1);
+        }
+      }
+    }
   });
 
   // Click outside dropdown to close it
@@ -1053,6 +1122,11 @@ function renderReader() {
     el("div", "segmented", [segmentButton("Scroll", "scroll", ui.readerMode, "readerMode"), segmentButton(isComic ? "Page flip" : "Pages", "pages", ui.readerMode, "readerMode")])
   ];
   if (isComic && ui.readerMode === "pages") controls.push(comicPager(chapter));
+  if (!isComic && ui.readerMode === "pages" && chapter.content) {
+    var textPages = paginateText(chapter.content);
+    clampTextPage(textPages);
+    controls.push(textPager(textPages));
+  }
   if (!isComic) controls.push(el("label", "mini-meta", ["Text size", input("range", ui.readerSize, { min: "16", max: "26", action: "fontSize" })]));
   controls.push(progress(story.progress));
   view.appendChild(el("div", "reader-frame", [
@@ -1073,6 +1147,7 @@ function renderReader() {
         button("Prev", "btn", { action: "chapter", step: "-1" }),
         button("Next", "btn", { action: "chapter", step: "1" }),
         button(ui.readerTheme === "dark" ? "Light" : "Dark", "btn", { action: "theme" }),
+        button(document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen", "btn", { action: "toggleFullscreen" }),
         state.user ? button("Report Content", "btn danger", { action: "reportContent", storyId: story.id, chapterId: chapter.id }) : null
       ].filter(Boolean))
     ]),
@@ -1109,7 +1184,7 @@ function renderReader() {
 }
 
 function readerContent(story, chapter) {
-  var cn = "reader-content " + (ui.readerMode === "pages" && story.type !== "Chitrānk" ? "paginated " : "") + (ui.readerTheme === "dark" ? "dark" : "");
+  var cn = "reader-content " + (ui.readerTheme === "dark" ? "dark" : "");
   var container = el("article", cn); container.style.setProperty("--reader-size", ui.readerSize + "px");
   if (story.type === "Chitrānk" && chapter.pages) {
     if (ui.readerMode === "pages") return comicFlipContent(chapter);
@@ -1119,6 +1194,17 @@ function readerContent(story, chapter) {
     return container;
   }
   if (chapter.content) {
+    if (ui.readerMode === "pages") {
+      var pages = paginateText(chapter.content);
+      clampTextPage(pages);
+      var activePage = pages[ui.currentTextPageIndex] || [];
+      activePage.forEach(function (pObj) {
+        var p = el("p", null, pObj.text);
+        p.style.textAlign = pObj.align;
+        container.appendChild(p);
+      });
+      return container;
+    }
     chapter.content.forEach(function (para) {
       var align = "left";
       var cleanText = para;
@@ -1165,6 +1251,14 @@ function comicPager(chapter) {
     button("Prev page", "btn", { action: "comicPage", step: "-1" }, ui.currentComicPageIndex === 0),
     el("span", "mini-meta", pages.length ? (ui.currentComicPageIndex + 1) + " / " + pages.length : "0 / 0"),
     button("Next page", "btn", { action: "comicPage", step: "1" }, ui.currentComicPageIndex >= pages.length - 1)
+  ]);
+}
+
+function textPager(pages) {
+  return el("div", "comic-pager text-pager", [
+    button("Prev page", "btn", { action: "textPage", step: "-1" }, ui.currentTextPageIndex === 0),
+    el("span", "mini-meta", pages.length ? (ui.currentTextPageIndex + 1) + " / " + pages.length : "0 / 0"),
+    button("Next page", "btn", { action: "textPage", step: "1" }, ui.currentTextPageIndex >= pages.length - 1)
   ]);
 }
 
@@ -1312,6 +1406,7 @@ function renderStudio() {
 
         el("div", "studio-btn-row", [
           iconButton("Continue Writing", "btn primary orange-glow-btn", { action: "continueWriting" }, "icon-pencil"),
+          iconButton("Edit Settings", "btn", { action: "editStorySettings", id: active.id }, "icon-gear"),
           iconButton("View Story", "btn", { action: "openStory", id: active.id }, "icon-book"),
           iconButton("", "btn danger", { action: "deleteStory", id: active.id }, "icon-trash")
         ])
@@ -1510,6 +1605,37 @@ function storyForm() {
     submitButton("Create", "btn primary orange-glow-btn")
   ]);
 }
+function storySettingsForm(story) {
+  var tagsString = (story.tags || []).join(", ");
+  return form("storySettingsForm", [
+    (function () {
+      var hidden = el("input");
+      hidden.type = "hidden";
+      hidden.name = "id";
+      hidden.value = story.id;
+      return hidden;
+    })(),
+    field("Title", input("text", story.title, { name: "title", placeholder: "Series title", required: "true" })),
+    field("Genre", input("text", story.genre, { name: "genre", placeholder: "Fantasy", required: "true" })),
+    field("Language", input("text", story.language || "English", { name: "language", placeholder: "English", required: "true" })),
+    field("License", select("license", [
+      ["Creator-owned", "Creator-owned"],
+      ["Creative Commons BY", "Creative Commons BY"],
+      ["Creative Commons BY-NC", "Creative Commons BY-NC"],
+      ["Public Domain", "Public Domain"]
+    ], story.license || "Creator-owned")),
+    field("Status", select("status", [
+      ["draft", "Draft / Unpublished"],
+      ["ongoing", "Ongoing / Active"],
+      ["completed", "Completed"],
+      ["on_hold", "On Hold"],
+      ["cancelled", "Cancelled"]
+    ], story.status || "draft")),
+    field("Tags (comma separated)", input("text", tagsString, { name: "tags", placeholder: "fantasy, magic, adventure" })),
+    field("Synopsis", textarea("description", story.description || "")),
+    submitButton("Save Changes", "btn primary orange-glow-btn")
+  ]);
+}
 function commentForm() {
   if (!state.user) {
     return el("div", "comment-login-prompt", [
@@ -1520,6 +1646,25 @@ function commentForm() {
   return form("commentForm", [field("Add comment", textarea("comment", "")), submitButton("Post comment", "btn primary")]);
 }
 
+function toggleFullscreen() {
+  var frame = document.querySelector(".reader-frame");
+  if (!frame) return;
+  if (!document.fullscreenElement) {
+    frame.requestFullscreen().catch(function (err) {
+      console.error("Error attempting to enable fullscreen:", err);
+    });
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+document.addEventListener("fullscreenchange", function () {
+  var btn = document.querySelector('[data-action="toggleFullscreen"]');
+  if (btn) {
+    btn.textContent = document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen";
+  }
+});
+
 // ── Click handler ──
 function handleViewClick(e) {
   var target = e.target.closest("[data-action]"); if (!target) return;
@@ -1527,8 +1672,8 @@ function handleViewClick(e) {
   if (action === "go") window.location.hash = target.dataset.view;
   if (action === "loginToComment") { openAuthModal(); }
   if (action === "filter") { ui.filterType = target.dataset.value; render(); }
-  if (action === "readerMode") { ui.readerMode = target.dataset.value; ui.currentComicPageIndex = 0; render(); }
-  if (action === "openStory") { ui.currentStoryId = target.dataset.id; ui.currentChapterIndex = 0; ui.currentComicPageIndex = 0; window.location.hash = "reader"; }
+  if (action === "readerMode") { ui.readerMode = target.dataset.value; ui.currentComicPageIndex = 0; ui.currentTextPageIndex = 0; render(); }
+  if (action === "openStory") { ui.currentStoryId = target.dataset.id; ui.currentChapterIndex = 0; ui.currentComicPageIndex = 0; ui.currentTextPageIndex = 0; window.location.hash = "reader"; }
   if (action === "follow") {
     apiPost("/library/follow", { story_id: target.dataset.id }).then(function (r) {
       notify(r.message); return api("/library/ids");
@@ -1541,8 +1686,10 @@ function handleViewClick(e) {
   }
   if (action === "chapter") { moveChapter(Number(target.dataset.step)); }
   if (action === "comicPage") { moveComicPage(Number(target.dataset.step)); }
+  if (action === "textPage") { moveTextPage(Number(target.dataset.step)); }
+  if (action === "toggleFullscreen") { toggleFullscreen(); }
   if (action === "theme") { ui.readerTheme = ui.readerTheme === "dark" ? "light" : "dark"; render(); }
-  if (action === "openChapter") { ui.currentChapterIndex = Number(target.dataset.index); ui.currentComicPageIndex = 0; window.location.hash = "reader"; render(); }
+  if (action === "openChapter") { ui.currentChapterIndex = Number(target.dataset.index); ui.currentComicPageIndex = 0; ui.currentTextPageIndex = 0; window.location.hash = "reader"; render(); }
   if (action === "manageStory") {
     ui.currentStoryId = target.dataset.id;
     ui.currentView = "studio";
@@ -1551,6 +1698,9 @@ function handleViewClick(e) {
   }
   if (action === "openStoryModal") {
     openStoryModal();
+  }
+  if (action === "editStorySettings") {
+    openStorySettingsModal(target.dataset.id);
   }
   if (action === "quickDraft") {
     notify("Quick Draft feature is currently in prototype mode.");
@@ -1926,6 +2076,32 @@ function handleViewSubmit(e) {
       return api("/stories");
     }).then(function (s) { state.stories = s; hydrateGenres(); notify("Story created."); closeStoryModal(); render(); });
   }
+  if (e.target.dataset.form === "storySettingsForm") {
+    var fd = new FormData(e.target);
+    var storyId = fd.get("id");
+    var tags = fd.get("tags").split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+
+    apiPut("/stories/" + storyId, {
+      title: fd.get("title"),
+      genre: fd.get("genre"),
+      description: fd.get("description"),
+      status: fd.get("status"),
+      language: fd.get("language"),
+      license: fd.get("license"),
+      tags: tags
+    }).then(function (resp) {
+      notify("Story metadata updated.");
+      closeStoryModal();
+      return api("/stories");
+    }).then(function (s) {
+      state.stories = s;
+      hydrateGenres();
+      render();
+    }).catch(function (err) {
+      console.error(err);
+      notify("Failed to update story metadata.");
+    });
+  }
   if (e.target.dataset.form === "commentForm") {
     var comment = new FormData(e.target).get("comment").trim(); if (!comment) return;
     var story = getCurrentStory();
@@ -1964,9 +2140,78 @@ function getCurrentChapter(story) {
   if (ui.currentChapterIndex >= story.chapters.length) ui.currentChapterIndex = 0;
   return story.chapters[ui.currentChapterIndex];
 }
-function moveChapter(step) { var s = getCurrentStory(); ui.currentChapterIndex = Math.max(0, Math.min(s.chapters.length - 1, ui.currentChapterIndex + step)); ui.currentComicPageIndex = 0; render(); }
+function moveChapter(step) { var s = getCurrentStory(); ui.currentChapterIndex = Math.max(0, Math.min(s.chapters.length - 1, ui.currentChapterIndex + step)); ui.currentComicPageIndex = 0; ui.currentTextPageIndex = 0; render(); }
 function moveComicPage(step) { var pages = getCurrentChapter(getCurrentStory()).pages || []; ui.currentComicPageIndex = Math.max(0, Math.min(pages.length - 1, ui.currentComicPageIndex + step)); render(); }
 function clampComicPage(pages) { if (!pages.length) ui.currentComicPageIndex = 0; else ui.currentComicPageIndex = Math.max(0, Math.min(pages.length - 1, ui.currentComicPageIndex)); }
+function paginateText(content) {
+  if (!content || !content.length) return [[{ text: "", align: "left" }]];
+  var pages = [];
+  var currentPage = [];
+  var currentWordCount = 0;
+  content.forEach(function (para) {
+    var align = "left";
+    var cleanText = para;
+    if (para.startsWith("[center]")) {
+      align = "center";
+      cleanText = para.substring(8);
+    } else if (para.startsWith("[right]")) {
+      align = "right";
+      cleanText = para.substring(7);
+    } else if (para.startsWith("[left]")) {
+      align = "left";
+      cleanText = para.substring(6);
+    }
+    var words = cleanText.trim().split(/\s+/).filter(Boolean);
+    var wordCount = words.length;
+    if (wordCount === 0) {
+      if (currentPage.length === 0) {
+        currentPage.push({ text: "", align: align });
+      }
+      return;
+    }
+    if (currentWordCount + wordCount > 150 && currentWordCount > 0) {
+      pages.push(currentPage);
+      currentPage = [];
+      currentWordCount = 0;
+    }
+    if (words.length > 150) {
+      var remainingWords = words;
+      while (remainingWords.length > 0) {
+        var limit = 150 - currentWordCount;
+        var chunk = remainingWords.slice(0, limit);
+        currentPage.push({ text: chunk.join(" "), align: align });
+        currentWordCount += chunk.length;
+        remainingWords = remainingWords.slice(limit);
+        if (currentWordCount >= 150 || remainingWords.length > 0) {
+          pages.push(currentPage);
+          currentPage = [];
+          currentWordCount = 0;
+        }
+      }
+    } else {
+      currentPage.push({ text: cleanText, align: align });
+      currentWordCount += wordCount;
+    }
+  });
+  if (currentPage.length > 0) {
+    pages.push(currentPage);
+  }
+  if (pages.length === 0) {
+    pages.push([{ text: "", align: "left" }]);
+  }
+  return pages;
+}
+function moveTextPage(step) {
+  var s = getCurrentStory();
+  var chapter = getCurrentChapter(s);
+  var pages = paginateText(chapter.content || []);
+  ui.currentTextPageIndex = Math.max(0, Math.min(pages.length - 1, ui.currentTextPageIndex + step));
+  render();
+}
+function clampTextPage(pages) {
+  if (!pages.length) ui.currentTextPageIndex = 0;
+  else ui.currentTextPageIndex = Math.max(0, Math.min(pages.length - 1, ui.currentTextPageIndex));
+}
 function countPublished() { return state.stories.filter(function (s) { return s.status === "published"; }).length; }
 function totalViews() { return state.stories.reduce(function (a, s) { return a + s.views; }, 0); }
 function totalFollowers() { return state.stories.reduce(function (a, s) { return a + s.followers; }, 0); }

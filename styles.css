@@ -703,7 +703,19 @@ h2 {
   font-size: var(--reader-size, 19px);
   line-height: 1.82;
   max-width: 800px;
-  margin: 0 auto
+  margin: 0 auto;
+  animation: readerFadeIn 0.22s ease-out;
+}
+
+@keyframes readerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .reader-content.dark {
@@ -859,7 +871,8 @@ h2 {
   gap: 6px
 }
 
-.field label span {
+.field label span,
+.field span {
   color: var(--muted);
   font-size: .84rem;
   font-weight: 700
@@ -2372,3 +2385,105 @@ div.editor-textarea p:last-child {
   white-space: pre-wrap;
   margin: 0;
 }
+
+/* Fullscreen Reader Styles */
+.reader-frame:fullscreen {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+  background: var(--surface) !important;
+  display: block !important;
+  overflow-y: auto !important;
+}
+
+.reader-frame:fullscreen .reader-toolbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 1000 !important;
+  background: #241E1A !important;
+  border-radius: 0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.reader-frame:fullscreen .reader-content {
+  overflow-y: visible !important;
+  padding: 40px clamp(24px, 8vw, 96px) 120px clamp(24px, 8vw, 96px) !important;
+  max-width: 900px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 auto !important;
+}
+
+/* Vendor prefixes for fullscreen compatibility */
+.reader-frame:-webkit-full-screen {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+  background: var(--surface) !important;
+  display: block !important;
+  overflow-y: auto !important;
+}
+
+.reader-frame:-webkit-full-screen .reader-toolbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 1000 !important;
+  background: #241E1A !important;
+  border-radius: 0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.reader-frame:-webkit-full-screen .reader-content {
+  overflow-y: visible !important;
+  padding: 40px clamp(24px, 8vw, 96px) 120px clamp(24px, 8vw, 96px) !important;
+  max-width: 900px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 auto !important;
+}
+
+/* Fullscreen Autohiding Scrollbar Styling (WebKit) */
+.reader-frame:fullscreen::-webkit-scrollbar,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar {
+  width: 12px !important;
+}
+
+.reader-frame:fullscreen::-webkit-scrollbar-track,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.reader-frame:fullscreen::-webkit-scrollbar-thumb,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar-thumb {
+  background: transparent !important;
+  border-radius: 6px !important;
+  border: 3px solid transparent !important;
+  background-clip: padding-box !important;
+}
+
+/* Only show scrollbar when hovering over the scrollbar track region */
+.reader-frame:fullscreen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(229, 124, 51, 0.4) !important;
+}
+
+/* Highlight thumb when directly hovered */
+.reader-frame:fullscreen::-webkit-scrollbar-thumb:hover,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar-thumb:hover {
+  background: rgba(229, 124, 51, 0.8) !important;
+}
+
+
+

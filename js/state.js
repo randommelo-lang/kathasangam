@@ -17,6 +17,7 @@ export const ui = {
   currentStoryId: "",
   currentChapterIndex: 0,
   currentComicPageIndex: 0,
+  currentTextPageIndex: 0,
   editingChapterId: "",
   filterType: "all",
   readerMode: "scroll",

@@ -136,13 +136,16 @@ export function textarea(name, value) {
   return n;
 }
 
-export function select(name, options) {
+export function select(name, options, selectedValue) {
   const n = document.createElement("select");
   n.name = name;
   options.forEach(function (p) {
     const o = document.createElement("option");
     o.value = p[0];
     o.textContent = p[1];
+    if (selectedValue !== undefined && p[0] === selectedValue) {
+      o.selected = true;
+    }
     n.appendChild(o);
   });
   return n;

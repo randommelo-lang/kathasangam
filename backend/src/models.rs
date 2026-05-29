@@ -84,6 +84,9 @@ pub struct UpdateStoryRequest {
     pub description: Option<String>,
     pub cover: Option<String>,
     pub status: Option<String>,
+    pub language: Option<String>,
+    pub license: Option<String>,
+    pub tags: Option<Vec<String>>,
 }
 
 

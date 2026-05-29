@@ -1,4 +1,4 @@
-import { button, el, formatDate, formatNumber } from "./components.js?v=studio-20260528-profile-v3";
+import { button, el, formatDate, formatNumber } from "./components.js?v=studio-20260528-profile-v11";
 
 export function saveChapterFromEditor(ctx, status) {
   const titleEl = document.querySelector(".editor-title-input");
@@ -278,21 +278,64 @@ export function renderEditor(ctx) {
   const alignCenterBtn = button("Align Center", "btn btn-sm");
   const alignRightBtn = button("Align Right", "btn btn-sm");
 
+  function setActiveAlign(activeBtn) {
+    alignLeftBtn.classList.remove("active");
+    alignCenterBtn.classList.remove("active");
+    alignRightBtn.classList.remove("active");
+    activeBtn.classList.add("active");
+  }
+
+  // Set default initial active button
+  alignLeftBtn.classList.add("active");
+
   alignLeftBtn.addEventListener("click", function (e) {
     e.preventDefault();
     document.execCommand("justifyLeft", false, null);
+    setActiveAlign(alignLeftBtn);
     triggerAutoSave();
   });
   alignCenterBtn.addEventListener("click", function (e) {
     e.preventDefault();
     document.execCommand("justifyCenter", false, null);
+    setActiveAlign(alignCenterBtn);
     triggerAutoSave();
   });
   alignRightBtn.addEventListener("click", function (e) {
     e.preventDefault();
     document.execCommand("justifyRight", false, null);
+    setActiveAlign(alignRightBtn);
     triggerAutoSave();
   });
+
+  function checkCurrentAlignment() {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      let container = range.startContainer;
+      while (container && container !== editorDiv) {
+        if (container.nodeType === 1) { // ELEMENT_NODE
+          const align = container.style.textAlign || "left";
+          if (align === "center") {
+            setActiveAlign(alignCenterBtn);
+            return;
+          } else if (align === "right") {
+            setActiveAlign(alignRightBtn);
+            return;
+          } else if (align === "left") {
+            setActiveAlign(alignLeftBtn);
+            return;
+          }
+        }
+        container = container.parentNode;
+      }
+    }
+    // Fallback/Default
+    setActiveAlign(alignLeftBtn);
+  }
+
+  editorDiv.addEventListener("keyup", checkCurrentAlignment);
+  editorDiv.addEventListener("mouseup", checkCurrentAlignment);
+  editorDiv.addEventListener("focus", checkCurrentAlignment);
 
   const alignToolbar = el("div", "editor-align-toolbar", [
     alignLeftBtn,
@@ -318,11 +361,11 @@ export function renderEditor(ctx) {
         titleInput
       ]),
       uploadSection,
-      el("label", "field", [
+      el("div", "field", [
         el("span", null, "Text Alignment"),
         alignToolbar
       ]),
-      el("label", "field", [
+      el("div", "field", [
         el("span", null, "Chapter Content"),
         editorDiv
       ]),

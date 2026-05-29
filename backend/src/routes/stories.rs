@@ -244,15 +244,24 @@ pub async fn update_story(
         cover = random_cover();
     }
     let status = body.status.unwrap_or(row.status);
+    let language = body.language.unwrap_or(row.language);
+    let license = body.license.unwrap_or(row.license);
+    let tags_val = match body.tags {
+        Some(t) => serde_json::json!(t),
+        None => row.tags,
+    };
 
     sqlx::query(
-        "UPDATE stories SET title = $1, genre = $2, description = $3, cover = $4, status = $5 WHERE id = $6"
+        "UPDATE stories SET title = $1, genre = $2, description = $3, cover = $4, status = $5, language = $6, license = $7, tags = $8 WHERE id = $9"
     )
     .bind(&title)
     .bind(&genre)
     .bind(&description)
     .bind(&cover)
     .bind(&status)
+    .bind(&language)
+    .bind(&license)
+    .bind(&tags_val)
     .bind(id)
     .execute(&pool)
     .await

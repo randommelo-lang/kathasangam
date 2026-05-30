@@ -1,4 +1,4 @@
-import { button, el, formatDate, formatNumber } from "./components.js?v=studio-20260528-profile-v11";
+import { button, el, formatDate, formatNumber } from "./components.js?v=studio-20260529-preferences-v21";
 
 export function saveChapterFromEditor(ctx, status) {
   const titleEl = document.querySelector(".editor-title-input");

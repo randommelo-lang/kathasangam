@@ -1,0 +1,2 @@
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS story_id UUID REFERENCES stories(id) ON DELETE CASCADE;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS chapter_sort_order INT;

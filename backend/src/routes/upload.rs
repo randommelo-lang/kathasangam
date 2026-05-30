@@ -1,6 +1,7 @@
 use crate::db::AuthUser;
 use crate::models::UploadResponse;
-use axum::{extract::Multipart, http::StatusCode, Json};
+use crate::errors::AppError;
+use axum::{extract::Multipart, Json};
 use uuid::Uuid;
 
 async fn compress_image_with_bun(
@@ -13,7 +14,7 @@ async fn compress_image_with_bun(
 
     // 1. Write raw bytes to temporary file
     if let Err(e) = tokio::fs::write(&raw_temp_path, raw_data).await {
-        eprintln!("⚠️ Failed to write raw temp file: {:?}", e);
+        tracing::error!("⚠️ Failed to write raw temp file: {:?}", e);
         return None;
     }
 
@@ -52,23 +53,23 @@ async fn compress_image_with_bun(
                 Ok(compressed_data) => {
                     // Clean up compressed temp file
                     let _ = tokio::fs::remove_file(&compressed_temp_path).await;
-                    println!("✅ Bun image compression complete (WebP)");
+                    tracing::info!("✅ Bun image compression complete (WebP)");
                     Some((compressed_data, "webp".to_string()))
                 }
                 Err(e) => {
-                    eprintln!("⚠️ Failed to read compressed temp file: {:?}", e);
+                    tracing::error!("⚠️ Failed to read compressed temp file: {:?}", e);
                     let _ = tokio::fs::remove_file(&compressed_temp_path).await;
                     None
                 }
             }
         }
         Ok(s) => {
-            eprintln!("⚠️ Bun compression script exited with non-zero status: {:?}", s);
+            tracing::error!("⚠️ Bun compression script exited with non-zero status: {:?}", s);
             let _ = tokio::fs::remove_file(&compressed_temp_path).await;
             None
         }
         Err(e) => {
-            eprintln!("⚠️ Failed to execute Bun compression: {:?}", e);
+            tracing::error!("⚠️ Failed to execute Bun compression: {:?}", e);
             let _ = tokio::fs::remove_file(&compressed_temp_path).await;
             None
         }
@@ -106,21 +107,22 @@ fn validate_image_magic_bytes(data: &[u8]) -> bool {
 }
 
 /// POST /api/upload/image
-pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<Json<UploadResponse>, StatusCode> {
+pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<Json<UploadResponse>, AppError> {
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?
+        .map_err(|_| AppError::bad_request("Failed to read upload form data."))?
     {
         let name = field.name().unwrap_or("").to_string();
         if name == "file" {
             let filename = field.file_name().unwrap_or("upload.png").to_string();
             let mut ext = filename.rsplit('.').next().unwrap_or("png").to_string();
-            let mut data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?.to_vec();
+            let mut data = field.bytes().await
+                .map_err(|_| AppError::bad_request("Failed to read uploaded file data."))?.to_vec();
 
             // Validate magic bytes before doing any processing or storage
             if !validate_image_magic_bytes(&data) {
-                return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+                return Err(AppError::bad_request("Unsupported image format. Please upload PNG, JPEG, WebP, or GIF."));
             }
 
             // Attempt to compress image using Bun
@@ -147,7 +149,7 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
                         _ => "application/octet-stream",
                     };
 
-                    println!("🔶 Uploading to Supabase Storage bucket '{}': {}", bucket, stored_name);
+                    tracing::info!("🔶 Uploading to Supabase Storage bucket '{}': {}", bucket, stored_name);
                     let res = client
                         .post(&upload_url)
                         .header("apikey", &key)
@@ -161,16 +163,16 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
                         Ok(resp) => {
                             if resp.status().is_success() {
                                 let public_url = format!("{}/storage/v1/object/public/{}/{}", url, bucket, stored_name);
-                                println!("✅ Uploaded successfully to Supabase Storage: {}", public_url);
+                                tracing::info!("✅ Uploaded successfully to Supabase Storage: {}", public_url);
                                 return Ok(Json(UploadResponse { url: public_url }));
                             } else {
                                 let err_status = resp.status();
                                 let err_text = resp.text().await.unwrap_or_default();
-                                eprintln!("⚠️ Supabase Storage upload failed (status {}): {}. Falling back to local storage.", err_status, err_text);
+                                tracing::error!("⚠️ Supabase Storage upload failed (status {}): {}. Falling back to local storage.", err_status, err_text);
                             }
                         }
                         Err(e) => {
-                            eprintln!("⚠️ Supabase Storage request failed: {}. Falling back to local storage.", e);
+                            tracing::error!("⚠️ Supabase Storage request failed: {}. Falling back to local storage.", e);
                         }
                     }
                 }
@@ -179,13 +181,12 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
             // Fallback: local disk storage
             let path = format!("uploads/{}", stored_name);
             tokio::fs::write(&path, &data)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                .await?;
 
             return Ok(Json(UploadResponse {
                 url: format!("/uploads/{}", stored_name),
             }));
         }
     }
-    Err(StatusCode::BAD_REQUEST)
+    Err(AppError::bad_request("No file field found in upload request."))
 }

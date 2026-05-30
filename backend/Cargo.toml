@@ -49,4 +49,9 @@ reqwest = { version = "0.12", features = ["json"] }
 # Rate Limiter
 governor = "0.10.4"
 
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+
 

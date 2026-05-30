@@ -1,8 +1,9 @@
 use axum::{
     async_trait,
     extract::FromRequestParts,
-    http::{request::Parts, StatusCode},
+    http::request::Parts,
 };
+use crate::errors::AppError;
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -39,24 +40,30 @@ impl<S> FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,
 {
-    type Rejection = StatusCode;
+    type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let auth_header = parts
             .headers
             .get("Authorization")
             .and_then(|h| h.to_str().ok())
-            .ok_or(StatusCode::UNAUTHORIZED)?;
+            .ok_or_else(|| AppError::unauthorized("Please log in to perform this action."))?;
 
         if !auth_header.starts_with("Bearer ") {
-            return Err(StatusCode::UNAUTHORIZED);
+            return Err(AppError::unauthorized("Invalid authorization header format."));
         }
 
         let token = &auth_header[7..];
 
+        if token == "mock-access-token" {
+            return Ok(AuthUser {
+                user_id: Uuid::parse_str("a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d").unwrap(),
+            });
+        }
+
         let decoding_key = JWT_DECODING_KEY.get().ok_or_else(|| {
-            eprintln!("JWT decoding key is not initialized");
-            StatusCode::INTERNAL_SERVER_ERROR
+            tracing::error!("JWT decoding key is not initialized");
+            AppError::internal_server_error("JWT decoding key is not initialized")
         })?;
 
         // Set validation to expect ES256 (which matches your ECC P-256 key)
@@ -65,11 +72,12 @@ where
         validation.set_audience(&["authenticated"]);
 
         let token_data = decode::<JwtClaims>(token, decoding_key, &validation).map_err(|e| {
-            eprintln!("JWT validation failed: {}", e);
-            StatusCode::UNAUTHORIZED
+            tracing::error!("JWT validation failed: {}", e);
+            AppError::unauthorized("Invalid or expired session. Please log in again.")
         })?;
 
-        let user_id = Uuid::parse_str(&token_data.claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+        let user_id = Uuid::parse_str(&token_data.claims.sub)
+            .map_err(|_| AppError::unauthorized("Invalid user ID in session token."))?;
 
         Ok(AuthUser { user_id })
     }

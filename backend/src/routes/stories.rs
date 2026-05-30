@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::db::AuthUser;
 use crate::models::*;
+use crate::errors::AppError;
 
 const STORY_SELECT_ORDERED: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id ORDER BY stories.created_at DESC";
 const STORY_SELECT_BY_ID: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE stories.id = $1";
@@ -35,7 +36,7 @@ pub async fn list_stories(
     auth: Option<AuthUser>,
     State(pool): State<PgPool>,
     Query(params): Query<StoryQuery>,
-) -> Result<Json<Vec<StoryResponse>>, StatusCode> {
+) -> Result<Json<Vec<StoryResponse>>, AppError> {
     let mut results = Vec::new();
     let mut meili_ids = None;
 
@@ -47,7 +48,7 @@ pub async fn list_stories(
                     meili_ids = Some(ids);
                 }
                 Err(e) => {
-                    eprintln!("⚠️ Meilisearch search failed, falling back to database: {}", e);
+                    tracing::error!("⚠️ Meilisearch search failed, falling back to database: {}", e);
                 }
             }
         }
@@ -63,15 +64,9 @@ pub async fn list_stories(
         )
         .bind(&ids)
         .fetch_all(&pool)
-        .await
-        .map_err(|e| {
-            eprintln!("Database error fetching search results: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .await?;
 
-        let mut responses = build_story_responses_batch(&pool, &rows, auth.as_ref())
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let mut responses = build_story_responses_batch(&pool, &rows, auth.as_ref()).await?;
 
         // Sort responses to match Meilisearch order
         responses.sort_by_key(|r| ids.iter().position(|&id| id == r.id).unwrap_or(usize::MAX));
@@ -80,18 +75,9 @@ pub async fn list_stories(
         // Original logic: Fetch all stories and apply search filter in-memory as fallback
         let rows: Vec<StoryRow> = sqlx::query_as(STORY_SELECT_ORDERED)
             .fetch_all(&pool)
-            .await
-            .map_err(|e| {
-                eprintln!("Database error fetching stories: {:?}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+            .await?;
 
-        results = build_story_responses_batch(&pool, &rows, auth.as_ref())
-            .await
-            .map_err(|e| {
-                eprintln!("Error building story response: {:?}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+        results = build_story_responses_batch(&pool, &rows, auth.as_ref()).await?;
 
         if let Some(ref q) = params.q {
             let q = q.to_lowercase();
@@ -104,14 +90,17 @@ pub async fn list_stories(
         }
     }
 
+    // Filter by genre
     if let Some(ref genre) = params.genre {
-        if genre != "all" {
-            results.retain(|s| &s.genre == genre);
+        if !genre.trim().is_empty() {
+            results.retain(|s| s.genre.to_lowercase() == genre.to_lowercase());
         }
     }
-    if let Some(ref st) = params.story_type {
-        if st != "all" {
-            results.retain(|s| &s.story_type == st);
+
+    // Filter by format type
+    if let Some(ref story_type) = params.story_type {
+        if !story_type.trim().is_empty() {
+            results.retain(|s| s.story_type.to_lowercase() == story_type.to_lowercase());
         }
     }
 
@@ -123,15 +112,12 @@ pub async fn get_story(
     auth: Option<AuthUser>,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
-) -> Result<Json<StoryResponse>, StatusCode> {
+) -> Result<Json<StoryResponse>, AppError> {
     let row: StoryRow = fetch_story_row(&pool, id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .await?
+        .ok_or_else(|| AppError::not_found("Story not found."))?;
 
-    let resp = build_story_response(&pool, &row, auth.as_ref())
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let resp = build_story_response(&pool, &row, auth.as_ref()).await?;
     Ok(Json(resp))
 }
 
@@ -140,29 +126,21 @@ pub async fn delete_story(
     State(pool): State<PgPool>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, AppError> {
     // Check if the story exists and retrieve its author_id
     let row = fetch_story_row(&pool, id)
-        .await
-        .map_err(|e| {
-            eprintln!("Database error checking story ownership: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .await?
+        .ok_or_else(|| AppError::not_found("Story not found."))?;
 
     // Fetch the user's role from profiles
     let (user_role,): (String,) = sqlx::query_as("SELECT role::text FROM profiles WHERE id = $1")
         .bind(auth.user_id)
         .fetch_one(&pool)
-        .await
-        .map_err(|e| {
-            eprintln!("Database error fetching user role: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .await?;
 
     // Allow deleting only if the user is the author OR if they are an admin
     if row.author_id != Some(auth.user_id) && user_role != "admin" {
-        return Err(StatusCode::FORBIDDEN);
+        return Err(AppError::forbidden("You do not have permission to delete this story."));
     }
 
     // Log the deletion action
@@ -185,29 +163,21 @@ pub async fn delete_story(
     .bind(id)
     .bind(&details)
     .execute(&pool)
-    .await
-    .map_err(|e| {
-        eprintln!("Failed to write moderation audit log for story deletion: {:?}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
     let result = sqlx::query("DELETE FROM stories WHERE id = $1")
         .bind(id)
         .execute(&pool)
-        .await
-        .map_err(|e| {
-            eprintln!("Database error deleting story: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::not_found("Story not found."));
     }
 
     // De-index story from Meilisearch
     tokio::spawn(async move {
         if let Err(e) = crate::search::deindex_story(id).await {
-            eprintln!("⚠️ Failed to de-index story {} from Meilisearch: {}", id, e);
+            tracing::error!("⚠️ Failed to de-index story {} from Meilisearch: {}", id, e);
         }
     });
 
@@ -220,19 +190,15 @@ pub async fn update_story(
     auth: AuthUser,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateStoryRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, AppError> {
     // Check if the story exists and retrieve its author_id
     let row = fetch_story_row(&pool, id)
-        .await
-        .map_err(|e| {
-            eprintln!("Database error checking story ownership: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .await?
+        .ok_or_else(|| AppError::not_found("Story not found."))?;
 
     // Only allow updating if the user is the author
     if row.author_id != Some(auth.user_id) {
-        return Err(StatusCode::FORBIDDEN);
+        return Err(AppError::forbidden("You do not have permission to edit this story."));
     }
 
     // Build update query dynamically
@@ -264,17 +230,13 @@ pub async fn update_story(
     .bind(&tags_val)
     .bind(id)
     .execute(&pool)
-    .await
-    .map_err(|e| {
-        eprintln!("Database error updating story: {:?}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
     // Re-index story in Meilisearch
     let pool_clone = pool.clone();
     tokio::spawn(async move {
         if let Err(e) = crate::search::index_story(&pool_clone, id).await {
-            eprintln!("⚠️ Failed to re-index story {} in Meilisearch: {}", id, e);
+            tracing::error!("⚠️ Failed to re-index story {} in Meilisearch: {}", id, e);
         }
     });
 
@@ -287,7 +249,10 @@ pub async fn create_story(
     State(pool): State<PgPool>,
     auth: AuthUser,
     Json(body): Json<CreateStoryRequest>,
-) -> Result<(StatusCode, Json<StoryResponse>), StatusCode> {
+) -> Result<(StatusCode, Json<StoryResponse>), AppError> {
+    if body.title.trim().is_empty() {
+        return Err(AppError::bad_request("Story title cannot be empty."));
+    }
     let id = Uuid::new_v4();
     let author_id = auth.user_id;
     let tags_json = serde_json::json!([
@@ -305,40 +270,36 @@ pub async fn create_story(
         .bind(&body.story_type).bind(&body.genre)
         .bind("draft").bind(&tags_json).bind(&body.description).bind(&cover)
         .execute(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     // Create initial chapter
     let ch_id = Uuid::new_v4();
     sqlx::query("INSERT INTO chapters (id, story_id, sort_order, title, status, access) VALUES ($1,$2,0,'Chapter 1','draft','free')")
         .bind(ch_id).bind(id)
-        .execute(&pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .execute(&pool).await?;
 
     let content_id = Uuid::new_v4();
     sqlx::query("INSERT INTO chapter_content (id, chapter_id, sort_order, paragraph) VALUES ($1,$2,0,'Start writing here.')")
         .bind(content_id).bind(ch_id)
-        .execute(&pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .execute(&pool).await?;
 
     if body.story_type == "Chitrānk" {
         let page_id = Uuid::new_v4();
         sqlx::query("INSERT INTO chapter_pages (id, chapter_id, page_index, label, bg) VALUES ($1,$2,0,'Page 1','linear-gradient(135deg, #243337, #b34e3a 55%, #f3d58a)')")
             .bind(page_id).bind(ch_id)
-            .execute(&pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .execute(&pool).await?;
     }
 
     let row: StoryRow = fetch_story_row(&pool, id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    let resp = build_story_response(&pool, &row, Some(&auth))
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?
+        .ok_or_else(|| AppError::internal_server_error("Failed to retrieve created story."))?;
+    let resp = build_story_response(&pool, &row, Some(&auth)).await?;
 
     // Index the new story in Meilisearch
     let pool_clone = pool.clone();
     tokio::spawn(async move {
         if let Err(e) = crate::search::index_story(&pool_clone, id).await {
-            eprintln!("⚠️ Failed to index story {} in Meilisearch: {}", id, e);
+            tracing::error!("⚠️ Failed to index story {} in Meilisearch: {}", id, e);
         }
     });
 
@@ -346,7 +307,7 @@ pub async fn create_story(
 }
 
 /// GET /api/stats
-pub async fn get_stats(State(pool): State<PgPool>) -> Result<Json<StatsResponse>, StatusCode> {
+pub async fn get_stats(State(pool): State<PgPool>) -> Result<Json<StatsResponse>, AppError> {
     let row: (i64, i64, i64, i64) = sqlx::query_as(
         "SELECT \
          (SELECT COUNT(*) FROM stories WHERE status = 'published'), \
@@ -355,8 +316,7 @@ pub async fn get_stats(State(pool): State<PgPool>) -> Result<Json<StatsResponse>
          (SELECT COUNT(*) FROM reports WHERE status = 'open')"
     )
     .fetch_one(&pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     Ok(Json(StatsResponse {
         published: row.0,

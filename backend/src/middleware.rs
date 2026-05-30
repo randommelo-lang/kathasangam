@@ -1,9 +1,12 @@
 use axum::{
     extract::{ConnectInfo, Request, State},
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     middleware::Next,
     response::Response,
 };
+use tracing::{info_span, Instrument};
+
+use crate::errors::AppError;
 use governor::{clock::DefaultClock, state::keyed::DefaultKeyedStateStore, Quota, RateLimiter as GovRateLimiter};
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
@@ -45,7 +48,7 @@ pub async fn rate_limit_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     request: Request,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     // Resolve the real client IP (handling reverse proxies like Cloudflare or Railway)
     let ip = headers
         .get("cf-connecting-ip")
@@ -69,9 +72,71 @@ pub async fn rate_limit_middleware(
     };
 
     if !allowed {
-        eprintln!("Rate limit exceeded for IP: {} on path: {}", ip, path);
-        return Err(StatusCode::TOO_MANY_REQUESTS);
+        tracing::warn!("Rate limit exceeded for IP: {} on path: {}", ip, path);
+        return Err(AppError::too_many_requests("Too many requests. Please try again later."));
     }
 
     Ok(next.run(request).await)
 }
+
+pub async fn request_tracing_middleware(
+    headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let start = std::time::Instant::now();
+
+    // Resolve request ID from header or generate new one
+    let request_id = headers
+        .get("x-request-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    // Resolve client IP (taking proxies into account)
+    let ip = headers
+        .get("cf-connecting-ip")
+        .and_then(|h| h.to_str().ok())
+        .or_else(|| {
+            headers
+                .get("x-forwarded-for")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|h| h.split(',').next())
+        })
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| addr.ip().to_string());
+
+    let method = request.method().clone();
+    let path = request.uri().path().to_string();
+
+    // Span for structured logging context
+    let span = info_span!(
+        "request",
+        request_id = %request_id,
+        method = %method.as_str(),
+        path = %path,
+        client_ip = %ip,
+    );
+
+    async move {
+        let mut response = next.run(request).await;
+        let latency = start.elapsed();
+        let status = response.status();
+
+        if let Ok(val) = axum::http::HeaderValue::from_str(&request_id) {
+            response.headers_mut().insert("x-request-id", val);
+        }
+
+        tracing::info!(
+            status = %status.as_u16(),
+            latency_ms = %latency.as_millis(),
+            "HTTP request processed"
+        );
+
+        response
+    }
+    .instrument(span)
+    .await
+}
+

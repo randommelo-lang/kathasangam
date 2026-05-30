@@ -230,6 +230,8 @@ pub struct NotificationRow {
     pub user_id: Option<Uuid>,
     pub message: String,
     pub is_read: bool,
+    pub story_id: Option<Uuid>,
+    pub chapter_sort_order: Option<i32>,
 }
 
 // ── Library ──
@@ -276,4 +278,22 @@ pub struct AuditLogRow {
     pub details: Value,
     pub created_at: NaiveDateTime,
 }
+
+// ── Reading Progress ──
+
+#[derive(Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct ReadingProgressRow {
+    pub story_id: Uuid,
+    pub chapter_id: Uuid,
+    pub page_index: i32,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateProgressRequest {
+    pub story_id: Uuid,
+    pub chapter_id: Uuid,
+    pub page_index: i32,
+}
+
 

@@ -51,18 +51,15 @@ export function apiDelete(path) {
 
 export async function api(path, options = {}) {
   const now = Date.now();
-  let token = state.accessToken;
+  let token = null;
 
-  if (!token && tokenCache.token && now < tokenCache.expiresAt) {
+  if (tokenCache.token && now < tokenCache.expiresAt) {
     token = tokenCache.token;
-    state.accessToken = token;
-  }
-
-  if (!token && supabaseClient) {
+  } else if (supabaseClient) {
     try {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      token = session?.access_token;
-      state.accessToken = token || null;
+      token = session?.access_token || null;
+      state.accessToken = token;
       if (token) {
         tokenCache.token = token;
         tokenCache.expiresAt = now + TOKEN_TTL_MS;
@@ -71,6 +68,8 @@ export async function api(path, options = {}) {
       console.error(`[API ${path}] Failed to get session:`, err.message);
       state.accessToken = null;
     }
+  } else {
+    token = state.accessToken;
   }
 
   const headers = { ...(options.headers || {}) };
@@ -86,7 +85,16 @@ export async function api(path, options = {}) {
   if (!response.ok) {
     const text = await response.text();
     console.error(`[API ${path}] Error ${response.status}:`, text);
-    throw new Error(response.status);
+    let serverMessage = String(response.status);
+    try {
+      const payload = JSON.parse(text);
+      if (payload && payload.message) {
+        serverMessage = payload.message;
+      }
+    } catch (_) { /* response was not JSON, fall back to status code */ }
+    const err = new Error(serverMessage);
+    err.status = response.status;
+    throw err;
   }
 
   const text = await response.text();

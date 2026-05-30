@@ -1861,6 +1861,7 @@ h2 {
 .icon-image { mask-image: url('icons/image.svg'); -webkit-mask-image: url('icons/image.svg'); }
 .icon-edit { mask-image: url('icons/edit.svg'); -webkit-mask-image: url('icons/edit.svg'); }
 .icon-trash { mask-image: url('icons/trash-icon.svg'); -webkit-mask-image: url('icons/trash-icon.svg'); }
+.icon-bell { mask-image: url('icons/filled-bell-icon.svg'); -webkit-mask-image: url('icons/filled-bell-icon.svg'); }
 
 /* ─── Chapter Editor Styles ─── */
 .editor-panel {
@@ -2484,6 +2485,127 @@ div.editor-textarea p:last-child {
 .reader-frame:-webkit-full-screen::-webkit-scrollbar-thumb:hover {
   background: rgba(229, 124, 51, 0.8) !important;
 }
+
+.story-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+.story-progress-row .progress-shell {
+  flex: 1;
+  max-width: 140px;
+}
+.story-progress-row .mini-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Reading & Notifications Settings layout */
+.settings-field-row-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.settings-field-row-wrap .settings-field-col {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-field-row-wrap .settings-field-col select,
+.settings-field-row-wrap .settings-field-col input {
+  width: 100%;
+}
+.settings-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0 20px 0;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.hero-bell-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  background-color: #ff3b30;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(255, 59, 48, 0.6);
+}
+
+.notification-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.notification-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 320px;
+  max-width: 360px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: rgba(26, 21, 18, .96);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+  padding: 6px 0;
+  z-index: 1000;
+  animation: dropdownFadeIn .15s ease;
+}
+
+.notification-header {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--text);
+}
+
+.notification-item {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, .04);
+  font-size: .85rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s ease;
+  text-align: left;
+}
+
+.notification-item:hover {
+  background: rgba(255, 255, 255, .06);
+}
+
+.notification-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: .85rem;
+}
+
 
 
 

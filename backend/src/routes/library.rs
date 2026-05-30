@@ -1,21 +1,21 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{extract::State, Json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::db::AuthUser;
 use crate::models::*;
 use crate::routes::stories::build_story_responses_batch;
+use crate::errors::AppError;
 
 /// GET /api/library
 pub async fn get_library(
     State(pool): State<PgPool>,
     auth: AuthUser,
-) -> Result<Json<Vec<StoryResponse>>, StatusCode> {
+) -> Result<Json<Vec<StoryResponse>>, AppError> {
     let story_ids: Vec<(Uuid,)> = sqlx::query_as("SELECT story_id FROM library WHERE user_id = $1")
         .bind(auth.user_id)
         .fetch_all(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let ids: Vec<Uuid> = story_ids.into_iter().map(|(id,)| id).collect();
     if ids.is_empty() {
@@ -32,12 +32,10 @@ pub async fn get_library(
     )
     .bind(&ids)
     .fetch_all(&pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let results = build_story_responses_batch(&pool, &rows, Some(&auth))
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     Ok(Json(results))
 }
@@ -46,12 +44,11 @@ pub async fn get_library(
 pub async fn get_library_ids(
     State(pool): State<PgPool>,
     AuthUser { user_id }: AuthUser,
-) -> Result<Json<Vec<Uuid>>, StatusCode> {
+) -> Result<Json<Vec<Uuid>>, AppError> {
     let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT story_id FROM library WHERE user_id = $1")
         .bind(user_id)
         .fetch_all(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     Ok(Json(rows.into_iter().map(|(id,)| id).collect()))
 }
@@ -61,22 +58,20 @@ pub async fn toggle_follow(
     State(pool): State<PgPool>,
     AuthUser { user_id }: AuthUser,
     Json(body): Json<FollowRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, AppError> {
     let exists: Option<(Uuid,)> =
         sqlx::query_as("SELECT story_id FROM library WHERE user_id = $1 AND story_id = $2")
             .bind(user_id)
             .bind(body.story_id)
             .fetch_optional(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .await?;
 
     if exists.is_some() {
         sqlx::query("DELETE FROM library WHERE user_id = $1 AND story_id = $2")
             .bind(user_id)
             .bind(body.story_id)
             .execute(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .await?;
         Ok(Json(
             serde_json::json!({ "followed": false, "message": "Removed from library." }),
         ))
@@ -85,8 +80,7 @@ pub async fn toggle_follow(
             .bind(user_id)
             .bind(body.story_id)
             .execute(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .await?;
         Ok(Json(
             serde_json::json!({ "followed": true, "message": "Added to library." }),
         ))

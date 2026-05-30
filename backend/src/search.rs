@@ -49,9 +49,9 @@ pub async fn init_search_index() -> Result<(), String> {
         "filterableAttributes": ["genre", "type", "language", "tags"],
     });
 
-    println!("🔶 Initializing Meilisearch index 'stories' settings...");
+    tracing::info!("🔶 Initializing Meilisearch index 'stories' settings...");
     send_to_meili("/indexes/stories/settings", settings, "PATCH").await?;
-    println!("✅ Meilisearch index 'stories' configured successfully");
+    tracing::info!("✅ Meilisearch index 'stories' configured successfully");
     Ok(())
 }
 
@@ -132,7 +132,7 @@ pub async fn backfill_all_stories(pool: &sqlx::PgPool) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
 
-    println!("🔶 Syncing {} stories to Meilisearch index...", rows.len());
+    tracing::info!("🔶 Syncing {} stories to Meilisearch index...", rows.len());
 
     let mut docs = Vec::new();
     for story in rows {
@@ -162,6 +162,38 @@ pub async fn backfill_all_stories(pool: &sqlx::PgPool) -> Result<(), String> {
         send_to_meili("/indexes/stories/documents", serde_json::json!(docs), "PUT").await?;
     }
 
-    println!("✅ Meilisearch backfill of {} stories complete", docs.len());
+    tracing::info!("✅ Meilisearch backfill of {} stories complete", docs.len());
     Ok(())
 }
+
+pub async fn check_health() -> Result<(), String> {
+    let base_url = std::env::var("MEILISEARCH_URL").unwrap_or_else(|_| "http://localhost:7700".to_string());
+    let key = std::env::var("MEILISEARCH_KEY").ok();
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .map_err(|e| e.to_string())?;
+    
+    let url = format!("{}/health", base_url);
+    let mut req = client.get(&url);
+
+    if let Some(ref k) = key {
+        if !k.is_empty() {
+            req = req.header("Authorization", format!("Bearer {}", k));
+        }
+    }
+
+    let resp = req.send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("Meilisearch status error: {}", resp.status()));
+    }
+
+    let val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    if val.get("status").and_then(|s| s.as_str()) == Some("available") {
+        Ok(())
+    } else {
+        Err("Meilisearch not available".to_string())
+    }
+}
+

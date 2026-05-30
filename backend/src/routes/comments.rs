@@ -8,20 +8,20 @@ use uuid::Uuid;
 
 use crate::db::AuthUser;
 use crate::models::*;
+use crate::errors::AppError;
 
 /// GET /api/chapters/:story_id/:index/comments
 pub async fn list_comments(
     State(pool): State<PgPool>,
     Path((story_id, index)): Path<(Uuid, i64)>,
-) -> Result<Json<Vec<CommentResponse>>, StatusCode> {
+) -> Result<Json<Vec<CommentResponse>>, AppError> {
     let ch: ChapterRow =
         sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 AND sort_order = $2")
             .bind(story_id)
             .bind(index)
             .fetch_optional(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-            .ok_or(StatusCode::NOT_FOUND)?;
+            .await?
+            .ok_or_else(|| AppError::not_found("Chapter not found"))?;
 
     let rows: Vec<(Uuid, Option<Uuid>, String, String)> =
         sqlx::query_as(
@@ -33,8 +33,7 @@ pub async fn list_comments(
         )
         .bind(&ch.id)
         .fetch_all(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     Ok(Json(
         rows.into_iter()
@@ -54,15 +53,18 @@ pub async fn create_comment(
     AuthUser { user_id }: AuthUser,
     Path((story_id, index)): Path<(Uuid, i64)>,
     Json(body): Json<CreateCommentRequest>,
-) -> Result<(StatusCode, Json<CommentResponse>), StatusCode> {
+) -> Result<(StatusCode, Json<CommentResponse>), AppError> {
+    if body.text.trim().is_empty() {
+        return Err(AppError::bad_request("Comment content cannot be empty."));
+    }
+
     let ch: ChapterRow =
         sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 AND sort_order = $2")
             .bind(story_id)
             .bind(index)
             .fetch_optional(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-            .ok_or(StatusCode::NOT_FOUND)?;
+            .await?
+            .ok_or_else(|| AppError::not_found("Chapter not found"))?;
 
     let id = Uuid::new_v4();
     sqlx::query("INSERT INTO comments (id, chapter_id, user_id, content) VALUES ($1,$2,$3,$4)")
@@ -71,8 +73,7 @@ pub async fn create_comment(
         .bind(user_id)
         .bind(&body.text)
         .execute(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     // Retrieve commenter's real username from profile
     let username_row: Option<(String,)> = sqlx::query_as(
@@ -80,10 +81,39 @@ pub async fn create_comment(
     )
     .bind(user_id)
     .fetch_optional(&pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let username = username_row.map(|r| r.0).unwrap_or_else(|| "Reader".to_string());
+
+    // Notify story author if commenter is not the author
+    let story_info: Option<(Option<Uuid>, String)> = sqlx::query_as(
+        "SELECT author_id, title FROM stories WHERE id = $1"
+    )
+    .bind(story_id)
+    .fetch_optional(&pool)
+    .await
+    .unwrap_or(None);
+
+    if let Some((Some(author_id), story_title)) = story_info {
+        if author_id != user_id {
+            let message = format!(
+                "User '{}' commented on '{}' of your story '{}'",
+                username, ch.title, story_title
+            );
+            let _ = sqlx::query(
+                "INSERT INTO notifications (user_id, message, story_id, chapter_sort_order) \
+                 SELECT $1, $2, $3, $4 \
+                 FROM profiles p \
+                 WHERE p.id = $1 AND (COALESCE(p.preferences->>'in_app_notifications', 'true'))::boolean = true"
+            )
+            .bind(author_id)
+            .bind(&message)
+            .bind(story_id)
+            .bind(ch.sort_order)
+            .execute(&pool)
+            .await;
+        }
+    }
 
     Ok((
         StatusCode::CREATED,
@@ -101,16 +131,15 @@ pub async fn delete_comment(
     State(pool): State<PgPool>,
     auth: AuthUser,
     Path(comment_id): Path<Uuid>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     // 1. Fetch the comment to check user_id
     let comment: Option<(Option<Uuid>,)> = sqlx::query_as("SELECT user_id FROM comments WHERE id = $1")
         .bind(comment_id)
         .fetch_optional(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let comment_user_id = comment
-        .ok_or(StatusCode::NOT_FOUND)?
+        .ok_or_else(|| AppError::not_found("Comment not found"))?
         .0;
 
     // 2. Check if current user is the owner
@@ -122,8 +151,7 @@ pub async fn delete_comment(
         let role: Option<(String,)> = sqlx::query_as("SELECT role::text FROM profiles WHERE id = $1")
             .bind(auth.user_id)
             .fetch_optional(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .await?;
         if let Some((r,)) = role {
             if r == "admin" || r == "moderator" {
                 is_authorized = true;
@@ -132,15 +160,14 @@ pub async fn delete_comment(
     }
 
     if !is_authorized {
-        return Err(StatusCode::FORBIDDEN);
+        return Err(AppError::forbidden("You do not have permission to delete this comment."));
     }
 
     // 4. Delete the comment
     sqlx::query("DELETE FROM comments WHERE id = $1")
         .bind(comment_id)
         .execute(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }

@@ -3,6 +3,7 @@ mod models;
 mod routes;
 mod search;
 mod middleware;
+pub mod errors;
 
 
 use axum::{
@@ -17,13 +18,28 @@ use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() {
-
     dotenvy::dotenv().ok();
+
+    // Initialize structured logging / tracing
+    let log_format = std::env::var("LOG_FORMAT").unwrap_or_default();
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    if log_format.to_lowercase() == "json" {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .json()
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .init();
+    }
 
     // Initialize cached JWT public key
     crate::db::init_jwt_decoding_key();
 
-    println!("🔶 KathaSangam Backend starting …");
+    tracing::info!("🔶 KathaSangam Backend starting …");
 
     let rate_limiter = middleware::RateLimiter::new();
 
@@ -41,17 +57,17 @@ async fn main() {
 
         .expect("Failed to connect to PostgreSQL");
 
-    println!("✅ Connected to Supabase PostgreSQL");
+    tracing::info!("✅ Connected to Supabase PostgreSQL");
 
     // Initialize Meilisearch index & backfill asynchronously
     let pool_clone = pool.clone();
     tokio::spawn(async move {
         if let Err(e) = crate::search::init_search_index().await {
-            eprintln!("⚠️ Meilisearch initialization failed: {}", e);
+            tracing::error!("⚠️ Meilisearch initialization failed: {}", e);
         } else if let Err(e) = crate::search::backfill_all_stories(&pool_clone).await {
-            eprintln!("⚠️ Meilisearch backfill failed: {}", e);
+            tracing::error!("⚠️ Meilisearch backfill failed: {}", e);
         } else {
-            println!("✅ Meilisearch search index synced & ready!");
+            tracing::info!("✅ Meilisearch search index synced & ready!");
         }
     });
 
@@ -150,7 +166,19 @@ async fn main() {
         // NOTIFICATIONS
         .route(
             "/notifications",
-            get(routes::notifications::list_notifications),
+            get(routes::notifications::list_notifications)
+                .delete(routes::notifications::clear_all_notifications),
+        )
+        .route(
+            "/notifications/:id",
+            delete(routes::notifications::delete_notification),
+        )
+
+        // PROGRESS
+        .route(
+            "/progress",
+            get(routes::progress::get_progress)
+                .post(routes::progress::update_progress),
         )
 
         // IMAGE UPLOAD
@@ -159,6 +187,7 @@ async fn main() {
             post(routes::upload::upload_image)
                 .layer(axum::extract::DefaultBodyLimit::max(5 * 1024 * 1024)),
         )
+
 
         // PROFILE
         .route(
@@ -189,7 +218,7 @@ async fn main() {
         // HEALTH CHECK
         .route(
             "/health",
-            get(|| async { (axum::http::StatusCode::OK, "OK") }),
+            get(routes::health::health_check),
         )
         .layer(axum::middleware::from_fn_with_state(
             rate_limiter.clone(),
@@ -216,13 +245,15 @@ async fn main() {
 
         .fallback_service(frontend_service)
 
+        .layer(axum::middleware::from_fn(middleware::request_tracing_middleware))
+
         .layer(CorsLayer::permissive())
 
         .with_state(pool);
 
     let addr = "0.0.0.0:3000";
 
-    println!("🚀 Listening on http://localhost:3000");
+    tracing::info!("🚀 Listening on http://localhost:3000");
 
     let listener =
         tokio::net::TcpListener::bind(addr)

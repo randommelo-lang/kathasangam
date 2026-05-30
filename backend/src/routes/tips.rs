@@ -1,13 +1,13 @@
 use crate::models::*;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     Json,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::db::AuthUser;
+use crate::errors::AppError;
 
 /// POST /api/stories/:id/tip
 pub async fn tip_story(
@@ -15,7 +15,7 @@ pub async fn tip_story(
     AuthUser { user_id }: AuthUser,
     Path(story_id): Path<Uuid>,
     Json(body): Json<TipRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, AppError> {
     let amount = body.amount.unwrap_or(5);
     let tip_id = Uuid::new_v4();
     sqlx::query("INSERT INTO tips (id, story_id, user_id, amount) VALUES ($1, $2, $3, $4)")
@@ -24,14 +24,12 @@ pub async fn tip_story(
         .bind(user_id)
         .bind(amount)
         .execute(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
     sqlx::query("UPDATE stories SET earnings = earnings + $1 WHERE id = $2")
         .bind(amount)
         .bind(story_id)
         .execute(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
     let row: Option<(String,)> = sqlx::query_as(
         "SELECT COALESCE(profiles.username, 'the author')
          FROM stories
@@ -40,8 +38,7 @@ pub async fn tip_story(
     )
     .bind(story_id)
     .fetch_optional(&pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
     let author = row
         .map(|(a,)| a)
         .unwrap_or_else(|| "the author".to_string());

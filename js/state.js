@@ -9,7 +9,8 @@ export const state = {
   user: null,
   accessToken: null,
   profile: null,
-  stats: null
+  stats: null,
+  progress: []
 };
 
 export const ui = {

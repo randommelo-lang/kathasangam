@@ -1,4 +1,5 @@
-use axum::{http::StatusCode, Json};
+use axum::Json;
+use crate::errors::AppError;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -11,15 +12,15 @@ pub struct ConfigResponse {
 
 /// GET /api/config — returns public Supabase config to the frontend
 /// These are public values (anon key is designed to be client-facing)
-pub async fn get_config() -> Result<Json<ConfigResponse>, StatusCode> {
+pub async fn get_config() -> Result<Json<ConfigResponse>, AppError> {
     let supabase_url = std::env::var("SUPABASE_URL").map_err(|_| {
-        eprintln!("Missing SUPABASE_URL env var");
-        StatusCode::INTERNAL_SERVER_ERROR
+        tracing::error!("Missing SUPABASE_URL env var");
+        AppError::internal_server_error("Server configuration error: SUPABASE_URL is missing.")
     })?;
 
     let supabase_anon_key = std::env::var("SUPABASE_ANON_KEY").map_err(|_| {
-        eprintln!("Missing SUPABASE_ANON_KEY env var");
-        StatusCode::INTERNAL_SERVER_ERROR
+        tracing::error!("Missing SUPABASE_ANON_KEY env var");
+        AppError::internal_server_error("Server configuration error: SUPABASE_ANON_KEY is missing.")
     })?;
 
     let admin_email = std::env::var("ADMIN_EMAIL").unwrap_or_default();

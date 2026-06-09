@@ -1,24 +1,27 @@
-import { state, ui } from "./state.js?v=studio-20260529-preferences-v21";
-import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js?v=studio-20260529-preferences-v21";
-import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js?v=studio-20260529-preferences-v21";
-import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js?v=studio-20260529-preferences-v21";
-import { analyticsMetricBox, button, calculateStars, el, field, form, formatDate, formatNumber, generateChartData, iconButton, input, list, metric, progress, quickActionTile, segmentButton, select, submitButton, svgEl, textarea, unique } from "./components.js?v=studio-20260529-preferences-v21";
+import { state, ui } from "./state.js?v=comic-fit-20260609-v27";
+import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js?v=comic-fit-20260609-v27";
+import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js?v=comic-fit-20260609-v27";
+import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js?v=comic-fit-20260609-v27";
+import { analyticsMetricBox, button, calculateStars, el, field, form, formatDate, formatNumber, generateChartData, iconButton, input, list, metric, progress, quickActionTile, segmentButton, select, showConfirm, submitButton, svgEl, textarea, unique } from "./components.js?v=comic-fit-20260609-v27";
 
 // Import view modules
-import { renderDiscover } from "./views/discover.js?v=studio-20260529-preferences-v21";
-import { renderLibrary } from "./views/library.js?v=studio-20260529-preferences-v21";
-import { renderReader } from "./views/reader.js?v=studio-20260529-preferences-v21";
-import { renderStudio } from "./views/studio.js?v=studio-20260529-preferences-v21";
-import { renderModeration } from "./views/moderation.js?v=studio-20260529-preferences-v21";
-import { canDeleteStory, storyCard, storyGrid } from "./views/shared.js?v=studio-20260529-preferences-v21";
+import { renderDiscover } from "./views/discover.js?v=comic-fit-20260609-v27";
+import { renderLibrary } from "./views/library.js?v=comic-fit-20260609-v27";
+import { renderReader } from "./views/reader.js?v=comic-fit-20260609-v27";
+import { renderStudio } from "./views/studio.js?v=comic-fit-20260609-v27";
+import { renderModeration } from "./views/moderation.js?v=comic-fit-20260609-v27";
+import { renderStoryDetails } from "./views/story.js?v=comic-fit-20260609-v27";
+import { renderMessages } from "./views/messages.js?v=comic-fit-20260609-v27";
+import { canDeleteStory, storyCard, storyGrid } from "./views/shared.js?v=comic-fit-20260609-v27";
 
 // Import controller modules
-import { handleDiscoverClick } from "./controllers/discoverController.js?v=studio-20260529-preferences-v21";
-import { handleLibraryClick } from "./controllers/libraryController.js?v=studio-20260529-preferences-v21";
-import { handleReaderClick, handleReaderInput, handleReaderSubmit } from "./controllers/readerController.js?v=studio-20260529-preferences-v21";
-import { handleStudioClick, handleStudioSubmit } from "./controllers/studioController.js?v=studio-20260529-preferences-v21";
-import { handleModerationClick } from "./controllers/moderationController.js?v=studio-20260529-preferences-v21";
-import { handleProfileClick } from "./controllers/profileController.js?v=studio-20260529-preferences-v21";
+import { handleDiscoverClick } from "./controllers/discoverController.js?v=comic-fit-20260609-v27";
+import { handleLibraryClick } from "./controllers/libraryController.js?v=comic-fit-20260609-v27";
+import { handleReaderClick, handleReaderInput, handleReaderSubmit } from "./controllers/readerController.js?v=comic-fit-20260609-v27";
+import { handleStudioClick, handleStudioSubmit } from "./controllers/studioController.js?v=comic-fit-20260609-v27";
+import { handleModerationClick } from "./controllers/moderationController.js?v=comic-fit-20260609-v27";
+import { handleProfileClick } from "./controllers/profileController.js?v=comic-fit-20260609-v27";
+import { handleCommunityClick, handleCommunitySubmit } from "./controllers/communityController.js?v=comic-fit-20260609-v27";
 
 var view = document.getElementById("view");
 var pageTitle = document.getElementById("pageTitle");
@@ -37,6 +40,8 @@ var authSuccess = document.getElementById("authSuccess");
 var signInBtn = document.getElementById("signInBtn");
 
 ui.currentView = getRoute();
+window.showConfirm = showConfirm;
+
 
 var ctx = {
   state: state,
@@ -56,6 +61,8 @@ var ctx = {
   renderReader: renderReader,
   renderStudio: renderStudio,
   renderModeration: renderModeration,
+  renderStoryDetails: renderStoryDetails,
+  renderMessages: renderMessages,
   renderEditor: renderEditor,
   renderProfileSettings: renderProfileSettings,
   getCurrentStudioStory: getCurrentStudioStory,
@@ -437,6 +444,9 @@ function onAuthStateChange(event, session) {
     state.reports = [];
     state.notifications = [];
     state.progress = [];
+    state.bookmarks = null;
+    state.bookmarkIds = null;
+    state.readingLists = null;
     loadPreferences();
     updateAuthUI();
     render();
@@ -556,6 +566,7 @@ function updateAuthUI() {
     dropdown.appendChild(accountMenuButton("Settings", "settings"));
     dropdown.appendChild(accountMenuButton("Library", "library"));
     dropdown.appendChild(accountMenuButton("Author Studio", "studio"));
+    dropdown.appendChild(accountMenuButton("Messages", "messages"));
 
     var divider2 = document.createElement("div");
     divider2.className = "account-dropdown-divider";
@@ -1076,13 +1087,72 @@ function renderProfileSettings() {
       avatarEl.textContent = initial;
     }
 
-    var headerCard = el("section", "profile-header-card", [
+    var followBtn = null;
+    var messageBtn = null;
+
+    if (state.user && cached.id !== state.user.id) {
+      var isFollowingUser = cached.is_following;
+      followBtn = el("button", {
+        class: "btn" + (isFollowingUser ? " active" : " primary"),
+        style: "display: flex; align-items: center; gap: 6px;"
+      }, isFollowingUser ? "Following" : "Follow");
+
+      followBtn.addEventListener("click", function () {
+        apiPost("/follow/user/" + cached.id)
+          .then(function (res) {
+            cached.is_following = res.followed;
+            if (res.followed) {
+              cached.followers_count = (cached.followers_count || 0) + 1;
+              notify("Followed " + username);
+            } else {
+              cached.followers_count = Math.max(0, (cached.followers_count || 0) - 1);
+              notify("Unfollowed " + username);
+            }
+            render();
+          })
+          .catch(function (err) {
+            console.error("Follow failed:", err);
+            notify("Error following user: " + (err.message || err));
+          });
+      });
+
+      messageBtn = el("button", {
+        class: "btn secondary",
+        style: "display: flex; align-items: center; gap: 6px;"
+      }, [
+        el("span", "icon icon-pencil"),
+        "Message"
+      ]);
+      messageBtn.addEventListener("click", function () {
+        ui.activeConversationUserId = cached.id;
+        ui.activeConversationUser = cached;
+        window.location.hash = "messages";
+      });
+    }
+
+    var headerCardChildren = [
       avatarEl,
       el("div", "profile-header-info", [
         el("h2", "profile-display-name", username),
-        el("span", "auth-role-badge profile-role-badge " + role, role.charAt(0).toUpperCase() + role.slice(1))
+        el("span", "auth-role-badge profile-role-badge " + role, role.charAt(0).toUpperCase() + role.slice(1)),
+        el("div", { class: "profile-header-social-stats", style: "margin-top: 8px; font-size: 0.85rem; color: var(--text-muted);" }, [
+          el("span", null, formatNumber(cached.followers_count || 0) + " Followers"),
+          " · ",
+          el("span", null, formatNumber(cached.following_count || 0) + " Following")
+        ])
       ])
-    ]);
+    ];
+
+    if (followBtn || messageBtn) {
+      var actionsContainer = el("div", {
+        style: "margin-left: auto; display: flex; gap: 8px; align-items: center;"
+      });
+      if (followBtn) actionsContainer.appendChild(followBtn);
+      if (messageBtn) actionsContainer.appendChild(messageBtn);
+      headerCardChildren.push(actionsContainer);
+    }
+
+    var headerCard = el("section", "profile-header-card", headerCardChildren);
     view.appendChild(headerCard);
 
     var bioBlock = el("section", "profile-bio-card", [
@@ -1097,8 +1167,7 @@ function renderProfileSettings() {
 
     var statsRow = el("div", "profile-stats-row", [
       el("div", "profile-stat", [el("strong", null, String(authorStories.length)), el("span", null, "Stories")]),
-      el("div", "profile-stat", [el("strong", null, formatNumber(authorStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))), el("span", null, "Total Reads")]),
-      el("div", "profile-stat", [el("strong", null, formatNumber(authorStories.reduce(function (sum, s) { return sum + (s.followers || 0); }, 0))), el("span", null, "Followers")])
+      el("div", "profile-stat", [el("strong", null, formatNumber(authorStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))), el("span", null, "Total Reads")])
     ]);
     view.appendChild(statsRow);
 
@@ -1137,7 +1206,12 @@ function renderProfileSettings() {
     el("div", "profile-header-info", [
       el("h2", "profile-display-name", username),
       el("p", "profile-email", email),
-      el("span", "auth-role-badge profile-role-badge " + role, role.charAt(0).toUpperCase() + role.slice(1))
+      el("span", "auth-role-badge profile-role-badge " + role, role.charAt(0).toUpperCase() + role.slice(1)),
+      el("div", { class: "profile-header-social-stats", style: "margin-top: 8px; font-size: 0.85rem; color: var(--text-muted);" }, [
+        el("span", null, formatNumber(state.profile.followers_count || 0) + " Followers"),
+        " · ",
+        el("span", null, formatNumber(state.profile.following_count || 0) + " Following")
+      ])
     ])
   ]);
   view.appendChild(headerCard);
@@ -1155,9 +1229,7 @@ function renderProfileSettings() {
 
     var statsRow = el("div", "profile-stats-row", [
       el("div", "profile-stat", [el("strong", null, String(userStories.length)), el("span", null, "Stories")]),
-      el("div", "profile-stat", [el("strong", null, formatNumber(userStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))), el("span", null, "Total Reads")]),
-      el("div", "profile-stat", [el("strong", null, formatNumber(userStories.reduce(function (sum, s) { return sum + (s.followers || 0); }, 0))), el("span", null, "Followers")]),
-      el("div", "profile-stat", [el("strong", null, String(state.library.length)), el("span", null, "Following")])
+      el("div", "profile-stat", [el("strong", null, formatNumber(userStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))), el("span", null, "Total Reads")])
     ]);
     view.appendChild(statsRow);
 
@@ -1314,14 +1386,13 @@ function storyForm() {
   return form("storyForm", [
     field("Title", input("text", "", { name: "title", placeholder: "New series title", required: "true" })),
     field("Type", select("type", [["Web Novel", "Web Novel"], ["Chitrānk", "Chitrānk"]])),
-    field("Genre", input("text", "", { name: "genre", placeholder: "Fantasy", required: "true" })),
+    field("Genre (comma separated)", input("text", "", { name: "genre", placeholder: "e.g. Fantasy, Romance", required: "true" })),
     field("Synopsis", textarea("description", "A new serialized story begins here.")),
     submitButton("Create", "btn primary orange-glow-btn")
   ]);
 }
 
 function storySettingsForm(story) {
-  var tagsString = (story.tags || []).join(", ");
   return form("storySettingsForm", [
     (function () {
       var hidden = el("input");
@@ -1331,7 +1402,7 @@ function storySettingsForm(story) {
       return hidden;
     })(),
     field("Title", input("text", story.title, { name: "title", placeholder: "Series title", required: "true" })),
-    field("Genre", input("text", story.genre, { name: "genre", placeholder: "Fantasy", required: "true" })),
+    field("Genre (comma separated)", input("text", story.genre, { name: "genre", placeholder: "e.g. Fantasy, Romance", required: "true" })),
     field("Language", input("text", story.language || "English", { name: "language", placeholder: "English", required: "true" })),
     field("License", select("license", [
       ["Creator-owned", "Creator-owned"],
@@ -1346,7 +1417,6 @@ function storySettingsForm(story) {
       ["on_hold", "On Hold"],
       ["cancelled", "Cancelled"]
     ], story.status || "draft")),
-    field("Tags (comma separated)", input("text", tagsString, { name: "tags", placeholder: "fantasy, magic, adventure" })),
     field("Synopsis", textarea("description", story.description || "")),
     submitButton("Save Changes", "btn primary orange-glow-btn")
   ]);
@@ -1389,6 +1459,7 @@ function handleViewClick(e) {
   if (handleStudioClick(ctx, action, target, e)) return;
   if (handleModerationClick(ctx, action, target, e)) return;
   if (handleProfileClick(ctx, action, target, e)) return;
+  if (handleCommunityClick(ctx, action, target, e)) return;
 }
 
 function handleViewInput(e) {
@@ -1403,18 +1474,43 @@ function handleViewSubmit(e) {
   if (!formName) return;
   if (handleReaderSubmit(ctx, formName, e.target, e)) return;
   if (handleStudioSubmit(ctx, formName, e.target, e)) return;
+  if (handleCommunitySubmit(ctx, formName, e.target, e)) return;
 }
 
 function renderEditor() { renderEditorModule(ctx); }
 
-// ── Data helpers ──
 function filteredStories() {
   var query = searchInput.value.trim().toLowerCase();
   var genre = genreFilter.value;
-  return state.stories.filter(function (s) {
-    var hay = [s.title, s.author, s.genre, s.description].concat(s.tags).join(" ").toLowerCase();
-    return (!query || hay.indexOf(query) !== -1) && (genre === "all" || s.genre === genre) && (ui.filterType === "all" || s.type === ui.filterType);
+  var results = state.stories.filter(function (s) {
+    var hay = [s.title, s.author, s.genre, s.description].join(" ").toLowerCase();
+    var matchesSearch = !query || hay.indexOf(query) !== -1;
+    var matchesGenre = genre === "all" || (s.genre && s.genre.split(",").map(function (g) { return g.trim().toLowerCase(); }).indexOf(genre.toLowerCase()) !== -1);
+    var matchesType = ui.filterType === "all" || s.type === ui.filterType;
+    var matchesStatus = !ui.filterStatus || ui.filterStatus === "all" || (s.status && s.status.toLowerCase() === ui.filterStatus.toLowerCase());
+    var matchesLanguage = !ui.filterLanguage || ui.filterLanguage === "all" || (s.language && s.language.toLowerCase() === ui.filterLanguage.toLowerCase());
+    return matchesSearch && matchesGenre && matchesType && matchesStatus && matchesLanguage;
   });
+
+  if (ui.filterSort === "newest") {
+    results.sort(function (a, b) {
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+  } else if (ui.filterSort === "reads") {
+    results.sort(function (a, b) {
+      return (b.views || 0) - (a.views || 0);
+    });
+  } else if (ui.filterSort === "likes") {
+    results.sort(function (a, b) {
+      return (b.likes || 0) - (a.likes || 0);
+    });
+  } else if (ui.filterSort === "rating") {
+    results.sort(function (a, b) {
+      return parseFloat(calculateStars(b)) - parseFloat(calculateStars(a));
+    });
+  }
+
+  return results;
 }
 
 function getCurrentStory() {
@@ -1445,14 +1541,26 @@ function moveChapter(step) {
 
 function moveComicPage(step) {
   var pages = getCurrentChapter(getCurrentStory()).pages || [];
-  ui.currentComicPageIndex = Math.max(0, Math.min(pages.length - 1, ui.currentComicPageIndex + step));
+  var actualStep = step;
+  if (ui.readerMode === "pages" && Math.abs(step) === 1) {
+    actualStep = step * 2;
+  }
+  ui.currentComicPageIndex = Math.max(0, Math.min(pages.length - 1, ui.currentComicPageIndex + actualStep));
+  if (ui.readerMode === "pages" && ui.currentComicPageIndex % 2 !== 0) {
+    ui.currentComicPageIndex = Math.max(0, ui.currentComicPageIndex - 1);
+  }
   render();
   syncCurrentProgress();
 }
 
 function clampComicPage(pages) {
   if (!pages.length) ui.currentComicPageIndex = 0;
-  else ui.currentComicPageIndex = Math.max(0, Math.min(pages.length - 1, ui.currentComicPageIndex));
+  else {
+    ui.currentComicPageIndex = Math.max(0, Math.min(pages.length - 1, ui.currentComicPageIndex));
+    if (ui.readerMode === "pages" && ui.currentComicPageIndex % 2 !== 0) {
+      ui.currentComicPageIndex = Math.max(0, ui.currentComicPageIndex - 1);
+    }
+  }
 }
 
 function paginateText(content) {

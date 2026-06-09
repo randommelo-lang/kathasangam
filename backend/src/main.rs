@@ -48,9 +48,7 @@ async fn main() {
         .expect("DATABASE_URL missing");
 
     let pool = PgPoolOptions::new()
-
-        .max_connections(10)
-
+        .max_connections(3)
         .connect(&db_url)
 
         .await
@@ -181,6 +179,48 @@ async fn main() {
                 .post(routes::progress::update_progress),
         )
 
+        // DIRECT MESSAGES
+        .route(
+            "/messages",
+            get(routes::messages::list_conversations)
+                .post(routes::messages::send_message),
+        )
+        .route(
+            "/messages/:user_id",
+            get(routes::messages::get_message_history),
+        )
+
+        // BOOKMARKS
+        .route(
+            "/bookmarks",
+            get(routes::bookmarks::list_bookmarks)
+                .post(routes::bookmarks::toggle_bookmark),
+        )
+        .route(
+            "/bookmarks/ids",
+            get(routes::bookmarks::get_bookmark_ids),
+        )
+
+        // READING LISTS
+        .route(
+            "/reading-lists",
+            get(routes::reading_lists::list_reading_lists)
+                .post(routes::reading_lists::create_reading_list),
+        )
+        .route(
+            "/reading-lists/:id",
+            get(routes::reading_lists::get_reading_list)
+                .delete(routes::reading_lists::delete_reading_list),
+        )
+        .route(
+            "/reading-lists/:id/entries",
+            post(routes::reading_lists::add_story_to_reading_list),
+        )
+        .route(
+            "/reading-lists/:id/entries/:story_id",
+            delete(routes::reading_lists::remove_story_from_reading_list),
+        )
+
         // IMAGE UPLOAD
         .route(
             "/upload/image",
@@ -207,6 +247,10 @@ async fn main() {
         .route(
             "/profiles/check-username/:username",
             get(routes::profile::check_username),
+        )
+        .route(
+            "/follow/user/:id",
+            post(routes::profile::toggle_follow_user),
         )
 
         // CONFIG (public Supabase config for frontend)
@@ -244,6 +288,8 @@ async fn main() {
         )
 
         .fallback_service(frontend_service)
+
+        .layer(axum::middleware::from_fn(middleware::security_headers_middleware))
 
         .layer(axum::middleware::from_fn(middleware::request_tracing_middleware))
 

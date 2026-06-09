@@ -1,6 +1,11 @@
-import { goToSlide, moveCarousel, startCarouselAuto } from "../views/discover.js?v=studio-20260529-preferences-v21";
+import { goToSlide, moveCarousel, startCarouselAuto } from "../views/discover.js?v=comic-fit-20260609-v27";
 
 export function handleDiscoverClick(ctx, action, target, e) {
+  if (action === "toggleFilterDrawer") {
+    ctx.ui.showFilterDrawer = !ctx.ui.showFilterDrawer;
+    ctx.render();
+    return true;
+  }
   if (action === "filter") {
     ctx.ui.filterType = target.dataset.value;
     ctx.render();

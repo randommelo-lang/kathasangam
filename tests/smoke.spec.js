@@ -109,10 +109,18 @@ test.describe('KathaSangam Smoke Tests', () => {
     setupConsoleLogging(page);
     await page.goto('/');
 
-    // Click the cover of the first story to open it in Reader
+    // Click the cover of the first story to open it in Details view
     const firstStoryCover = page.locator('.story-card .cover-button').first();
     await expect(firstStoryCover).toBeVisible();
     await firstStoryCover.click();
+
+    // Verify view has navigated to story details page
+    await expect(page).toHaveURL(/#story/);
+
+    // Click Start/Resume Reading on Details page to open in Reader
+    const readBtn = page.locator('button:has-text("Start Reading"), button:has-text("Resume Reading")');
+    await expect(readBtn).toBeVisible();
+    await readBtn.click();
 
     // Verify view has navigated to reader
     await expect(page).toHaveURL(/#reader/);
@@ -220,8 +228,14 @@ test.describe('KathaSangam Smoke Tests', () => {
     setupConsoleLogging(page);
     // 1. When unauthenticated, verify prompt is shown
     await page.goto('/');
-    // Click first story cover to open it
+    // Click first story cover to open it in Details view
     await page.locator('.story-card .cover-button').first().click();
+    await expect(page).toHaveURL(/#story/);
+
+    // Click Start/Resume Reading on Details page to open in Reader
+    const readBtn = page.locator('button:has-text("Start Reading"), button:has-text("Resume Reading")');
+    await expect(readBtn).toBeVisible();
+    await readBtn.click();
     await expect(page).toHaveURL(/#reader/);
 
     // Verify prompt in comments panel
@@ -258,14 +272,247 @@ test.describe('KathaSangam Smoke Tests', () => {
     const deleteBtn = commentListItem.locator('button:has-text("Delete")');
     await expect(deleteBtn).toBeVisible();
     
-    // Intercept confirmation dialog
-    page.once('dialog', async dialog => {
-      expect(dialog.message()).toContain('Are you sure you want to delete this comment?');
-      await dialog.accept();
-    });
+    // Click delete button to open custom confirmation modal
     await deleteBtn.click();
+
+    // Click confirm (Delete) in the custom modal overlay
+    const confirmModalBtn = page.locator('.custom-modal-overlay button.btn-danger');
+    await expect(confirmModalBtn).toBeVisible();
+    await confirmModalBtn.click();
 
     // Verify comment is removed
     await expect(commentListItem).not.toBeVisible();
   });
+
+  test('PDF word/text extraction in chapter editor', async ({ page }) => {
+    setupConsoleLogging(page);
+    
+    // 1. Log in
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+    await expect(page.locator('.account-trigger')).toBeVisible();
+
+    // 2. Go to Studio
+    await page.goto('/#studio');
+    await expect(page.locator('text=Studio Overview')).toBeVisible();
+
+    // 3. Create a new Web Novel story to ensure test isolation
+    const newStoryBtn = page.locator('button:has-text("New Story")');
+    await expect(newStoryBtn).toBeVisible();
+    await newStoryBtn.click();
+    await page.fill('form[data-form="storyForm"] input[name="title"]', 'Test Story PDF ' + Date.now());
+    await page.selectOption('form[data-form="storyForm"] select[name="type"]', 'Web Novel');
+    await page.fill('form[data-form="storyForm"] input[name="genre"]', 'Test Genre');
+    await page.click('form[data-form="storyForm"] button[type="submit"]');
+    await expect(page.locator('#storyModal')).toHaveAttribute('hidden');
+
+    // 4. Click Continue Writing to open Chapter Editor
+    const continueWritingBtn = page.locator('button:has-text("Continue Writing")').first();
+    await expect(continueWritingBtn).toBeVisible();
+    await continueWritingBtn.click();
+
+    // 5. Verify Editor is loaded
+    await expect(page.locator('h2:has-text("Chapter Editor")')).toBeVisible();
+
+    // 6. Mock pdfjsLib
+    await page.evaluate(() => {
+      window.pdfjsLib = {
+        GlobalWorkerOptions: { workerSrc: '' },
+        getDocument: ({ data }) => {
+          return {
+            promise: Promise.resolve({
+              numPages: 1,
+              getPage: (pageNumber) => {
+                return Promise.resolve({
+                  getTextContent: () => {
+                    return Promise.resolve({
+                      items: [
+                        { str: 'Paragraph 1 content extracted from PDF.' },
+                        { str: '\n\n' },
+                        { str: 'Paragraph 2 content extracted from PDF.' }
+                      ]
+                    });
+                  }
+                });
+              }
+            })
+          };
+        }
+      };
+    });
+
+    // 7. Trigger the upload by providing a mock PDF file to the file input
+    const fileInput = page.locator('input.text-doc-file-input');
+    await fileInput.setInputFiles({
+      name: 'test.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.5 mock pdf content')
+    });
+
+    // 8. Verify the extraction status message is displayed
+    const statusMsg = page.locator('.editor-upload-section span.mini-meta');
+    await expect(statusMsg).toHaveText(/Extracted text from test.pdf|Processing test.pdf/);
+
+    // Give it a brief moment to process the promise chain
+    await page.waitForTimeout(1000);
+
+    // 9. Verify the paragraph items in the contenteditable area
+    const paragraphs = page.locator('.editor-textarea p');
+    await expect(paragraphs.first()).toContainText('Paragraph 1 content extracted from PDF.');
+  });
+
+  test('Discover view search filters and Author Studio analytics metrics', async ({ page }) => {
+    setupConsoleLogging(page);
+    await page.goto('/');
+
+    // 1. Discover search filters drawer
+    const filterToggle = page.locator('button:has-text("Filters ▾")');
+    await expect(filterToggle).toBeVisible();
+    await filterToggle.click();
+
+    // Verify filter drawer is visible
+    await expect(page.locator('.filter-drawer')).toBeVisible();
+    
+    // Select status completed
+    await page.selectOption('.filter-drawer select[name="filterStatus"]', 'completed');
+    
+    // Select language English
+    await page.selectOption('.filter-drawer select[name="filterLanguage"]', 'english');
+
+    // Select sort by Reads
+    await page.selectOption('.filter-drawer select[name="filterSort"]', 'reads');
+
+    // Toggle filter drawer closed
+    await page.click('button:has-text("Filters ▴")');
+    await expect(page.locator('.filter-drawer')).not.toBeVisible();
+
+    // 2. Studio analytics metrics
+    // Log in first to access Studio
+    const signInBtn = page.locator('#signInBtn');
+    await signInBtn.click();
+    await page.fill('#authModal input[type="email"]', 'testplaywright@example.com');
+    await page.fill('#authModal input[type="password"]', 'Password123!');
+    await page.click('#authModal button[type="submit"]');
+
+    // Go to studio
+    await page.goto('/#studio');
+    await expect(page.locator('text=Studio Overview')).toBeVisible();
+
+    // Verify deep metrics are visible
+    await expect(page.locator('text=Views (Reads)')).toBeVisible();
+    await expect(page.locator('text=Engagement Rate')).toBeVisible();
+    await expect(page.locator('text=Word Count')).toBeVisible();
+    await expect(page.locator('text=Total Chapters')).toBeVisible();
+
+    // Verify SVG chart is visible
+    await expect(page.locator('.svg-chart')).toBeVisible();
+
+    // Click Likes to toggle metric
+    await page.click('text=Likes');
+    
+    // Click Word Count to toggle metric
+    await page.click('text=Word Count');
+  });
+
+  test('Comic page layout drag-and-drop editor', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Log in
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+    await expect(page.locator('.account-trigger')).toBeVisible();
+
+    // 2. Go to Studio
+    await page.goto('/#studio');
+    await expect(page.locator('text=Studio Overview')).toBeVisible();
+
+    // 3. Create a story of type Chitrānk
+    const newStoryBtn = page.locator('button:has-text("New Story")');
+    await expect(newStoryBtn).toBeVisible();
+    await newStoryBtn.click();
+    await page.fill('form[data-form="storyForm"] input[name="title"]', 'Test Comic Layout');
+    await page.selectOption('form[data-form="storyForm"] select[name="type"]', 'Chitrānk');
+    await page.fill('form[data-form="storyForm"] input[name="genre"]', 'Manga, Sci-Fi');
+    await page.click('form[data-form="storyForm"] button[type="submit"]');
+    await expect(page.locator('#storyModal')).toHaveAttribute('hidden');
+
+    // 4. Click Continue Writing to open Chapter Editor
+    const continueWritingBtn = page.locator('button:has-text("Continue Writing")');
+    await expect(continueWritingBtn).toBeVisible();
+    await continueWritingBtn.click();
+
+    // 5. Verify Comic Layout Editor is loaded
+    await expect(page.locator('h2:has-text("Chapter Editor")')).toBeVisible();
+    await expect(page.locator('text=Comic Layout Editor')).toBeVisible();
+
+    // 6. Mock pdfjsLib for image/canvas extraction
+    await page.evaluate(() => {
+      window.pdfjsLib = {
+        GlobalWorkerOptions: { workerSrc: '' },
+        getDocument: ({ data }) => {
+          return {
+            promise: Promise.resolve({
+              numPages: 2,
+              getPage: (pageNumber) => {
+                return Promise.resolve({
+                  getViewport: ({ scale }) => {
+                    return { width: 100, height: 150 };
+                  },
+                  render: ({ canvasContext, viewport }) => {
+                    if (canvasContext) {
+                      canvasContext.fillStyle = '#ff0000';
+                      canvasContext.fillRect(0, 0, viewport.width, viewport.height);
+                    }
+                    return {
+                      promise: Promise.resolve()
+                    };
+                  }
+                });
+              }
+            })
+          };
+        }
+      };
+    });
+
+    // 7. Upload mock PDF to comic-pdf-file-input
+    const pdfInput = page.locator('input.comic-pdf-file-input');
+    await pdfInput.setInputFiles({
+      name: 'comic.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.5 mock pdf')
+    });
+
+    // 8. Verify the progress/status message updates and wait for extraction to complete
+    const statusMsg = page.locator('.comic-editor-upload-actions span.mini-meta');
+    await expect(statusMsg).toHaveText(/Extracted 2 page/, { timeout: 45000 });
+
+    // 9. Verify page cards are rendered in grid
+    const pageCards = page.locator('.comic-editor-page');
+    await expect(pageCards).toHaveCount(3); // 1 default page + 2 extracted pages
+
+    // 10. Change label of first page card
+    const firstLabelInput = page.locator('.comic-editor-page-label').first();
+    await firstLabelInput.fill('Updated Cover');
+    
+    // Save draft
+    await page.click('button:has-text("Save Draft")');
+    await expect(page.locator('text=Chapter saved.')).toBeVisible();
+
+    // Re-verify chapter editor title list
+    await continueWritingBtn.click();
+    await expect(page.locator('.comic-editor-page-label').first()).toHaveValue('Updated Cover');
+
+    // Go back to studio/dashboard
+    await page.click('button:has-text("Cancel")');
+  });
 });
+

@@ -1,16 +1,21 @@
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use uuid::Uuid;
 
-use crate::db::AuthUser;
+use crate::db::{AuthUser, OptionalAuthUser};
 use crate::errors::AppError;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct PublicProfileResponse {
+    pub id: Uuid,
     pub username: String,
     pub role: String,
     pub avatar_url: String,
     pub bio: String,
+    pub followers_count: i64,
+    pub following_count: i64,
+    pub is_following: bool,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -20,6 +25,8 @@ pub struct ProfileResponse {
     pub avatar_url: String,
     pub bio: String,
     pub preferences: serde_json::Value,
+    pub followers_count: i64,
+    pub following_count: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,7 +39,10 @@ pub async fn get_profile(
     State(pool): State<PgPool>,
 ) -> Result<Json<ProfileResponse>, AppError> {
     let profile = sqlx::query_as::<_, ProfileResponse>(
-        "SELECT username, role::TEXT, avatar_url, bio, preferences FROM profiles WHERE id = $1",
+        "SELECT username, role::TEXT, avatar_url, bio, preferences, \
+         (SELECT COUNT(*) FROM public.follows WHERE followed_id = $1) AS followers_count, \
+         (SELECT COUNT(*) FROM public.follows WHERE follower_id = $1) AS following_count \
+         FROM profiles WHERE id = $1",
     )
     .bind(auth.user_id)
     .fetch_optional(&pool)
@@ -132,6 +142,23 @@ pub async fn update_profile(
         }
     }
 
+    let mut old_avatar_url: Option<String> = None;
+    let mut avatar_was_replaced = false;
+
+    if let Some(ref new_avatar) = body.avatar_url {
+        // Query the old avatar url to check if it has changed
+        let row: Option<(Option<String>,)> = sqlx::query_as("SELECT avatar_url FROM profiles WHERE id = $1")
+            .bind(auth.user_id)
+            .fetch_optional(&pool)
+            .await?;
+        if let Some((Some(old_avatar),)) = row {
+            if &old_avatar != new_avatar {
+                avatar_was_replaced = true;
+                old_avatar_url = Some(old_avatar);
+            }
+        }
+    }
+
     let username = body.username.map(|s| s.trim().to_string());
     let avatar_url = body.avatar_url.map(|s| s.trim().to_string());
     let bio = body.bio.map(|s| s.trim().to_string());
@@ -152,6 +179,14 @@ pub async fn update_profile(
     .execute(&pool)
     .await?;
 
+    if avatar_was_replaced {
+        if let Some(url) = old_avatar_url {
+            tokio::spawn(async move {
+                crate::routes::upload::delete_uploaded_file(&url).await;
+            });
+        }
+    }
+
     Ok(StatusCode::OK)
 }
 
@@ -162,12 +197,18 @@ pub struct UsernameCheckResponse {
 
 pub async fn get_public_profile(
     State(pool): State<PgPool>,
+    opt_auth: OptionalAuthUser,
     axum::extract::Path(username): axum::extract::Path<String>,
 ) -> Result<Json<PublicProfileResponse>, AppError> {
     let profile = sqlx::query_as::<_, PublicProfileResponse>(
-        "SELECT username, role::TEXT, avatar_url, bio FROM profiles WHERE LOWER(username) = LOWER($1)",
+        "SELECT id, username, role::TEXT, avatar_url, bio, \
+         (SELECT COUNT(*) FROM public.follows WHERE followed_id = id) AS followers_count, \
+         (SELECT COUNT(*) FROM public.follows WHERE follower_id = id) AS following_count, \
+         COALESCE((SELECT EXISTS(SELECT 1 FROM public.follows WHERE follower_id = $2 AND followed_id = id)), false) AS is_following \
+         FROM profiles WHERE LOWER(username) = LOWER($1)",
     )
     .bind(username.trim())
+    .bind(opt_auth.user_id)
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::not_found("Public profile not found."))?;
@@ -200,6 +241,18 @@ pub async fn delete_profile(
     auth: AuthUser,
     State(pool): State<PgPool>,
 ) -> Result<StatusCode, AppError> {
+    // Retrieve cover URLs of all stories being deleted
+    let story_covers: Vec<Option<String>> = sqlx::query_scalar("SELECT cover FROM stories WHERE author_id = $1")
+        .bind(auth.user_id)
+        .fetch_all(&pool)
+        .await?;
+
+    // Retrieve the user's profile avatar_url
+    let avatar_url: Option<Option<String>> = sqlx::query_scalar("SELECT avatar_url FROM profiles WHERE id = $1")
+        .bind(auth.user_id)
+        .fetch_optional(&pool)
+        .await?;
+
     let mut tx = pool.begin().await?;
 
     // 1. Delete comments by the user
@@ -297,5 +350,68 @@ pub async fn delete_profile(
 
     tx.commit().await?;
 
+    // Delete story covers asynchronously after successful commit
+    for cover_opt in story_covers {
+        if let Some(cover_url) = cover_opt {
+            tokio::spawn(async move {
+                crate::routes::upload::delete_uploaded_file(&cover_url).await;
+            });
+        }
+    }
+
+    // Delete user profile avatar asynchronously after successful commit
+    if let Some(Some(url)) = avatar_url {
+        tokio::spawn(async move {
+            crate::routes::upload::delete_uploaded_file(&url).await;
+        });
+    }
+
     Ok(StatusCode::OK)
+}
+
+pub async fn toggle_follow_user(
+    auth: AuthUser,
+    State(pool): State<PgPool>,
+    axum::extract::Path(followed_id): axum::extract::Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if auth.user_id == followed_id {
+        return Err(AppError::bad_request("You cannot follow yourself."));
+    }
+
+    // Check if the followed user exists
+    let exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM profiles WHERE id = $1")
+        .bind(followed_id)
+        .fetch_optional(&pool)
+        .await?;
+
+    if exists.is_none() {
+        return Err(AppError::not_found("User profile not found."));
+    }
+
+    let is_following: Option<(Uuid, Uuid)> =
+        sqlx::query_as("SELECT follower_id, followed_id FROM public.follows WHERE follower_id = $1 AND followed_id = $2")
+            .bind(auth.user_id)
+            .bind(followed_id)
+            .fetch_optional(&pool)
+            .await?;
+
+    if is_following.is_some() {
+        sqlx::query("DELETE FROM public.follows WHERE follower_id = $1 AND followed_id = $2")
+            .bind(auth.user_id)
+            .bind(followed_id)
+            .execute(&pool)
+            .await?;
+        Ok(Json(
+            serde_json::json!({ "followed": false, "message": "Unfollowed user." }),
+        ))
+    } else {
+        sqlx::query("INSERT INTO public.follows (follower_id, followed_id) VALUES ($1, $2)")
+            .bind(auth.user_id)
+            .bind(followed_id)
+            .execute(&pool)
+            .await?;
+        Ok(Json(
+            serde_json::json!({ "followed": true, "message": "Followed user." }),
+        ))
+    }
 }

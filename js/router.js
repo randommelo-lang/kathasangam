@@ -5,8 +5,21 @@ export function getRoute() {
 
 export function hydrateGenres(ctx) {
   ctx.genreFilter.innerHTML = '<option value="all">All genres</option>';
-  const genres = ctx.unique(ctx.state.stories.map(function (s) { return s.genre; })).sort();
-  genres.forEach(function (g) {
+  
+  var allGenres = [];
+  ctx.state.stories.forEach(function (s) {
+    if (s.genre) {
+      s.genre.split(",").forEach(function (g) {
+        var trimmed = g.trim();
+        if (trimmed && allGenres.indexOf(trimmed) === -1) {
+          allGenres.push(trimmed);
+        }
+      });
+    }
+  });
+  allGenres.sort();
+
+  allGenres.forEach(function (g) {
     const o = document.createElement("option");
     o.value = g;
     o.textContent = g;
@@ -15,7 +28,7 @@ export function hydrateGenres(ctx) {
 }
 
 export function render(ctx) {
-  const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings"];
+  const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings", "story", "messages"];
   if (allowed.indexOf(ctx.ui.currentView) === -1) ctx.ui.currentView = "discover";
 
   const canModerate = ctx.canModerateRole();
@@ -37,7 +50,9 @@ export function render(ctx) {
     moderation: "Moderation",
     editor: "Chapter Editor",
     profile: "Profile",
-    settings: "Settings"
+    settings: "Settings",
+    story: "Story Details",
+    messages: "Messages"
   }[ctx.ui.currentView];
 
   ctx.view.innerHTML = "";
@@ -48,4 +63,6 @@ export function render(ctx) {
   if (ctx.ui.currentView === "moderation") ctx.renderModeration();
   if (ctx.ui.currentView === "editor") ctx.renderEditor();
   if (ctx.ui.currentView === "profile" || ctx.ui.currentView === "settings") ctx.renderProfileSettings();
+  if (ctx.ui.currentView === "story") ctx.renderStoryDetails();
+  if (ctx.ui.currentView === "messages") ctx.renderMessages();
 }

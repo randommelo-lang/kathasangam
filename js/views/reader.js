@@ -1,4 +1,10 @@
-import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea } from "../components.js?v=studio-20260529-preferences-v21";
+import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea } from "../components.js?v=comic-fit-20260609-v27";
+
+function extractRawUrl(bg) {
+  if (!bg) return "";
+  var match = bg.match(/^url\(['"]?(.*?)['"]?\)$/i);
+  return match ? match[1] : bg;
+}
 
 function commentForm(ctx) {
   if (!ctx.state.user) {
@@ -22,10 +28,16 @@ function comicNavButton(label, direction, step, disabled) {
 function comicPager(ctx, chapter) {
   var pages = chapter.pages || [];
   ctx.clampComicPage(pages);
+  var firstIdx = ctx.ui.currentComicPageIndex;
+  var secondIdx = firstIdx + 1;
+  var label = pages.length ? (firstIdx + 1) : "0";
+  if (secondIdx < pages.length) {
+    label += " - " + (secondIdx + 1);
+  }
   return el("div", "comic-pager", [
-    button("Prev page", "btn", { action: "comicPage", step: "-1" }, ctx.ui.currentComicPageIndex === 0),
-    el("span", "mini-meta", pages.length ? (ctx.ui.currentComicPageIndex + 1) + " / " + pages.length : "0 / 0"),
-    button("Next page", "btn", { action: "comicPage", step: "1" }, ctx.ui.currentComicPageIndex >= pages.length - 1)
+    button("Prev page", "btn", { action: "comicPage", step: "-2" }, firstIdx === 0),
+    el("span", "mini-meta", pages.length ? label + " / " + pages.length : "0 / 0"),
+    button("Next page", "btn", { action: "comicPage", step: "2" }, secondIdx >= pages.length - 1)
   ]);
 }
 
@@ -40,17 +52,43 @@ function textPager(ctx, pages) {
 function comicFlipContent(ctx, chapter) {
   var pages = chapter.pages || [];
   ctx.clampComicPage(pages);
-  var current = pages[ctx.ui.currentComicPageIndex];
+  var firstIdx = ctx.ui.currentComicPageIndex;
+  var secondIdx = firstIdx + 1;
+
+  var currentFirst = pages[firstIdx];
+  var currentSecond = secondIdx < pages.length ? pages[secondIdx] : null;
+
   var container = el("article", "reader-content comic-reader flip-mode" + (ctx.ui.readerTheme === "dark" ? " dark" : ""));
-  if (!current) return container;
-  var page = el("figure", "comic-page comic-page-current");
-  page.style.setProperty("--page-bg", current.bg);
-  page.dataset.label = current.label;
-  page.dataset.page = (ctx.ui.currentComicPageIndex + 1) + " / " + pages.length;
+  if (!currentFirst) return container;
+
+  var wrapperFirst = el("div", "comic-page-wrapper", [
+    el("img", { class: "comic-page-img", src: extractRawUrl(currentFirst.bg), alt: currentFirst.label || "" })
+  ]);
+  wrapperFirst.dataset.label = currentFirst.label;
+  wrapperFirst.dataset.page = (firstIdx + 1) + " / " + pages.length;
+
+  var pageFirst = el("figure", "comic-page comic-page-current", [wrapperFirst]);
+
+  var pageSecond = null;
+  if (currentSecond) {
+    var wrapperSecond = el("div", "comic-page-wrapper", [
+      el("img", { class: "comic-page-img", src: extractRawUrl(currentSecond.bg), alt: currentSecond.label || "" })
+    ]);
+    wrapperSecond.dataset.label = currentSecond.label;
+    wrapperSecond.dataset.page = (secondIdx + 1) + " / " + pages.length;
+
+    pageSecond = el("figure", "comic-page comic-page-current", [wrapperSecond]);
+  }
+
+  var pagesContainer = el("div", "comic-double-pages", [pageFirst]);
+  if (pageSecond) {
+    pagesContainer.appendChild(pageSecond);
+  }
+
   container.appendChild(el("div", "comic-flip-stage", [
-    comicNavButton("Previous page", "prev", -1, ctx.ui.currentComicPageIndex === 0),
-    page,
-    comicNavButton("Next page", "next", 1, ctx.ui.currentComicPageIndex >= pages.length - 1)
+    comicNavButton("Previous page", "prev", -2, firstIdx === 0),
+    pagesContainer,
+    comicNavButton("Next page", "next", 2, secondIdx >= pages.length - 1)
   ]));
   return container;
 }
@@ -62,10 +100,11 @@ function readerContent(ctx, story, chapter) {
   if (story.type === "Chitrānk" && chapter.pages) {
     if (ctx.ui.readerMode === "pages") return comicFlipContent(ctx, chapter);
     container.appendChild(el("div", "comic-pages", chapter.pages.map(function (p) {
-      var pg = el("figure", "comic-page");
-      pg.style.setProperty("--page-bg", p.bg);
-      pg.dataset.label = p.label;
-      return pg;
+      var wrapper = el("div", "comic-page-wrapper", [
+        el("img", { class: "comic-page-img scroll-img", src: extractRawUrl(p.bg), alt: p.label || "" })
+      ]);
+      wrapper.dataset.label = p.label;
+      return el("figure", "comic-page", [wrapper]);
     })));
     return container;
   }

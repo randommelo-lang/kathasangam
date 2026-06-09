@@ -5,24 +5,39 @@ export function calculateStars(story) {
   return Math.min(5.0, Math.max(1.0, rating)).toFixed(1);
 }
 
-export function generateChartData(story) {
+export function generateChartData(story, metric) {
+  metric = metric || "reads";
   const pointsCount = 7;
   const data = [];
+  
+  function getVal(ch) {
+    if (metric === "likes") return ch.likes || 0;
+    if (metric === "words") return ch.words || 0;
+    return ch.reads || 0;
+  }
+
   if (story.chapters && story.chapters.length >= 2) {
-    let maxReads = 0;
+    let maxVal = 0;
     story.chapters.forEach(function (ch) {
-      if (ch.reads > maxReads) maxReads = ch.reads;
+      const val = getVal(ch);
+      if (val > maxVal) maxVal = val;
     });
     const stepX = 300 / Math.max(1, story.chapters.length - 1);
     story.chapters.forEach(function (ch, idx) {
       const x = idx * stepX;
+      const val = getVal(ch);
       let y = 85;
-      if (maxReads > 0) {
-        y = 85 - (ch.reads / maxReads) * 70;
+      if (maxVal > 0) {
+        y = 85 - (val / maxVal) * 70;
       } else {
         y = 75 - (idx * 7) % 30;
       }
-      data.push({ x: Math.round(x), y: Math.round(y) });
+      data.push({
+        x: Math.round(x),
+        y: Math.round(y),
+        value: val,
+        label: ch.title || ("Chapter " + (idx + 1))
+      });
     });
   } else {
     let seed = 0;
@@ -31,12 +46,28 @@ export function generateChartData(story) {
         seed += story.id.charCodeAt(i);
       }
     }
+    if (metric === "likes") seed += 100;
+    if (metric === "words") seed += 200;
+
     const stepX = 300 / (pointsCount - 1);
     for (let idx = 0; idx < pointsCount; idx++) {
       const x = idx * stepX;
       const sineVal = Math.sin(seed + idx * 0.95) * 28;
       const y = 60 + sineVal;
-      data.push({ x: Math.round(x), y: Math.round(Math.min(85, Math.max(15, y))) });
+      
+      let fakeVal = Math.round(50 + Math.sin(seed + idx) * 30);
+      if (metric === "words") {
+        fakeVal = Math.round(1500 + Math.sin(seed + idx) * 800);
+      } else if (metric === "likes") {
+        fakeVal = Math.round(15 + Math.sin(seed + idx) * 10);
+      }
+      
+      data.push({
+        x: Math.round(x),
+        y: Math.round(Math.min(85, Math.max(15, y))),
+        value: Math.max(0, fakeVal),
+        label: "Chapter " + (idx + 1)
+      });
     }
   }
   return data;
@@ -219,6 +250,58 @@ export function formatDate(v) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(v));
 }
 
+export function showConfirm(options) {
+  var title = options.title || "Confirm";
+  var message = options.message || "Are you sure?";
+  var confirmText = options.confirmText || "Confirm";
+  var cancelText = options.cancelText || "Cancel";
+  var isDanger = options.isDanger !== false;
+
+  return new Promise(function (resolve) {
+    var overlay = el("div", "custom-modal-overlay");
+    var box = el("div", "custom-modal-box");
+    var h3 = el("h3", "custom-modal-title", title);
+    var p = el("p", "custom-modal-message", message);
+    var actions = el("div", "custom-modal-actions");
+    
+    var cancelBtn = el("button", "custom-btn btn-cancel", cancelText);
+    cancelBtn.type = "button";
+    
+    var confirmBtn = el("button", "custom-btn " + (isDanger ? "btn-danger" : "btn-primary"), confirmText);
+    confirmBtn.type = "button";
+    
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    
+    box.appendChild(h3);
+    box.appendChild(p);
+    box.appendChild(actions);
+    overlay.appendChild(box);
+    
+    document.body.appendChild(overlay);
+    
+    // Animate in
+    setTimeout(function () {
+      overlay.classList.add("active");
+    }, 10);
+    
+    var cleanUp = function (value) {
+      overlay.classList.remove("active");
+      setTimeout(function () {
+        overlay.remove();
+        resolve(value);
+      }, 200);
+    };
+    
+    cancelBtn.addEventListener("click", function () { cleanUp(false); });
+    confirmBtn.addEventListener("click", function () { cleanUp(true); });
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) cleanUp(false);
+    });
+  });
+}
+
+
 function append(parent, child) {
   if (typeof child === "string" || typeof child === "number") {
     parent.appendChild(document.createTextNode(String(child)));
@@ -232,6 +315,7 @@ function applyAttrs(node, attrs) {
   Object.keys(attrs).forEach(function (k) {
     if (k === "action") node.dataset.action = attrs[k];
     else if (k === "required") node.required = true;
+    else if (k.indexOf("on") === 0) node[k] = attrs[k];
     else node.setAttribute(k, attrs[k]);
   });
 }

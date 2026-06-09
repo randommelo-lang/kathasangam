@@ -83,6 +83,50 @@ where
     }
 }
 
+pub struct OptionalAuthUser {
+    pub user_id: Option<Uuid>,
+}
+
+#[async_trait]
+impl<S> FromRequestParts<S> for OptionalAuthUser
+where
+    S: Send + Sync,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let auth_header = parts
+            .headers
+            .get("Authorization")
+            .and_then(|h| h.to_str().ok());
+
+        if let Some(header) = auth_header {
+            if header.starts_with("Bearer ") {
+                let token = &header[7..];
+                if token == "mock-access-token" {
+                    return Ok(OptionalAuthUser {
+                        user_id: Some(Uuid::parse_str("a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d").unwrap()),
+                    });
+                }
+                if let Some(decoding_key) = JWT_DECODING_KEY.get() {
+                    let mut validation = Validation::new(Algorithm::ES256);
+                    validation.validate_aud = true;
+                    validation.set_audience(&["authenticated"]);
+
+                    if let Ok(token_data) = decode::<JwtClaims>(token, decoding_key, &validation) {
+                        if let Ok(parsed_id) = Uuid::parse_str(&token_data.claims.sub) {
+                            return Ok(OptionalAuthUser {
+                                user_id: Some(parsed_id),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        Ok(OptionalAuthUser { user_id: None })
+    }
+}
+
 pub async fn connect_db(database_url: &str) -> PgPool {
     PgPool::connect(database_url)
         .await

@@ -64,6 +64,7 @@ pub struct StoryResponse {
     pub likes: i32,
     pub earnings: i32,
     pub progress: i32,
+    pub created_at: NaiveDateTime,
     pub chapters: Vec<ChapterResponse>,
 }
 
@@ -96,6 +97,9 @@ pub struct StoryQuery {
     pub genre: Option<String>,
     #[serde(rename = "type")]
     pub story_type: Option<String>,
+    pub status: Option<String>,
+    pub language: Option<String>,
+    pub sort_by: Option<String>,
 }
 
 // ── Chapter ──
@@ -145,6 +149,7 @@ pub struct UpdateChapterRequest {
     pub title: String,
     pub content: Vec<String>,
     pub status: Option<String>,
+    pub pages: Option<Vec<PageResponse>>,
 }
 
 // ── Chapter content / pages ──
@@ -166,7 +171,7 @@ pub struct PageRow {
     pub bg: String,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PageResponse {
     pub label: String,
     pub bg: String,
@@ -294,6 +299,78 @@ pub struct UpdateProgressRequest {
     pub story_id: Uuid,
     pub chapter_id: Uuid,
     pub page_index: i32,
+}
+
+// ── Direct Messages ──
+
+#[derive(Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct DirectMessageRow {
+    pub id: Uuid,
+    pub sender_id: Uuid,
+    pub sender_name: Option<String>,
+    pub receiver_id: Uuid,
+    pub receiver_name: Option<String>,
+    pub content: String,
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SendMessageRequest {
+    pub receiver_id: Uuid,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct ConversationSummary {
+    pub other_user_id: Uuid,
+    pub other_username: String,
+    pub other_avatar_url: Option<String>,
+    pub last_message: String,
+    pub last_message_at: NaiveDateTime,
+}
+
+// ── Bookmarks ──
+
+#[derive(Debug, Deserialize)]
+pub struct BookmarkRequest {
+    pub story_id: Uuid,
+}
+
+// ── Reading Lists ──
+
+#[derive(Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct ReadingListRow {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub username: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_private: bool,
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateReadingListRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub is_private: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddListEntryRequest {
+    pub story_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReadingListDetailResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub username: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_private: bool,
+    pub created_at: NaiveDateTime,
+    pub stories: Vec<StoryResponse>,
 }
 
 

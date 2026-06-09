@@ -1,5 +1,5 @@
-import { button, el, formatNumber, metric, segmentButton } from "../components.js?v=studio-20260529-preferences-v21";
-import { storyCard } from "./shared.js?v=studio-20260529-preferences-v21";
+import { button, el, formatNumber, metric, segmentButton, select } from "../components.js?v=comic-fit-20260609-v27";
+import { storyCard } from "./shared.js?v=comic-fit-20260609-v27";
 
 var carouselIndex = 0;
 var carouselTimer = null;
@@ -121,14 +121,60 @@ export function renderDiscover(ctx) {
   ]));
 
   // Filter toolbar
+  var filterBtn = el("button", "btn secondary filter-toggle-btn" + (ctx.ui.showFilterDrawer ? " active" : ""), ctx.ui.showFilterDrawer ? "Filters ▴" : "Filters ▾");
+  filterBtn.dataset.action = "toggleFilterDrawer";
+
   ctx.view.appendChild(el("div", "toolbar", [
     el("div", "segmented", [
       segmentButton("All", "all", ctx.ui.filterType),
       segmentButton("Web Novel", "Web Novel", ctx.ui.filterType),
       segmentButton("Chitrānk", "Chitrānk", ctx.ui.filterType)
     ]),
-    el("div", "mini-meta", stories.length + " results")
+    el("div", { style: "display: flex; align-items: center; gap: 12px;" }, [
+      filterBtn,
+      el("div", "mini-meta", stories.length + " results")
+    ])
   ]));
+
+  if (ctx.ui.showFilterDrawer) {
+    var drawer = el("div", "filter-drawer", [
+      el("div", "filter-group", [
+        el("label", null, "Status"),
+        select("filterStatus", [
+          ["all", "All Statuses"],
+          ["ongoing", "Ongoing"],
+          ["completed", "Completed"]
+        ], ctx.ui.filterStatus || "all")
+      ]),
+      el("div", "filter-group", [
+        el("label", null, "Language"),
+        select("filterLanguage", [
+          ["all", "All Languages"],
+          ["english", "English"],
+          ["nepali", "Nepali"],
+          ["hindi", "Hindi"]
+        ], ctx.ui.filterLanguage || "all")
+      ]),
+      el("div", "filter-group", [
+        el("label", null, "Sort By"),
+        select("filterSort", [
+          ["newest", "Newest First"],
+          ["reads", "Most Reads"],
+          ["likes", "Most Likes"],
+          ["rating", "Highest Rated"]
+        ], ctx.ui.filterSort || "newest")
+      ])
+    ]);
+
+    drawer.querySelectorAll("select").forEach(function (sel) {
+      sel.addEventListener("change", function (e) {
+        ctx.ui[e.target.name] = e.target.value;
+        ctx.render();
+      });
+    });
+
+    ctx.view.appendChild(drawer);
+  }
 
   // Story grid
   var grid = el("section", "story-grid");

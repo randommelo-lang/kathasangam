@@ -1,4 +1,4 @@
-import { button, el, formatNumber, iconButton, progress } from "../components.js?v=studio-20260529-preferences-v21";
+import { button, el, formatNumber, iconButton, progress } from "../components.js?v=comic-fit-20260609-v27";
 
 export function storyGrid(ctx, stories, options) {
   var g = el("section", "story-grid");
@@ -24,19 +24,23 @@ export function storyCard(ctx, story, options) {
   openButton.dataset.id = story.id;
   openButton.setAttribute("aria-label", (options.manage ? "Manage " : "Open ") + story.title);
 
+  var genres = (story.genre || "").split(",").map(function (g) { return g.trim(); }).filter(Boolean);
   var metaContainer = card.querySelector(".story-meta");
   metaContainer.innerHTML = "";
-  metaContainer.appendChild(document.createTextNode(story.genre + " / "));
+  metaContainer.appendChild(document.createTextNode(genres.join(", ") + " / "));
   var authorLink = el("a", "story-author-link", story.author);
   authorLink.href = "#profile?username=" + encodeURIComponent(story.author);
   metaContainer.appendChild(authorLink);
   metaContainer.appendChild(document.createTextNode(" / " + formatNumber(story.views) + " reads"));
-  card.querySelector("h2").textContent = story.title;
+  var titleEl = card.querySelector("h2");
+  titleEl.textContent = story.title;
+  titleEl.dataset.action = "openStory";
+  titleEl.dataset.id = story.id;
   card.querySelector("p").textContent = story.description;
 
   var tags = card.querySelector(".tag-row");
-  story.tags.forEach(function (t) {
-    tags.appendChild(el("span", "tag", t));
+  genres.forEach(function (g) {
+    tags.appendChild(el("span", "tag", g));
   });
 
   // Progress indicators
@@ -65,7 +69,6 @@ export function storyCard(ctx, story, options) {
   } else {
     actions.appendChild(button(readBtnText, "btn primary", { action: "openStory", id: story.id }));
     actions.appendChild(button(ctx.state.library.indexOf(story.id) === -1 ? "Follow" : "Following", "btn", { action: "follow", id: story.id }));
-    actions.appendChild(button("Tip", "btn", { action: "tip", id: story.id }));
   }
 
   return card;

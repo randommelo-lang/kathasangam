@@ -10,7 +10,10 @@ export const state = {
   accessToken: null,
   profile: null,
   stats: null,
-  progress: []
+  progress: [],
+  bookmarks: null,
+  bookmarkIds: null,
+  readingLists: null
 };
 
 export const ui = {
@@ -21,7 +24,16 @@ export const ui = {
   currentTextPageIndex: 0,
   editingChapterId: "",
   filterType: "all",
+  filterStatus: "all",
+  filterLanguage: "all",
+  filterSort: "newest",
+  showFilterDrawer: false,
+  activeChartMetric: "reads",
   readerMode: "scroll",
   readerTheme: "light",
-  readerSize: 19
+  readerSize: 19,
+  activeLibraryTab: "bookmarks",
+  activeConversationUserId: null,
+  activeConversationUser: null
 };
+

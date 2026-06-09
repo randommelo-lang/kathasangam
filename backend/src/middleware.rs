@@ -140,3 +140,40 @@ pub async fn request_tracing_middleware(
     .await
 }
 
+pub async fn security_headers_middleware(
+    request: Request,
+    next: Next,
+) -> Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+
+    let csp_val = "default-src 'self'; \
+                   script-src 'self'; \
+                   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+                   font-src 'self' https://fonts.gstatic.com; \
+                   img-src 'self' data: https://*.supabase.co https:; \
+                   connect-src 'self' https://*.supabase.co; \
+                   worker-src 'self' blob:; \
+                   child-src 'self' blob:; \
+                   frame-ancestors 'none';";
+
+    if let Ok(val) = axum::http::HeaderValue::from_str(csp_val) {
+        headers.insert(axum::http::header::CONTENT_SECURITY_POLICY, val);
+    }
+
+    if let Ok(val) = axum::http::HeaderValue::from_str("nosniff") {
+        headers.insert(axum::http::header::X_CONTENT_TYPE_OPTIONS, val);
+    }
+
+    if let Ok(val) = axum::http::HeaderValue::from_str("DENY") {
+        headers.insert(axum::http::header::X_FRAME_OPTIONS, val);
+    }
+
+    if let Ok(val) = axum::http::HeaderValue::from_str("strict-origin-when-cross-origin") {
+        headers.insert(axum::http::header::REFERRER_POLICY, val);
+    }
+
+    response
+}
+
+

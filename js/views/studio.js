@@ -1,5 +1,5 @@
-import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js?v=studio-20260529-preferences-v21";
-import { storyGrid } from "./shared.js?v=studio-20260529-preferences-v21";
+import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js?v=comic-fit-20260609-v27";
+import { storyGrid } from "./shared.js?v=comic-fit-20260609-v27";
 
 export function renderStudio(ctx) {
   ctx = ctx || this;
@@ -215,8 +215,9 @@ export function renderStudio(ctx) {
     
     var defs = svgEl("defs", null, [gradient]);
     
-    var ptsData = generateChartData(active);
-    var lineD = "M " + ptsData.map(function(p) { return p.x + " " + p.y; }).join(" L ");
+    var activeMetric = ctx.ui.activeChartMetric || "reads";
+    var ptsData = generateChartData(active, activeMetric);
+    var lineD = ptsData.length ? "M " + ptsData.map(function(p) { return p.x + " " + p.y; }).join(" L ") : "M 0 85";
     var areaD = lineD + " L 300 100 L 0 100 Z";
 
     var areaPath = svgEl("path", {
@@ -239,14 +240,53 @@ export function renderStudio(ctx) {
     var grid3 = svgEl("line", { x1: "0", y1: "75", x2: "300", y2: "75", stroke: "rgba(255,255,255,0.05)", "stroke-dasharray": "4 4" });
 
     var pts = ptsData.map(function (pt) {
-      return svgEl("circle", {
+      var circle = svgEl("circle", {
         cx: String(pt.x),
         cy: String(pt.y),
         r: "4",
         fill: "#111",
         stroke: "#f36b15",
-        "stroke-width": "2"
+        "stroke-width": "2",
+        style: "cursor: pointer; transition: all 0.2s ease;"
       });
+
+      circle.addEventListener("mouseenter", function () {
+        circle.setAttribute("r", "6");
+        circle.setAttribute("fill", "#f36b15");
+        
+        var tooltip = document.getElementById("chart-tooltip");
+        if (!tooltip) {
+          tooltip = el("div", { id: "chart-tooltip", class: "chart-tooltip" });
+          document.body.appendChild(tooltip);
+        }
+        
+        var metricLabel = "reads";
+        if (activeMetric === "likes") metricLabel = "likes";
+        else if (activeMetric === "words") metricLabel = "words";
+        
+        tooltip.innerHTML = '<div class="tooltip-title">' + pt.label + '</div>' +
+                            '<div class="tooltip-value">' + formatNumber(pt.value) + ' ' + metricLabel + '</div>';
+        
+        tooltip.style.opacity = "1";
+        tooltip.style.transform = "translate(-50%, -100%) scale(1)";
+        
+        var rect = circle.getBoundingClientRect();
+        tooltip.style.left = (window.scrollX + rect.left + rect.width / 2) + "px";
+        tooltip.style.top = (window.scrollY + rect.top - 8) + "px";
+      });
+
+      circle.addEventListener("mouseleave", function () {
+        circle.setAttribute("r", "4");
+        circle.setAttribute("fill", "#111");
+        
+        var tooltip = document.getElementById("chart-tooltip");
+        if (tooltip) {
+          tooltip.style.opacity = "0";
+          tooltip.style.transform = "translate(-50%, -100%) scale(0.9)";
+        }
+      });
+
+      return circle;
     });
 
     var chartSvg = svgEl("svg", {
@@ -263,16 +303,56 @@ export function renderStudio(ctx) {
     var starsVal = calculateStars(active);
     var starsTrend = starsVal === "5.0" ? "Max score" : "Stable";
 
+    // Interactive metric cards
+    var viewsBox = analyticsMetricBox("Views (Reads)", formatNumber(active.views), viewsTrend, true);
+    viewsBox.classList.add("interactive");
+    if (activeMetric === "reads") viewsBox.classList.add("active");
+    viewsBox.addEventListener("click", function () {
+      ctx.ui.activeChartMetric = "reads";
+      ctx.render();
+    });
+
+    var likesBox = analyticsMetricBox("Likes", formatNumber(active.likes), likesTrend, true);
+    likesBox.classList.add("interactive");
+    if (activeMetric === "likes") likesBox.classList.add("active");
+    likesBox.addEventListener("click", function () {
+      ctx.ui.activeChartMetric = "likes";
+      ctx.render();
+    });
+
+    var totalWords = active.chapters.reduce(function (sum, ch) { return sum + (ch.words || 0); }, 0);
+    var wordsTrend = totalWords > 0 ? "+" + (totalWords % 17 + 5).toFixed(0) + " words" : "Stable";
+    var wordsBox = analyticsMetricBox("Word Count", formatNumber(totalWords), wordsTrend, true);
+    wordsBox.classList.add("interactive");
+    if (activeMetric === "words") wordsBox.classList.add("active");
+    wordsBox.addEventListener("click", function () {
+      ctx.ui.activeChartMetric = "words";
+      ctx.render();
+    });
+
+    var followersBox = analyticsMetricBox("Followers", formatNumber(active.followers), followersTrend, true);
+    var starsBox = analyticsMetricBox("Rating (Stars)", starsVal, starsTrend, true);
+
+    var totalChapters = active.chapters.length;
+    var chaptersTrend = totalChapters > 0 ? "Published" : "No chapters";
+    var chaptersBox = analyticsMetricBox("Total Chapters", formatNumber(totalChapters), chaptersTrend, true);
+
+    var engagementVal = active.views > 0 ? ((active.likes / active.views) * 100).toFixed(1) + "%" : "0.0%";
+    var engagementTrend = active.views > 0 ? "Likes/Views ratio" : "No activity";
+    var engagementBox = analyticsMetricBox("Engagement Rate", engagementVal, engagementTrend, true);
+
     // Analytics Overview Card with SVG Chart
     var analyticsPanel = el("section", "panel", [
       el("h2", null, "Analytics Overview"),
       
-      // 2x2 grid of metric boxes
       el("div", "analytics-grid", [
-        analyticsMetricBox("Views", formatNumber(active.views), viewsTrend, true),
-        analyticsMetricBox("Likes", formatNumber(active.likes), likesTrend, true),
-        analyticsMetricBox("Followers", formatNumber(active.followers), followersTrend, true),
-        analyticsMetricBox("Stars", starsVal, starsTrend, true)
+        viewsBox,
+        likesBox,
+        wordsBox,
+        followersBox,
+        starsBox,
+        chaptersBox,
+        engagementBox
       ]),
       
       chartContainer

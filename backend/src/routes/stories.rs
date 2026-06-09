@@ -92,8 +92,14 @@ pub async fn list_stories(
 
     // Filter by genre
     if let Some(ref genre) = params.genre {
-        if !genre.trim().is_empty() {
-            results.retain(|s| s.genre.to_lowercase() == genre.to_lowercase());
+        if !genre.trim().is_empty() && genre.to_lowercase() != "all" {
+            let target_genre = genre.to_lowercase();
+            results.retain(|s| {
+                s.genre
+                    .split(',')
+                    .map(|g| g.trim().to_lowercase())
+                    .any(|g| g == target_genre)
+            });
         }
     }
 
@@ -101,6 +107,52 @@ pub async fn list_stories(
     if let Some(ref story_type) = params.story_type {
         if !story_type.trim().is_empty() {
             results.retain(|s| s.story_type.to_lowercase() == story_type.to_lowercase());
+        }
+    }
+
+    // Filter by status
+    if let Some(ref status) = params.status {
+        if !status.trim().is_empty() && status.to_lowercase() != "all" {
+            results.retain(|s| s.status.to_lowercase() == status.to_lowercase());
+        }
+    }
+
+    // Filter by language
+    if let Some(ref language) = params.language {
+        if !language.trim().is_empty() && language.to_lowercase() != "all" {
+            results.retain(|s| s.language.to_lowercase() == language.to_lowercase());
+        }
+    }
+
+    // Sort by criteria
+    if let Some(ref sort_by) = params.sort_by {
+        match sort_by.to_lowercase().as_str() {
+            "newest" => {
+                results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            }
+            "reads" => {
+                results.sort_by(|a, b| b.views.cmp(&a.views));
+            }
+            "likes" => {
+                results.sort_by(|a, b| b.likes.cmp(&a.likes));
+            }
+            "rating" => {
+                let calc_rating = |views: i32, likes: i32| -> f64 {
+                    if views == 0 {
+                        5.0
+                    } else {
+                        let ratio = likes as f64 / views as f64;
+                        let r = 4.0 + ratio * 10.0;
+                        r.min(5.0).max(1.0)
+                    }
+                };
+                results.sort_by(|a, b| {
+                    let r_a = calc_rating(a.views, a.likes);
+                    let r_b = calc_rating(b.views, b.likes);
+                    r_b.partial_cmp(&r_a).unwrap_or(std::cmp::Ordering::Equal)
+                });
+            }
+            _ => {}
         }
     }
 
@@ -165,6 +217,7 @@ pub async fn delete_story(
     .execute(&pool)
     .await?;
 
+    let cover_url = row.cover.clone();
     let result = sqlx::query("DELETE FROM stories WHERE id = $1")
         .bind(id)
         .execute(&pool)
@@ -179,6 +232,11 @@ pub async fn delete_story(
         if let Err(e) = crate::search::deindex_story(id).await {
             tracing::error!("⚠️ Failed to de-index story {} from Meilisearch: {}", id, e);
         }
+    });
+
+    // Delete the old cover from storage asynchronously
+    tokio::spawn(async move {
+        crate::routes::upload::delete_uploaded_file(&cover_url).await;
     });
 
     Ok(Json(serde_json::json!({ "message": "Story deleted." })))
@@ -199,6 +257,18 @@ pub async fn update_story(
     // Only allow updating if the user is the author
     if row.author_id != Some(auth.user_id) {
         return Err(AppError::forbidden("You do not have permission to edit this story."));
+    }
+
+    // Capture old cover image url to clean up if changed/removed
+    let old_cover = row.cover.clone();
+    let mut cover_was_removed_or_replaced = false;
+    let mut cover_to_delete = String::new();
+
+    if let Some(ref new_cover) = body.cover {
+        if new_cover != &old_cover {
+            cover_was_removed_or_replaced = true;
+            cover_to_delete = old_cover.clone();
+        }
     }
 
     // Build update query dynamically
@@ -239,6 +309,13 @@ pub async fn update_story(
             tracing::error!("⚠️ Failed to re-index story {} in Meilisearch: {}", id, e);
         }
     });
+
+    // Delete old cover from storage asynchronously if replaced/removed
+    if cover_was_removed_or_replaced && !cover_to_delete.is_empty() {
+        tokio::spawn(async move {
+            crate::routes::upload::delete_uploaded_file(&cover_to_delete).await;
+        });
+    }
 
     Ok(Json(serde_json::json!({ "message": "Story updated." })))
 }
@@ -555,6 +632,7 @@ fn assemble_story(row: &StoryRow, chapters: Vec<ChapterResponse>) -> StoryRespon
         likes: row.likes,
         earnings: row.earnings,
         progress: row.progress,
+        created_at: row.created_at,
         chapters,
     }
 }

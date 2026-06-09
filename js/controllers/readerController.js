@@ -14,6 +14,11 @@ export function handleReaderClick(ctx, action, target, e) {
   }
   if (action === "openStory") {
     var storyId = target.dataset.id;
+    window.location.hash = "story?id=" + storyId;
+    return true;
+  }
+  if (action === "openReader") {
+    var storyId = target.dataset.id;
     var story = ctx.state.stories.find(function (s) { return s.id === storyId; });
     var chapterIdx = 0;
     var pageIdx = 0;
@@ -83,28 +88,35 @@ export function handleReaderClick(ctx, action, target, e) {
     return true;
   }
   if (action === "deleteComment") {
-    if (!window.confirm("Are you sure you want to delete this comment?")) return true;
-    var commentId = target.dataset.id;
-    // Optimistic UI update
-    var backupStories = JSON.parse(JSON.stringify(ctx.state.stories));
-    ctx.state.stories.forEach(function (s) {
-      s.chapters.forEach(function (ch) {
-        ch.comments = ch.comments.filter(function (c) { return c.id !== commentId; });
+    window.showConfirm({
+      title: "Delete Comment",
+      message: "Are you sure you want to delete this comment? This cannot be undone.",
+      confirmText: "Delete",
+      isDanger: true
+    }).then(function (confirmed) {
+      if (!confirmed) return;
+      var commentId = target.dataset.id;
+      // Optimistic UI update
+      var backupStories = JSON.parse(JSON.stringify(ctx.state.stories));
+      ctx.state.stories.forEach(function (s) {
+        s.chapters.forEach(function (ch) {
+          ch.comments = ch.comments.filter(function (c) { return c.id !== commentId; });
+        });
       });
-    });
-    ctx.notify("Comment deleted.");
-    ctx.render();
-    
-    ctx.apiDelete("/comments/" + commentId).then(function () {
-      return ctx.api("/stories");
-    }).then(function (s) {
-      ctx.state.stories = s;
+      ctx.notify("Comment deleted.");
       ctx.render();
-    }).catch(function (err) {
-      console.error("Failed to delete comment:", err);
-      ctx.state.stories = backupStories;
-      ctx.notify(err.message || "Failed to delete comment. Restored.");
-      ctx.render();
+      
+      ctx.apiDelete("/comments/" + commentId).then(function () {
+        return ctx.api("/stories");
+      }).then(function (s) {
+        ctx.state.stories = s;
+        ctx.render();
+      }).catch(function (err) {
+        console.error("Failed to delete comment:", err);
+        ctx.state.stories = backupStories;
+        ctx.notify(err.message || "Failed to delete comment. Restored.");
+        ctx.render();
+      });
     });
     return true;
   }

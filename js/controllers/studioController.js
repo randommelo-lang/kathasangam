@@ -1,4 +1,4 @@
-import { saveChapterFromEditor as saveChapterFromEditorModule } from "../editor.js?v=studio-20260529-preferences-v21";
+import { saveChapterFromEditor as saveChapterFromEditorModule } from "../editor.js?v=comic-fit-20260609-v27";
 
 export function handleStudioClick(ctx, action, target, e) {
   if (action === "manageStory") {
@@ -75,23 +75,28 @@ export function handleStudioClick(ctx, action, target, e) {
       ctx.notify("Please select or create a story first.");
       return true;
     }
-    if (!confirm("Are you sure you want to remove the cover image and reset to default?")) {
-      return true;
-    }
-    ctx.notify("Removing cover image...");
-    ctx.apiPut("/stories/" + story.id, { cover: "" })
-      .then(function() {
-        return ctx.api("/stories");
-      })
-      .then(function(s) {
-        ctx.state.stories = s;
-        ctx.notify("Cover image removed.");
-        ctx.render();
-      })
-      .catch(function(err) {
-        console.error(err);
-        ctx.notify(err.message || "Failed to remove cover.");
-      });
+    window.showConfirm({
+      title: "Remove Cover Image",
+      message: "Are you sure you want to remove the cover image and reset to default?",
+      confirmText: "Remove",
+      isDanger: true
+    }).then(function (confirmed) {
+      if (!confirmed) return;
+      ctx.notify("Removing cover image...");
+      ctx.apiPut("/stories/" + story.id, { cover: "" })
+        .then(function() {
+          return ctx.api("/stories");
+        })
+        .then(function(s) {
+          ctx.state.stories = s;
+          ctx.notify("Cover image removed.");
+          ctx.render();
+        })
+        .catch(function(err) {
+          console.error(err);
+          ctx.notify(err.message || "Failed to remove cover image.");
+        });
+    });
     return true;
   }
   if (action === "newChapter") {
@@ -176,9 +181,19 @@ export function handleStudioClick(ctx, action, target, e) {
     }
     
     if (hasChanges) {
-      if (!window.confirm("You have unsaved changes. Are you sure you want to discard them?")) {
-        return true;
-      }
+      window.showConfirm({
+        title: "Discard Changes",
+        message: "You have unsaved changes. Are you sure you want to discard them?",
+        confirmText: "Discard",
+        isDanger: true
+      }).then(function (confirmed) {
+        if (!confirmed) return;
+        localStorage.removeItem("kathasangam_draft_" + ctx.ui.editingChapterId);
+        ctx.ui.currentView = "studio";
+        window.location.hash = "studio";
+        ctx.render();
+      });
+      return true;
     }
     localStorage.removeItem("kathasangam_draft_" + ctx.ui.editingChapterId);
     ctx.ui.currentView = "studio";
@@ -199,59 +214,73 @@ export function handleStudioClick(ctx, action, target, e) {
   }
   if (action === "deleteChapter") {
     var doomedId = target.dataset.id;
-    if (!window.confirm("Are you sure you want to delete this chapter? This cannot be undone.")) return true;
-    var backupStories = JSON.parse(JSON.stringify(ctx.state.stories));
-    ctx.state.stories.forEach(function (s) {
-      s.chapters = s.chapters.filter(function (ch) { return ch.id !== doomedId; });
-    });
-    ctx.ui.currentChapterIndex = 0;
-    ctx.notify("Chapter deleted.");
-    ctx.render();
-    
-    ctx.apiDelete("/chapters/" + doomedId).then(function () {
-      return ctx.api("/stories");
-    }).then(function (s) {
-      ctx.state.stories = s;
+    window.showConfirm({
+      title: "Delete Chapter",
+      message: "Are you sure you want to delete this chapter? This cannot be undone.",
+      confirmText: "Delete",
+      isDanger: true
+    }).then(function (confirmed) {
+      if (!confirmed) return;
+      var backupStories = JSON.parse(JSON.stringify(ctx.state.stories));
+      ctx.state.stories.forEach(function (s) {
+        s.chapters = s.chapters.filter(function (ch) { return ch.id !== doomedId; });
+      });
+      ctx.ui.currentChapterIndex = 0;
+      ctx.notify("Chapter deleted.");
       ctx.render();
-    }).catch(function (err) {
-      console.error("Failed to delete chapter:", err);
-      ctx.state.stories = backupStories;
-      ctx.notify(err.message || "Failed to delete chapter. Restored.");
-      ctx.render();
+      
+      ctx.apiDelete("/chapters/" + doomedId).then(function () {
+        return ctx.api("/stories");
+      }).then(function (s) {
+        ctx.state.stories = s;
+        ctx.render();
+      }).catch(function (err) {
+        console.error("Failed to delete chapter:", err);
+        ctx.state.stories = backupStories;
+        ctx.notify(err.message || "Failed to delete chapter. Restored.");
+        ctx.render();
+      });
     });
     return true;
   }
   if (action === "deleteStory") {
     var doomed = ctx.state.stories.find(function (s) { return s.id === target.dataset.id; });
     if (!doomed || !ctx.canDeleteStory(doomed)) return true;
-    if (!window.confirm("Delete \"" + doomed.title + "\" and all of its chapters? This cannot be undone.")) return true;
     
-    var backupStories = ctx.state.stories.slice();
-    var backupLibrary = ctx.state.library.slice();
-    ctx.state.stories = ctx.state.stories.filter(function (s) { return s.id !== doomed.id; });
-    ctx.state.library = ctx.state.library.filter(function (id) { return id !== doomed.id; });
-    if (ctx.ui.currentStoryId === doomed.id) {
-      ctx.ui.currentStoryId = ctx.state.stories[0] ? ctx.state.stories[0].id : "";
-      ctx.ui.currentChapterIndex = 0;
-    }
-    ctx.hydrateGenres();
-    ctx.notify("Story deleted.");
-    ctx.render();
-    
-    ctx.apiDelete("/stories/" + doomed.id).then(function () {
-      return Promise.all([ctx.api("/stories"), ctx.api("/library/ids")]);
-    }).then(function (results) {
-      ctx.state.stories = results[0];
-      ctx.state.library = results[1];
+    window.showConfirm({
+      title: "Delete Story",
+      message: "Delete \"" + doomed.title + "\" and all of its chapters? This cannot be undone.",
+      confirmText: "Delete",
+      isDanger: true
+    }).then(function (confirmed) {
+      if (!confirmed) return;
+      var backupStories = ctx.state.stories.slice();
+      var backupLibrary = ctx.state.library.slice();
+      ctx.state.stories = ctx.state.stories.filter(function (s) { return s.id !== doomed.id; });
+      ctx.state.library = ctx.state.library.filter(function (id) { return id !== doomed.id; });
+      if (ctx.ui.currentStoryId === doomed.id) {
+        ctx.ui.currentStoryId = ctx.state.stories[0] ? ctx.state.stories[0].id : "";
+        ctx.ui.currentChapterIndex = 0;
+      }
       ctx.hydrateGenres();
+      ctx.notify("Story deleted.");
       ctx.render();
-    }).catch(function (err) {
-      console.error("Failed to delete story:", err);
-      ctx.state.stories = backupStories;
-      ctx.state.library = backupLibrary;
-      ctx.hydrateGenres();
-      ctx.notify(err.message || "Failed to delete story. Restored.");
-      ctx.render();
+      
+      ctx.apiDelete("/stories/" + doomed.id).then(function () {
+        return Promise.all([ctx.api("/stories"), ctx.api("/library/ids")]);
+      }).then(function (results) {
+        ctx.state.stories = results[0];
+        ctx.state.library = results[1];
+        ctx.hydrateGenres();
+        ctx.render();
+      }).catch(function (err) {
+        console.error("Failed to delete story:", err);
+        ctx.state.stories = backupStories;
+        ctx.state.library = backupLibrary;
+        ctx.hydrateGenres();
+        ctx.notify(err.message || "Failed to delete story. Restored.");
+        ctx.render();
+      });
     });
     return true;
   }
@@ -282,7 +311,6 @@ export function handleStudioSubmit(ctx, formName, target, e) {
   if (formName === "storySettingsForm") {
     var fd = new FormData(target);
     var storyId = fd.get("id");
-    var tags = fd.get("tags").split(",").map(function (t) { return t.trim(); }).filter(Boolean);
 
     ctx.apiPut("/stories/" + storyId, {
       title: fd.get("title"),
@@ -290,8 +318,7 @@ export function handleStudioSubmit(ctx, formName, target, e) {
       description: fd.get("description"),
       status: fd.get("status"),
       language: fd.get("language"),
-      license: fd.get("license"),
-      tags: tags
+      license: fd.get("license")
     }).then(function (resp) {
       ctx.notify("Story metadata updated.");
       ctx.closeStoryModal();

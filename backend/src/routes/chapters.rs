@@ -351,33 +351,68 @@ pub async fn update_chapter(
             .await?;
     }
 
-    // Delete old content
-    sqlx::query("DELETE FROM chapter_content WHERE chapter_id = $1")
-        .bind(chapter_id)
-        .execute(&mut *tx)
+    // Delete old content / pages based on story type
+    let (story_type,): (String,) = sqlx::query_as("SELECT type FROM stories WHERE id = $1")
+        .bind(row.story_id)
+        .fetch_one(&mut *tx)
         .await?;
 
-    // Insert new paragraphs
-    let mut total_words = 0;
-    for (idx, para) in body.content.iter().enumerate() {
-        total_words += para.split_whitespace().count() as i32;
-
-        let content_id = Uuid::new_v4();
-        sqlx::query("INSERT INTO chapter_content (id, chapter_id, sort_order, paragraph) VALUES ($1, $2, $3, $4)")
-            .bind(content_id)
+    if story_type == "Chitrānk" {
+        // Delete old pages
+        sqlx::query("DELETE FROM chapter_pages WHERE chapter_id = $1")
             .bind(chapter_id)
-            .bind(idx as i32)
-            .bind(para)
+            .execute(&mut *tx)
+            .await?;
+
+        // Insert new pages if provided
+        if let Some(ref pages) = body.pages {
+            for (idx, page) in pages.iter().enumerate() {
+                let page_id = Uuid::new_v4();
+                sqlx::query("INSERT INTO chapter_pages (id, chapter_id, page_index, label, bg) VALUES ($1, $2, $3, $4, $5)")
+                    .bind(page_id)
+                    .bind(chapter_id)
+                    .bind(idx as i32)
+                    .bind(&page.label)
+                    .bind(&page.bg)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
+
+        // Update words count to 0 for comic chapters
+        sqlx::query("UPDATE chapters SET words = 0 WHERE id = $1")
+            .bind(chapter_id)
+            .execute(&mut *tx)
+            .await?;
+    } else {
+        // Delete old content
+        sqlx::query("DELETE FROM chapter_content WHERE chapter_id = $1")
+            .bind(chapter_id)
+            .execute(&mut *tx)
+            .await?;
+
+        // Insert new paragraphs
+        let mut total_words = 0;
+        for (idx, para) in body.content.iter().enumerate() {
+            total_words += para.split_whitespace().count() as i32;
+
+            let content_id = Uuid::new_v4();
+            sqlx::query("INSERT INTO chapter_content (id, chapter_id, sort_order, paragraph) VALUES ($1, $2, $3, $4)")
+                .bind(content_id)
+                .bind(chapter_id)
+                .bind(idx as i32)
+                .bind(para)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        // Update chapter word count
+        sqlx::query("UPDATE chapters SET words = $1 WHERE id = $2")
+            .bind(total_words)
+            .bind(chapter_id)
             .execute(&mut *tx)
             .await?;
     }
-
-    // Update chapter word count
-    sqlx::query("UPDATE chapters SET words = $1 WHERE id = $2")
-        .bind(total_words)
-        .bind(chapter_id)
-        .execute(&mut *tx)
-        .await?;
 
     let should_notify = body.status.as_deref() == Some("published") && row.status != "published";
 

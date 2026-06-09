@@ -1,4 +1,4 @@
-import { button, el, list } from "../components.js?v=studio-20260529-preferences-v21";
+import { button, el, list } from "../components.js?v=comic-fit-20260609-v27";
 
 export function renderModeration(ctx) {
   ctx = ctx || this;

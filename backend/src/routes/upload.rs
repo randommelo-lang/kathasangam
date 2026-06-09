@@ -190,3 +190,65 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
     }
     Err(AppError::bad_request("No file field found in upload request."))
 }
+
+/// Helper to delete a file from either Supabase Storage or local uploads folder based on its URL
+pub async fn delete_uploaded_file(file_url: &str) {
+    if file_url.is_empty() {
+        return;
+    }
+
+    // Check if it's a Supabase Storage public URL
+    // e.g., "https://vvljxgoprncblowdmfxi.supabase.co/storage/v1/object/public/kathasangam/some-uuid.webp"
+    if file_url.contains("/storage/v1/object/public/") {
+        let supabase_url = std::env::var("SUPABASE_URL").ok();
+        let service_role_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY").ok();
+
+        if let (Some(url), Some(key)) = (supabase_url, service_role_key) {
+            if !url.is_empty() && !key.is_empty() {
+                // Parse out the part after "/storage/v1/object/public/"
+                // E.g., from ".../storage/v1/object/public/kathasangam/some-uuid.webp"
+                // we want "kathasangam/some-uuid.webp"
+                if let Some(pos) = file_url.find("/storage/v1/object/public/") {
+                    let path_part = &file_url[pos + "/storage/v1/object/public/".len()..];
+                    let delete_url = format!("{}/storage/v1/object/{}", url, path_part);
+
+                    let client = reqwest::Client::new();
+                    tracing::info!("🔶 Attempting to delete from Supabase Storage: {}", delete_url);
+                    let res = client
+                        .delete(&delete_url)
+                        .header("apikey", &key)
+                        .header("Authorization", format!("Bearer {}", key))
+                        .send()
+                        .await;
+
+                    match res {
+                        Ok(resp) => {
+                            if resp.status().is_success() {
+                                tracing::info!("✅ Deleted successfully from Supabase Storage: {}", file_url);
+                            } else {
+                                let status = resp.status();
+                                let text = resp.text().await.unwrap_or_default();
+                                tracing::error!("⚠️ Supabase Storage delete failed (status {}): {}", status, text);
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("⚠️ Supabase Storage delete request failed: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+    } else if file_url.starts_with("/uploads/") {
+        // Local file fallback
+        // E.g., file_url = "/uploads/some-uuid.webp"
+        let relative_path = &file_url[1..]; // "uploads/some-uuid.webp"
+        if std::path::Path::new(relative_path).exists() {
+            if let Err(e) = tokio::fs::remove_file(relative_path).await {
+                tracing::error!("⚠️ Failed to delete local upload file '{}': {:?}", relative_path, e);
+            } else {
+                tracing::info!("✅ Deleted local upload file successfully: {}", relative_path);
+            }
+        }
+    }
+}
+

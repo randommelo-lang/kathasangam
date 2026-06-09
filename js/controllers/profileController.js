@@ -96,13 +96,20 @@ export function handleProfileClick(ctx, action, target, e) {
     return true;
   }
   if (action === "deleteAccount") {
-    if (!window.confirm("ARE YOU SURE you want to delete your account? This will permanently delete your profile, stories, comments, and all related data. This action is irreversible!")) return true;
-    ctx.apiDelete("/profile").then(function () {
-      ctx.notify("Account deleted successfully.");
-      ctx.handleSignOut();
-    }).catch(function (err) {
-      console.error(err);
-      ctx.notify(err.message || "Failed to delete account.");
+    window.showConfirm({
+      title: "Delete Account",
+      message: "ARE YOU SURE you want to delete your account? This will permanently delete your profile, stories, comments, and all related data. This action is irreversible!",
+      confirmText: "Delete Permanently",
+      isDanger: true
+    }).then(function (confirmed) {
+      if (!confirmed) return;
+      ctx.apiDelete("/profile").then(function () {
+        ctx.notify("Account deleted successfully.");
+        ctx.handleSignOut();
+      }).catch(function (err) {
+        console.error(err);
+        ctx.notify(err.message || "Failed to delete account.");
+      });
     });
     return true;
   }

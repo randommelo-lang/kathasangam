@@ -98,7 +98,6 @@ test.describe('KathaSangam Community Features', () => {
     
     // Wait for login and stats/stories to fetch
     await expect(page.locator('.account-trigger')).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(4000);
 
     // 3. Click the first story card to go to Story details
     const firstStoryCover = page.locator('.story-card .cover-button').first();
@@ -124,11 +123,9 @@ test.describe('KathaSangam Community Features', () => {
 
     // Go to Library and verify Bookmark tab (Client-side routing to preserve session)
     await page.evaluate(() => { window.location.hash = 'library'; });
-    await page.waitForTimeout(3000);
     const bookmarksTab = page.locator('.library-tab-btn', { hasText: 'Bookmarks' });
     await expect(bookmarksTab).toBeVisible({ timeout: 15000 });
     await bookmarksTab.click();
-    await page.waitForTimeout(3000);
 
     // Verify bookmark is listed
     await expect(page.locator('.story-card').first()).toBeVisible({ timeout: 15000 });
@@ -141,16 +138,14 @@ test.describe('KathaSangam Community Features', () => {
 
     // Go to library and check again
     await page.evaluate(() => { window.location.hash = 'library'; });
-    await page.waitForTimeout(3000);
+    await expect(bookmarksTab).toBeVisible({ timeout: 15000 });
     await bookmarksTab.click();
-    await page.waitForTimeout(3000);
     await expect(page.locator('text=Bookmark stories from their details pages to save them here.')).toBeVisible({ timeout: 15000 });
 
     // 5. Reading Playlists flow
     const playlistsTab = page.locator('.library-tab-btn', { hasText: 'Reading Lists' });
     await expect(playlistsTab).toBeVisible({ timeout: 15000 });
     await playlistsTab.click();
-    await page.waitForTimeout(3000);
 
     // Create a new reading list
     const createBtn = page.locator('button:has-text("Create List")');
@@ -160,54 +155,56 @@ test.describe('KathaSangam Community Features', () => {
     await page.fill('input[placeholder="Name"]', playlistName);
     await page.fill('textarea[placeholder="Description (optional)"]', 'Superb novels');
     await page.click('.library-main-content form button[type="submit"]');
-    await page.waitForTimeout(3000);
 
     // Verify playlist card appears
-    await expect(page.locator('.reading-list-card', { hasText: playlistName })).toBeVisible({ timeout: 15000 });
+    const playlistCard = page.locator('.reading-list-card', { hasText: playlistName });
+    await expect(playlistCard).toBeVisible({ timeout: 15000 });
 
     // Add a story to the playlist
     await page.evaluate(() => { window.location.hash = 'discover'; });
-    await page.waitForTimeout(3000);
-    await page.locator('.story-card .cover-button').first().click();
+    const firstCover = page.locator('.story-card .cover-button').first();
+    await expect(firstCover).toBeVisible({ timeout: 15000 });
+    await firstCover.click();
     await expect(page).toHaveURL(/#story/, { timeout: 15000 });
     
     await playlistBtn.click();
     // Modal should show up
     await expect(page.locator('#storyModal')).not.toHaveAttribute('hidden', { timeout: 15000 });
-    await page.waitForTimeout(3000);
     
     // Check the box next to Epic Collection / playlistName
     const playlistCheckbox = page.locator('#storyModal input[type="checkbox"]').first();
+    await expect(playlistCheckbox).toBeVisible({ timeout: 15000 });
     await playlistCheckbox.click();
-    await page.waitForTimeout(3000);
+    await expect(playlistCheckbox).toBeChecked({ timeout: 15000 });
     
     // Close modal
     await page.click('#storyModalClose');
 
     // Verify it is inside the playlist
     await page.evaluate(() => { window.location.hash = 'library'; });
-    await page.waitForTimeout(3000);
+    await expect(playlistsTab).toBeVisible({ timeout: 15000 });
     await playlistsTab.click();
-    await page.waitForTimeout(3000);
-    await page.locator('.reading-list-card', { hasText: playlistName }).click();
-    await page.waitForTimeout(3000);
+    await expect(playlistCard).toBeVisible({ timeout: 15000 });
+    await playlistCard.click();
 
     // Should view detailed playlist page with the story inside it (target heading element)
     await expect(page.locator('.library-main-content h2', { hasText: playlistName })).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.story-card').first()).toBeVisible({ timeout: 15000 });
 
     // Go back to playlists and delete it
-    await page.click('button:has-text("Back to Reading Lists")');
-    await page.waitForTimeout(3000);
-    
-    // Setup dialog listener for confirm delete
-    page.once('dialog', async dialog => {
-      await dialog.accept();
-    });
-    
-    await page.locator('.reading-list-card', { hasText: playlistName }).locator('button:has-text("Delete")').click();
-    await page.waitForTimeout(3000);
-    await expect(page.locator('.reading-list-card', { hasText: playlistName })).not.toBeVisible({ timeout: 15000 });
+    const backBtn = page.locator('button:has-text("Back to Reading Lists")');
+    await expect(backBtn).toBeVisible({ timeout: 15000 });
+    await backBtn.click();
+    const deleteBtn = playlistCard.locator('button:has-text("Delete")');
+    await expect(deleteBtn).toBeVisible({ timeout: 15000 });
+    await deleteBtn.click();
+
+    // Click confirm in the custom modal
+    const confirmDeleteBtn = page.locator('.custom-modal-box button.btn-danger');
+    await expect(confirmDeleteBtn).toBeVisible({ timeout: 15000 });
+    await confirmDeleteBtn.click();
+
+    await expect(playlistCard).not.toBeVisible({ timeout: 15000 });
   });
 
   test('Direct Messaging Flow', async ({ page }) => {
@@ -220,16 +217,14 @@ test.describe('KathaSangam Community Features', () => {
     await page.fill('#loginForm input[name="password"]', 'Password123!');
     await page.click('#loginForm button[type="submit"]');
     await expect(page.locator('.account-trigger')).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(4000);
 
     // 2. Go to Messages page via client routing
     await page.evaluate(() => { window.location.hash = 'messages'; });
-    await page.waitForTimeout(3000);
     await expect(page.locator('h3:has-text("Direct Messages")')).toBeVisible({ timeout: 15000 });
 
     // 3. Initiate a message from an author profile (client routing to Discover to select another user's profile)
     await page.evaluate(() => { window.location.hash = 'discover'; });
-    await page.waitForTimeout(4000);
+    await expect(page.locator('.story-card').first()).toBeVisible({ timeout: 15000 });
     
     // Select the first story card's author that is not ourselves
     const authorLinks = page.locator('.story-card .story-author-link');
@@ -252,7 +247,6 @@ test.describe('KathaSangam Community Features', () => {
     const authorName = await targetLink.textContent();
     await targetLink.click();
     await expect(page).toHaveURL(/#profile/, { timeout: 15000 });
-    await page.waitForTimeout(3000);
 
     // Verify message button is visible on another user's profile specifically using card selector
     const msgBtn = page.locator('.profile-header-card button:has-text("Message")');
@@ -261,13 +255,11 @@ test.describe('KathaSangam Community Features', () => {
 
     // It should redirect to DMs with this user selected
     await expect(page).toHaveURL(/#messages/, { timeout: 15000 });
-    await page.waitForTimeout(3000);
     await expect(page.locator('.messages-chat-title', { hasText: authorName.trim() })).toBeVisible({ timeout: 15000 });
 
     // 4. Send a message
     await page.fill('input.messages-chat-input', 'Hello there! Love your story!');
     await page.click('form.messages-chat-input-bar button[type="submit"]');
-    await page.waitForTimeout(3000);
 
     // Message bubble should appear in history
     const lastBubble = page.locator('.messages-history .messages-bubble-wrapper.sent').last();
@@ -285,11 +277,10 @@ test.describe('KathaSangam Community Features', () => {
     await page.fill('#loginForm input[name="password"]', 'Password123!');
     await page.click('#loginForm button[type="submit"]');
     await expect(page.locator('.account-trigger')).toBeVisible({ timeout: 15000 });
-    await page.waitForTimeout(4000);
 
     // 2. Select another user's profile
     await page.evaluate(() => { window.location.hash = 'discover'; });
-    await page.waitForTimeout(4000);
+    await expect(page.locator('.story-card').first()).toBeVisible({ timeout: 15000 });
     
     const authorLinks = page.locator('.story-card .story-author-link');
     const count = await authorLinks.count();
@@ -309,7 +300,6 @@ test.describe('KathaSangam Community Features', () => {
     await expect(targetLink).toBeVisible({ timeout: 15000 });
     await targetLink.click();
     await expect(page).toHaveURL(/#profile/, { timeout: 15000 });
-    await page.waitForTimeout(3000);
 
     // 3. Verify Follow button and Social Stats inside header card
     const followBtn = page.locator('.profile-header-card button:has-text("Follow"), .profile-header-card button:has-text("Following")');
@@ -325,9 +315,11 @@ test.describe('KathaSangam Community Features', () => {
 
     // Click Follow to toggle
     await followBtn.click();
-    await page.waitForTimeout(2000);
-
-    // Assert stats and button label toggled
+    
+    // Assert stats and button label toggled (using Playwright auto-retry to wait)
+    const expectedFollowText = initialFollowText === 'Follow' ? 'Following' : 'Follow';
+    await expect(followBtn).toHaveText(expectedFollowText, { timeout: 15000 });
+    
     const afterFollowText = await followBtn.textContent();
     const afterStats = await statsText.textContent();
     console.log(`After toggle Follow state: ${afterFollowText}, stats: ${afterStats}`);
@@ -336,7 +328,7 @@ test.describe('KathaSangam Community Features', () => {
     
     // Toggle back to clean up
     await followBtn.click();
-    await page.waitForTimeout(2000);
+    await expect(followBtn).toHaveText(initialFollowText, { timeout: 15000 });
     
     const cleanFollowText = await followBtn.textContent();
     expect(cleanFollowText).toBe(initialFollowText);

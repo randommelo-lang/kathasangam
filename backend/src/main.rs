@@ -5,6 +5,7 @@ mod search;
 mod middleware;
 pub mod errors;
 
+use std::io;
 
 use axum::{
     routing::{get, patch, post, delete, put},
@@ -17,7 +18,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenvy::dotenv().ok();
 
     // Initialize structured logging / tracing
@@ -37,23 +38,21 @@ async fn main() {
     }
 
     // Initialize cached JWT public key
-    crate::db::init_jwt_decoding_key();
+    crate::db::init_jwt_decoding_key()?;
 
     tracing::info!("🔶 KathaSangam Backend starting …");
 
     let rate_limiter = middleware::RateLimiter::new();
 
 
-    let db_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL missing");
+    let db_url = std::env::var("DATABASE_URL")?;
 
     let pool = PgPoolOptions::new()
         .max_connections(3)
         .connect(&db_url)
 
         .await
-
-        .expect("Failed to connect to PostgreSQL");
+        .map_err(|e| io::Error::other(format!("Failed to connect to PostgreSQL: {}", e)))?;
 
     tracing::info!("✅ Connected to Supabase PostgreSQL");
 
@@ -303,10 +302,10 @@ async fn main() {
 
     let listener =
         tokio::net::TcpListener::bind(addr)
-            .await
-            .unwrap();
+            .await?;
 
     axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-        .await
-        .unwrap();
+        .await?;
+
+    Ok(())
 }

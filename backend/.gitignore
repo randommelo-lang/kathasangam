@@ -1,2 +1,6 @@
 /target
 .env
+temp_compressed_*
+temp_raw_*
+test_output.webp
+server_log.txt

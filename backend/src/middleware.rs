@@ -20,8 +20,12 @@ pub struct RateLimiter {
 
 impl RateLimiter {
     pub fn new() -> Arc<Self> {
-        let upload_quota = Quota::per_minute(NonZeroU32::new(30).unwrap());
-        let general_quota = Quota::per_minute(NonZeroU32::new(100).unwrap());
+        let upload_quota = Quota::per_minute(
+            NonZeroU32::new(30).unwrap_or(NonZeroU32::MIN),
+        );
+        let general_quota = Quota::per_minute(
+            NonZeroU32::new(100).unwrap_or(NonZeroU32::MIN),
+        );
 
         let limiter = Arc::new(Self {
             upload_limiter: GovRateLimiter::keyed(upload_quota),
@@ -175,5 +179,4 @@ pub async fn security_headers_middleware(
 
     response
 }
-
 

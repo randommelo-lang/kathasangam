@@ -66,21 +66,28 @@ pub async fn health_check(State(pool): State<PgPool>) -> Result<Json<HealthStatu
 
     let (storage_status, storage_mode) = if !supabase_url.is_empty() && !service_role_key.is_empty() {
         // Query Supabase Storage Health Endpoint
-        let client = reqwest::Client::builder()
+        let status = match reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(2))
             .build()
-            .unwrap();
-        let health_url = format!("{}/storage/v1/health", supabase_url);
-        let storage_res = client
-            .get(&health_url)
-            .header("apikey", &service_role_key)
-            .header("Authorization", format!("Bearer {}", service_role_key))
-            .send()
-            .await;
-        
-        let status = match storage_res {
-            Ok(resp) if resp.status().is_success() => "up".to_string(),
-            _ => {
+        {
+            Ok(client) => {
+                let health_url = format!("{}/storage/v1/health", supabase_url);
+                match client
+                    .get(&health_url)
+                    .header("apikey", &service_role_key)
+                    .header("Authorization", format!("Bearer {}", service_role_key))
+                    .send()
+                    .await
+                {
+                    Ok(resp) if resp.status().is_success() => "up".to_string(),
+                    _ => {
+                        is_healthy = false;
+                        "down".to_string()
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to build storage health client: {}", e);
                 is_healthy = false;
                 "down".to_string()
             }

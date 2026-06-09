@@ -6,7 +6,8 @@ use axum::{
 use crate::errors::AppError;
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use std::error::Error;
+use std::io;
 use std::sync::OnceLock;
 use uuid::Uuid;
 
@@ -26,13 +27,21 @@ pub struct AuthUser {
 
 pub static JWT_DECODING_KEY: OnceLock<DecodingKey> = OnceLock::new();
 
-pub fn init_jwt_decoding_key() {
-    let env_secret = std::env::var("SUPABASE_JWT_SECRET").expect("SUPABASE_JWT_SECRET is missing");
+fn mock_user_id() -> Uuid {
+    Uuid::from_bytes([
+        0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x7a, 0x8b, 0x9c, 0x0d, 0x1e, 0x2f, 0x3a, 0x4b,
+        0x5c, 0x6d,
+    ])
+}
+
+pub fn init_jwt_decoding_key() -> Result<(), Box<dyn Error + Send + Sync>> {
+    let env_secret = std::env::var("SUPABASE_JWT_SECRET")?;
     let pem_key = env_secret.replace("\\n", "\n");
-    let key = DecodingKey::from_ec_pem(pem_key.as_bytes()).expect("Failed to parse SUPABASE_JWT_SECRET as EC PEM key");
-    if JWT_DECODING_KEY.set(key).is_err() {
-        panic!("Failed to set JWT_DECODING_KEY OnceLock");
-    }
+    let key = DecodingKey::from_ec_pem(pem_key.as_bytes())?;
+    JWT_DECODING_KEY
+        .set(key)
+        .map_err(|_| io::Error::new(io::ErrorKind::AlreadyExists, "JWT decoding key was already initialized"))?;
+    Ok(())
 }
 
 #[async_trait]
@@ -57,7 +66,7 @@ where
 
         if token == "mock-access-token" {
             return Ok(AuthUser {
-                user_id: Uuid::parse_str("a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d").unwrap(),
+                user_id: mock_user_id(),
             });
         }
 
@@ -105,7 +114,7 @@ where
                 let token = &header[7..];
                 if token == "mock-access-token" {
                     return Ok(OptionalAuthUser {
-                        user_id: Some(Uuid::parse_str("a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d").unwrap()),
+                        user_id: Some(mock_user_id()),
                     });
                 }
                 if let Some(decoding_key) = JWT_DECODING_KEY.get() {
@@ -125,10 +134,4 @@ where
         }
         Ok(OptionalAuthUser { user_id: None })
     }
-}
-
-pub async fn connect_db(database_url: &str) -> PgPool {
-    PgPool::connect(database_url)
-        .await
-        .expect("Database connection failed")
 }

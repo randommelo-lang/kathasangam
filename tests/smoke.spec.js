@@ -357,9 +357,6 @@ test.describe('KathaSangam Smoke Tests', () => {
     const statusMsg = page.locator('.editor-upload-section span.mini-meta');
     await expect(statusMsg).toHaveText(/Extracted text from test.pdf|Processing test.pdf/);
 
-    // Give it a brief moment to process the promise chain
-    await page.waitForTimeout(1000);
-
     // 9. Verify the paragraph items in the contenteditable area
     const paragraphs = page.locator('.editor-textarea p');
     await expect(paragraphs.first()).toContainText('Paragraph 1 content extracted from PDF.');

@@ -29,21 +29,6 @@ pub struct StoryRow {
     pub created_at: NaiveDateTime,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
-pub struct StoryModel {
-    pub id: Uuid,
-
-    pub author_id: Option<Uuid>,
-
-    pub title: String,
-
-    pub description: String,
-
-    pub cover: String,
-
-    pub created_at: NaiveDateTime,
-}
-
 #[derive(Debug, Serialize, Clone)]
 pub struct StoryResponse {
     pub id: Uuid,
@@ -179,15 +164,6 @@ pub struct PageResponse {
 
 // ── Comment ──
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
-pub struct CommentRow {
-    pub id: Uuid,
-    pub chapter_id: Uuid,
-    pub user_id: Option<Uuid>,
-    pub content: String,
-    pub created_at: NaiveDateTime,
-}
-
 #[derive(Debug, Serialize, Clone)]
 pub struct CommentResponse {
     pub id: Uuid,
@@ -198,7 +174,6 @@ pub struct CommentResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCommentRequest {
-    pub user: String,
     pub text: String,
 }
 
@@ -372,5 +347,3 @@ pub struct ReadingListDetailResponse {
     pub created_at: NaiveDateTime,
     pub stories: Vec<StoryResponse>,
 }
-
-

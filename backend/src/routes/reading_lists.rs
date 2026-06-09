@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::db::AuthUser;
 use crate::models::{
     ReadingListRow, CreateReadingListRequest, AddListEntryRequest,
-    ReadingListDetailResponse, StoryRow, StoryResponse
+    ReadingListDetailResponse, StoryRow
 };
 use crate::routes::stories::build_story_responses_batch;
 use crate::errors::AppError;

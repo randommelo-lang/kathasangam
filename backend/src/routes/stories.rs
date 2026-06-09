@@ -22,22 +22,12 @@ pub async fn fetch_story_row(pool: &PgPool, id: Uuid) -> Result<Option<StoryRow>
         .await
 }
 
-pub async fn get_stories(State(pool): State<PgPool>) -> Json<Vec<StoryModel>> {
-    let stories = sqlx::query_as::<_, StoryModel>("SELECT * FROM stories")
-        .fetch_all(&pool)
-        .await
-        .unwrap();
-
-    Json(stories)
-}
-
 /// GET /api/stories?q=&genre=&type=
 pub async fn list_stories(
     auth: Option<AuthUser>,
     State(pool): State<PgPool>,
     Query(params): Query<StoryQuery>,
 ) -> Result<Json<Vec<StoryResponse>>, AppError> {
-    let mut results = Vec::new();
     let mut meili_ids = None;
 
     if let Some(ref q) = params.q {
@@ -54,7 +44,7 @@ pub async fn list_stories(
         }
     }
 
-    if let Some(ids) = meili_ids {
+    let mut results = if let Some(ids) = meili_ids {
         // Fetch rows matching the Meilisearch hits
         let rows: Vec<StoryRow> = sqlx::query_as(
             "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at \
@@ -70,25 +60,27 @@ pub async fn list_stories(
 
         // Sort responses to match Meilisearch order
         responses.sort_by_key(|r| ids.iter().position(|&id| id == r.id).unwrap_or(usize::MAX));
-        results = responses;
+        responses
     } else {
         // Original logic: Fetch all stories and apply search filter in-memory as fallback
         let rows: Vec<StoryRow> = sqlx::query_as(STORY_SELECT_ORDERED)
             .fetch_all(&pool)
             .await?;
 
-        results = build_story_responses_batch(&pool, &rows, auth.as_ref()).await?;
+        let mut responses = build_story_responses_batch(&pool, &rows, auth.as_ref()).await?;
 
         if let Some(ref q) = params.q {
             let q = q.to_lowercase();
-            results.retain(|s| {
+            responses.retain(|s| {
                 s.title.to_lowercase().contains(&q)
                     || s.author.to_lowercase().contains(&q)
                     || s.description.to_lowercase().contains(&q)
                     || s.tags.iter().any(|t| t.to_lowercase().contains(&q))
             });
         }
-    }
+
+        responses
+    };
 
     // Filter by genre
     if let Some(ref genre) = params.genre {

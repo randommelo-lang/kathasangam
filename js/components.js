@@ -290,6 +290,9 @@ export function showConfirm(options) {
       setTimeout(function () {
         overlay.remove();
         resolve(value);
+        if (value && typeof options.onConfirm === "function") {
+          options.onConfirm();
+        }
       }, 200);
     };
     

@@ -168,7 +168,7 @@ export function renderLibrary(ctx) {
               })
               .catch(err => {
                 console.error("Failed to create reading list:", err);
-                alert("Error: " + (err.message || err));
+                ctx.notify("Error: " + (err.message || err));
               });
           }
         }, [
@@ -196,7 +196,12 @@ export function renderLibrary(ctx) {
             style: "margin-left: auto; z-index: 10;",
             onclick: function(e) {
               e.stopPropagation();
-              if (confirm(`Are you sure you want to delete "${list.name}"?`)) {
+              window.showConfirm({
+                title: "Delete Reading List",
+                message: `Are you sure you want to delete "${list.name}"?`,
+                confirmText: "Delete",
+                danger: true,
+                onConfirm: function () {
                 ctx.apiDelete(`/reading-lists/${list.id}`)
                   .then(() => {
                     ctx.state.readingLists = ctx.state.readingLists.filter(l => l.id !== list.id);
@@ -204,9 +209,10 @@ export function renderLibrary(ctx) {
                   })
                   .catch(err => {
                     console.error("Failed to delete reading list:", err);
-                    alert("Error: " + (err.message || err));
+                    ctx.notify("Error: " + (err.message || err));
                   });
-              }
+                }
+              });
             }
           }, "Delete") : null;
 

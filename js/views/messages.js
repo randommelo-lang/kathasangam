@@ -208,7 +208,7 @@ export function renderMessages(ctx) {
           loadActiveChat(true); // immediately reload chat history & convo list, scroll to bottom
         }).catch(err => {
           console.error("Failed to send message:", err);
-          alert("Error sending message: " + (err.message || err));
+          ctx.notify("Error sending message: " + (err.message || err));
         });
       }
     }, [

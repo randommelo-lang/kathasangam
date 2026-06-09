@@ -144,7 +144,7 @@ function openAddToReadingListModal(ctx, storyId) {
                   renderModalBody();
                 }).catch(err => {
                   console.error("Failed to create list and add entry:", err);
-                  alert("Error: " + (err.message || err));
+                  ctx.notify("Error: " + (err.message || err));
                 });
               }
             }, [
@@ -181,7 +181,7 @@ function openAddToReadingListModal(ctx, storyId) {
       })
       .catch(err => {
         console.error("Failed to toggle playlist entry:", err);
-        alert("Error: " + (err.message || err));
+        ctx.notify("Error: " + (err.message || err));
         renderModalBody();
       });
   }

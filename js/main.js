@@ -334,9 +334,9 @@ async function changeUserRole(newRole) {
   } catch (e) {
     console.error("Failed to switch role:", e);
     if (e.message === "403") {
-      alert("Permission Denied: You are not authorized to switch to this role.");
+      notify("Permission denied: you are not authorized to switch to this role.");
     } else {
-      alert("Failed to switch role: " + e.message);
+      notify("Failed to switch role: " + e.message);
     }
     fetchProfile().then(function() {
       updateAuthUI();

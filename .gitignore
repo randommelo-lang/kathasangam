@@ -32,9 +32,11 @@ Idea.md
 # Build & Logs
 node_modules/
 *.log
+/playwright-report/
+/test-results/
+/scratch/
 
 # SQLite database files
 *.db
 *.db-shm
 *.db-wal
-

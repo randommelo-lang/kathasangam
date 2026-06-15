@@ -1,4 +1,5 @@
-import { el } from "../components.js?v=comic-fit-20260609-v27";
+import { el } from "../components.js?v=a11y-focus-20260613-v28";
+import { readingListCardSkeleton } from "../views/shared.js?v=a11y-focus-20260613-v28";
 
 export function handleCommunityClick(ctx, action, target, e) {
   ctx = ctx || this;
@@ -63,7 +64,10 @@ function openAddToReadingListModal(ctx, storyId) {
   titleEl.textContent = "Add to Reading List";
   contentEl.innerHTML = "";
   
-  const loadingEl = el("div", { class: "empty", style: "padding: 20px;" }, "Loading reading lists...");
+  const loadingEl = el("div", { class: "reading-lists-container" }, [
+    readingListCardSkeleton(),
+    readingListCardSkeleton()
+  ]);
   contentEl.appendChild(loadingEl);
   storyModal.hidden = false;
 
@@ -168,7 +172,9 @@ function openAddToReadingListModal(ctx, storyId) {
 
   function toggleEntry(listId, isAlreadyIn) {
     contentEl.innerHTML = "";
-    contentEl.appendChild(el("div", { class: "empty", style: "padding: 20px;" }, "Updating playlist..."));
+    contentEl.appendChild(el("div", { class: "reading-lists-container" }, [
+      readingListCardSkeleton()
+    ]));
 
     const promise = isAlreadyIn
       ? ctx.apiDelete(`/reading-lists/${listId}/entries/${storyId}`)

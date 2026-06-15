@@ -1,4 +1,5 @@
 import { state } from "./state.js";
+import { log } from "./logger.js";
 
 const API_BASE_URL = window.KATHASANGAM_API_URL || "";
 const TOKEN_TTL_MS = 4 * 60 * 1000;
@@ -24,7 +25,7 @@ export async function loadSupabaseConfig() {
 
     if (window.supabase && supabaseAnonKey) {
       supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
-      console.log("[AUTH] Supabase client initialized from /api/config");
+      log.debug("[AUTH] Supabase client initialized from /api/config");
     } else {
       console.warn("[AUTH] Supabase JS SDK not loaded or anon key missing");
     }

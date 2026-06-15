@@ -1,4 +1,4 @@
-import { goToSlide, moveCarousel, startCarouselAuto } from "../views/discover.js?v=comic-fit-20260609-v27";
+import { goToSlide, moveCarousel, startCarouselAuto } from "../views/discover.js?v=a11y-focus-20260613-v28";
 
 export function handleDiscoverClick(ctx, action, target, e) {
   if (action === "toggleFilterDrawer") {

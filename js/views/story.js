@@ -1,4 +1,4 @@
-import { button, el, formatDate, formatNumber, list, progress } from "../components.js?v=comic-fit-20260609-v27";
+import { button, el, formatDate, formatNumber, list, progress } from "../components.js?v=a11y-focus-20260613-v28";
 
 export function renderStoryDetails(ctx) {
   ctx = ctx || this;
@@ -83,7 +83,7 @@ export function renderStoryDetails(ctx) {
         (story.genre || "").split(",").map(function (g) { return g.trim(); }).filter(Boolean).map(function (g) {
           return el("span", "badge genre-badge", g);
         }).concat([
-          el("span", "badge type-badge", story.type)
+          el("span", { class: "badge type-badge", "data-type": story.type }, story.type)
         ])
       ),
       el("h1", "story-details-title", story.title),

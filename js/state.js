@@ -1,6 +1,6 @@
 export const state = {
   role: "reader",
-  stories: [],
+  stories: null,
   library: [],
   reports: [],
   notifications: [],

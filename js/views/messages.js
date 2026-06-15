@@ -1,4 +1,5 @@
-import { el, formatDate } from "../components.js?v=comic-fit-20260609-v27";
+import { el, formatDate } from "../components.js?v=a11y-focus-20260613-v28";
+import { conversationItemSkeleton, chatHistorySkeleton, emptyState } from "./shared.js?v=a11y-focus-20260613-v28";
 
 export function renderMessages(ctx) {
   ctx = ctx || this;
@@ -33,7 +34,11 @@ export function renderMessages(ctx) {
     ])
   ]);
   
-  const convoListContainer = el("ul", "messages-conversations-list");
+  const convoListContainer = el("ul", "messages-conversations-list", [
+    conversationItemSkeleton(),
+    conversationItemSkeleton(),
+    conversationItemSkeleton()
+  ]);
   sidebar.appendChild(convoListContainer);
   
   const chatPane = el("div", "messages-chat-pane");
@@ -41,6 +46,49 @@ export function renderMessages(ctx) {
   layout.appendChild(sidebar);
   layout.appendChild(chatPane);
   ctx.view.appendChild(layout);
+
+  function showChatPaneSkeleton(otherUser) {
+    chatPane.innerHTML = "";
+    chatPane.dataset.activeUserId = otherUser.id;
+
+    const initial = otherUser.username.charAt(0).toUpperCase();
+    const headerAvatar = el("div", "messages-convo-avatar");
+    if (otherUser.avatar_url) {
+      headerAvatar.style.backgroundImage = `url('${otherUser.avatar_url}')`;
+    } else {
+      headerAvatar.textContent = initial;
+    }
+
+    const backBtn = el("button", {
+      class: "btn text-btn messages-back-btn",
+      onclick: function() {
+        ctx.ui.activeConversationUserId = null;
+        ctx.ui.activeConversationUser = null;
+        loadActiveChat(true);
+      }
+    }, "← Back");
+
+    const header = el("div", "messages-chat-header", [
+      backBtn,
+      headerAvatar,
+      el("div", "messages-chat-title", otherUser.username)
+    ]);
+
+    const history = el("div", "messages-history", [
+      chatHistorySkeleton(),
+      chatHistorySkeleton(),
+      chatHistorySkeleton()
+    ]);
+
+    chatPane.appendChild(header);
+    chatPane.appendChild(history);
+  }
+
+  if (ctx.ui.activeConversationUserId && ctx.ui.activeConversationUser) {
+    showChatPaneSkeleton(ctx.ui.activeConversationUser);
+  } else {
+    updateChatPane([], null);
+  }
 
   // Define the sub-rendering functions
   function updateConvoList(conversations) {
@@ -90,6 +138,7 @@ export function renderMessages(ctx) {
               username: convo.other_username,
               avatar_url: convo.other_avatar_url
             };
+            showChatPaneSkeleton(ctx.ui.activeConversationUser);
             loadActiveChat(true);
           }
         }
@@ -113,14 +162,20 @@ export function renderMessages(ctx) {
       chatPane.innerHTML = "";
       delete chatPane.dataset.activeUserId;
       chatPane.appendChild(
-        el("div", { class: "empty", style: "margin: auto;" }, "Select a conversation to start chatting.")
+        emptyState(
+          "Direct Messages",
+          "Select a conversation from the list or visit an author's profile to start chatting.",
+          null,
+          "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm0 4h8v2H6v-2zm0-8h12v2H6V5z"
+        )
       );
       return;
     }
 
     const currentActiveUserId = chatPane.dataset.activeUserId;
+    const hasInputBar = chatPane.querySelector(".messages-chat-input-bar");
 
-    if (currentActiveUserId === otherUser.id) {
+    if (currentActiveUserId === otherUser.id && hasInputBar) {
       // Just update the history bubbles
       const history = chatPane.querySelector(".messages-history");
       if (history) {
@@ -129,7 +184,12 @@ export function renderMessages(ctx) {
         
         if (messages.length === 0) {
           history.appendChild(
-            el("div", { class: "empty", style: "margin: auto;" }, "No messages yet. Send a greeting!")
+            emptyState(
+              "No messages yet",
+              "Send a greeting to start the conversation!",
+              null,
+              "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm0 4h8v2H6v-2zm0-8h12v2H6V5z"
+            )
           );
         } else {
           messages.forEach(msg => {
@@ -163,7 +223,17 @@ export function renderMessages(ctx) {
       headerAvatar.textContent = initial;
     }
 
+    const backBtn = el("button", {
+      class: "btn text-btn messages-back-btn",
+      onclick: function() {
+        ctx.ui.activeConversationUserId = null;
+        ctx.ui.activeConversationUser = null;
+        loadActiveChat(true);
+      }
+    }, "← Back");
+
     const header = el("div", "messages-chat-header", [
+      backBtn,
       headerAvatar,
       el("div", "messages-chat-title", otherUser.username)
     ]);
@@ -172,7 +242,12 @@ export function renderMessages(ctx) {
     
     if (messages.length === 0) {
       history.appendChild(
-        el("div", { class: "empty", style: "margin: auto;" }, "No messages yet. Send a greeting!")
+        emptyState(
+          "No messages yet",
+          "Send a greeting to start the conversation!",
+          null,
+          "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm0 4h8v2H6v-2zm0-8h12v2H6V5z"
+        )
       );
     } else {
       messages.forEach(msg => {
@@ -229,6 +304,12 @@ export function renderMessages(ctx) {
   // Load and refresh function
   function loadActiveChat(shouldScroll) {
     if (!ctx.state.user) return;
+
+    if (ctx.ui.activeConversationUserId) {
+      layout.classList.add("chat-active");
+    } else {
+      layout.classList.remove("chat-active");
+    }
 
     // Load conversation summaries
     ctx.api("/messages")

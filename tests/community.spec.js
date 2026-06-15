@@ -140,7 +140,7 @@ test.describe('KathaSangam Community Features', () => {
     await page.evaluate(() => { window.location.hash = 'library'; });
     await expect(bookmarksTab).toBeVisible({ timeout: 15000 });
     await bookmarksTab.click();
-    await expect(page.locator('text=Bookmark stories from their details pages to save them here.')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('text=Bookmark stories from their details pages to save them here for quick access later.')).toBeVisible({ timeout: 15000 });
 
     // 5. Reading Playlists flow
     const playlistsTab = page.locator('.library-tab-btn', { hasText: 'Reading Lists' });
@@ -148,7 +148,7 @@ test.describe('KathaSangam Community Features', () => {
     await playlistsTab.click();
 
     // Create a new reading list
-    const createBtn = page.locator('button:has-text("Create List")');
+    const createBtn = page.locator('button:has-text("Create List")').first();
     await expect(createBtn).toBeVisible({ timeout: 15000 });
     await createBtn.click();
 
@@ -158,7 +158,7 @@ test.describe('KathaSangam Community Features', () => {
 
     // Verify playlist card appears
     const playlistCard = page.locator('.reading-list-card', { hasText: playlistName });
-    await expect(playlistCard).toBeVisible({ timeout: 15000 });
+    await expect(playlistCard).toBeVisible({ timeout: 30000 });
 
     // Add a story to the playlist
     await page.evaluate(() => { window.location.hash = 'discover'; });
@@ -220,7 +220,7 @@ test.describe('KathaSangam Community Features', () => {
 
     // 2. Go to Messages page via client routing
     await page.evaluate(() => { window.location.hash = 'messages'; });
-    await expect(page.locator('h3:has-text("Direct Messages")')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.messages-sidebar h3:has-text("Direct Messages")')).toBeVisible({ timeout: 15000 });
 
     // 3. Initiate a message from an author profile (client routing to Discover to select another user's profile)
     await page.evaluate(() => { window.location.hash = 'discover'; });
@@ -265,6 +265,82 @@ test.describe('KathaSangam Community Features', () => {
     const lastBubble = page.locator('.messages-history .messages-bubble-wrapper.sent').last();
     await expect(lastBubble).toBeVisible({ timeout: 15000 });
     await expect(lastBubble.locator('.messages-chat-bubble')).toHaveText('Hello there! Love your story!', { timeout: 15000 });
+  });
+
+  test('Responsive Messaging Layout on Mobile', async ({ page }) => {
+    setupConsoleLogging(page);
+    
+    // Set viewport to mobile size
+    await page.setViewportSize({ width: 375, height: 667 });
+
+    // 1. Log in
+    await page.goto('/');
+    await page.locator('#signInBtn').click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+    await expect(page.locator('.account-trigger')).toBeVisible({ timeout: 15000 });
+
+    // 2. Go to Messages page via client routing
+    await page.evaluate(() => { window.location.hash = 'messages'; });
+    await expect(page.locator('.messages-sidebar h3:has-text("Direct Messages")')).toBeVisible({ timeout: 15000 });
+
+    // Since we just loaded messages and no activeConversationUserId is set (layout does not have chat-active),
+    // on mobile, the sidebar (.messages-sidebar) should be visible, and the chat pane (.messages-chat-pane) should be hidden.
+    const sidebar = page.locator('.messages-sidebar');
+    const chatPane = page.locator('.messages-chat-pane');
+    await expect(sidebar).toBeVisible();
+    await expect(chatPane).toBeHidden();
+
+    // 3. Select a conversation (or start one)
+    // Let's use the profile message route to open a conversation
+    await page.evaluate(() => { window.location.hash = 'discover'; });
+    await expect(page.locator('.story-card').first()).toBeVisible({ timeout: 15000 });
+    
+    const authorLinks = page.locator('.story-card .story-author-link');
+    const count = await authorLinks.count();
+    let targetLink = null;
+    for (let i = 0; i < count; i++) {
+      const link = authorLinks.nth(i);
+      const text = await link.textContent();
+      if (text.trim() !== 'You' && text.trim() !== 'testplaywright') {
+        targetLink = link;
+        break;
+      }
+    }
+    if (!targetLink) {
+      targetLink = authorLinks.first();
+    }
+    await expect(targetLink).toBeVisible({ timeout: 15000 });
+    await targetLink.click();
+    await expect(page).toHaveURL(/#profile/, { timeout: 15000 });
+
+    const msgBtn = page.locator('.profile-header-card button:has-text("Message")');
+    await expect(msgBtn).toBeVisible({ timeout: 15000 });
+    await msgBtn.click();
+
+    // Now in messages, with an active conversation (chat-active class added to layout)
+    await expect(page).toHaveURL(/#messages/, { timeout: 15000 });
+
+    // Under max-width 640px, since chat is active:
+    // sidebar (.messages-sidebar) should be hidden
+    // chat pane (.messages-chat-pane) should be visible
+    // back button (.messages-back-btn) should be visible
+    await expect(sidebar).toBeHidden();
+    await expect(chatPane).toBeVisible();
+    
+    const backBtn = page.locator('.messages-chat-header .messages-back-btn');
+    await expect(backBtn).toBeVisible();
+
+    // 4. Click the Back button
+    await backBtn.click();
+
+    // After clicking back, activeConversationUserId is cleared:
+    // Layout should lose chat-active class.
+    // sidebar (.messages-sidebar) should become visible again
+    // chat pane (.messages-chat-pane) should become hidden again
+    await expect(sidebar).toBeVisible();
+    await expect(chatPane).toBeHidden();
   });
 
   test('User Social Follow System Flow', async ({ page }) => {

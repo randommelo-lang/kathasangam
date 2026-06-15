@@ -1,4 +1,4 @@
-import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea } from "../components.js?v=comic-fit-20260609-v27";
+import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea } from "../components.js?v=a11y-focus-20260613-v28";
 
 function extractRawUrl(bg) {
   if (!bg) return "";
@@ -115,7 +115,7 @@ function readerContent(ctx, story, chapter) {
       var activePage = pages[ctx.ui.currentTextPageIndex] || [];
       activePage.forEach(function (pObj) {
         var p = el("p", null, pObj.text);
-        p.style.textAlign = pObj.align;
+        p.classList.add("align-" + pObj.align);
         container.appendChild(p);
       });
       return container;
@@ -134,7 +134,7 @@ function readerContent(ctx, story, chapter) {
         cleanText = para.substring(6);
       }
       var p = el("p", null, cleanText);
-      p.style.textAlign = align;
+      p.classList.add("align-" + align);
       container.appendChild(p);
     });
   }

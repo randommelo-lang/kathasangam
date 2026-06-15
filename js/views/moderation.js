@@ -1,4 +1,4 @@
-import { button, el, list } from "../components.js?v=comic-fit-20260609-v27";
+import { button, el, list } from "../components.js?v=a11y-focus-20260613-v28";
 
 export function renderModeration(ctx) {
   ctx = ctx || this;

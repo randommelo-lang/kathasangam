@@ -1,8 +1,19 @@
-import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js?v=comic-fit-20260609-v27";
-import { storyGrid } from "./shared.js?v=comic-fit-20260609-v27";
+import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js?v=a11y-focus-20260613-v28";
+import { storyGrid, storyCardSkeleton } from "./shared.js?v=a11y-focus-20260613-v28";
 
 export function renderStudio(ctx) {
   ctx = ctx || this;
+
+  if (ctx.state.stories === null) {
+    ctx.view.appendChild(
+      el("div", "story-grid", [
+        storyCardSkeleton(),
+        storyCardSkeleton()
+      ])
+    );
+    return;
+  }
+
   var userStories = ctx.state.stories.filter(function (s) {
     return ctx.state.user && s.author_id === ctx.state.user.id;
   });
@@ -75,7 +86,7 @@ export function renderStudio(ctx) {
     var activeCard = el("div", "studio-story-active-card", [
       coverEl,
       el("div", "studio-active-details", [
-        el("span", "studio-active-badge", active.type),
+        el("span", { class: "studio-active-badge", "data-type": active.type }, active.type),
         el("div", "studio-active-title-row", [
           el("h3", null, active.title),
           el("span", "studio-status-ongoing", active.status || "Ongoing")
@@ -306,28 +317,55 @@ export function renderStudio(ctx) {
     // Interactive metric cards
     var viewsBox = analyticsMetricBox("Views (Reads)", formatNumber(active.views), viewsTrend, true);
     viewsBox.classList.add("interactive");
+    viewsBox.setAttribute("tabindex", "0");
+    viewsBox.setAttribute("role", "button");
+    viewsBox.setAttribute("aria-label", "Show views chart");
     if (activeMetric === "reads") viewsBox.classList.add("active");
     viewsBox.addEventListener("click", function () {
       ctx.ui.activeChartMetric = "reads";
       ctx.render();
     });
+    viewsBox.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        viewsBox.click();
+      }
+    });
 
     var likesBox = analyticsMetricBox("Likes", formatNumber(active.likes), likesTrend, true);
     likesBox.classList.add("interactive");
+    likesBox.setAttribute("tabindex", "0");
+    likesBox.setAttribute("role", "button");
+    likesBox.setAttribute("aria-label", "Show likes chart");
     if (activeMetric === "likes") likesBox.classList.add("active");
     likesBox.addEventListener("click", function () {
       ctx.ui.activeChartMetric = "likes";
       ctx.render();
+    });
+    likesBox.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        likesBox.click();
+      }
     });
 
     var totalWords = active.chapters.reduce(function (sum, ch) { return sum + (ch.words || 0); }, 0);
     var wordsTrend = totalWords > 0 ? "+" + (totalWords % 17 + 5).toFixed(0) + " words" : "Stable";
     var wordsBox = analyticsMetricBox("Word Count", formatNumber(totalWords), wordsTrend, true);
     wordsBox.classList.add("interactive");
+    wordsBox.setAttribute("tabindex", "0");
+    wordsBox.setAttribute("role", "button");
+    wordsBox.setAttribute("aria-label", "Show word count chart");
     if (activeMetric === "words") wordsBox.classList.add("active");
     wordsBox.addEventListener("click", function () {
       ctx.ui.activeChartMetric = "words";
       ctx.render();
+    });
+    wordsBox.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        wordsBox.click();
+      }
     });
 
     var followersBox = analyticsMetricBox("Followers", formatNumber(active.followers), followersTrend, true);

@@ -44,8 +44,8 @@
     const styleSheet = document.createElement("style");
     document.head.appendChild(styleSheet);
     
-    // Fetch styles.css to parse the background images
-    fetch("styles.css")
+    // Fetch css/auth.css to parse the background images
+    fetch("css/auth.css")
       .then(r => r.text())
       .then(css => {
         // Extract the rules for each selector

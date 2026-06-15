@@ -1,5 +1,5 @@
-import { el, list, progress, formatDate } from "../components.js?v=comic-fit-20260609-v27";
-import { storyGrid } from "./shared.js?v=comic-fit-20260609-v27";
+import { el, list, progress, formatDate } from "../components.js?v=a11y-focus-20260613-v28";
+import { storyGrid, storyCardSkeleton, readingListCardSkeleton, emptyState } from "./shared.js?v=a11y-focus-20260613-v28";
 
 export function renderLibrary(ctx) {
   ctx = ctx || this;
@@ -60,7 +60,11 @@ export function renderLibrary(ctx) {
     );
 
     if (ctx.state.bookmarks === null) {
-      const loadingEl = el("div", "empty", "Loading bookmarks...");
+      const loadingEl = el("div", "story-grid", [
+        storyCardSkeleton(),
+        storyCardSkeleton(),
+        storyCardSkeleton()
+      ]);
       mainContentEl.appendChild(loadingEl);
       ctx.api("/bookmarks")
         .then(data => {
@@ -69,17 +73,29 @@ export function renderLibrary(ctx) {
         })
         .catch(err => {
           console.error("Failed to load bookmarks:", err);
-          loadingEl.textContent = "Failed to load bookmarks.";
+          loadingEl.innerHTML = "";
+          loadingEl.appendChild(el("div", "empty", "Failed to load bookmarks."));
         });
     } else {
       mainContentEl.appendChild(
-        ctx.state.bookmarks.length ? storyGrid(ctx, ctx.state.bookmarks) : el("div", "empty", "Bookmark stories from their details pages to save them here.")
+        ctx.state.bookmarks.length ? storyGrid(ctx, ctx.state.bookmarks) : emptyState(
+          "Your bookmarks shelf is empty",
+          "Bookmark stories from their details pages to save them here for quick access later.",
+          el("button", {
+            class: "btn primary",
+            onclick: function() { window.location.hash = "discover"; }
+          }, "Browse Stories"),
+          "M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z"
+        )
       );
     }
 
   } else if (activeTab === "reading-lists") {
     if (ctx.state.readingLists === null) {
-      const loadingEl = el("div", "empty", "Loading reading lists...");
+      const loadingEl = el("div", "reading-lists-container", [
+        readingListCardSkeleton(),
+        readingListCardSkeleton()
+      ]);
       mainContentEl.appendChild(loadingEl);
       ctx.api("/reading-lists")
         .then(data => {
@@ -88,7 +104,8 @@ export function renderLibrary(ctx) {
         })
         .catch(err => {
           console.error("Failed to load reading lists:", err);
-          loadingEl.textContent = "Failed to load reading lists.";
+          loadingEl.innerHTML = "";
+          loadingEl.appendChild(el("div", "empty", "Failed to load reading lists."));
         });
     } else if (ctx.ui.activeReadingListId) {
       // Detailed view of a reading list
@@ -96,7 +113,11 @@ export function renderLibrary(ctx) {
       const detail = ctx.state.activeReadingListDetail;
 
       if (!detail || detail.id !== listId) {
-        const loadingEl = el("div", "empty", "Loading list details...");
+        const loadingEl = el("div", "story-grid", [
+          storyCardSkeleton(),
+          storyCardSkeleton(),
+          storyCardSkeleton()
+        ]);
         mainContentEl.appendChild(loadingEl);
         ctx.api(`/reading-lists/${listId}`)
           .then(data => {
@@ -105,7 +126,8 @@ export function renderLibrary(ctx) {
           })
           .catch(err => {
             console.error("Failed to load reading list details:", err);
-            loadingEl.textContent = "Failed to load reading list details.";
+            loadingEl.innerHTML = "";
+            loadingEl.appendChild(el("div", "empty", "Failed to load reading list details."));
           });
       } else {
         // Render detailed header and stories
@@ -130,7 +152,15 @@ export function renderLibrary(ctx) {
         );
 
         mainContentEl.appendChild(
-          detail.stories.length ? storyGrid(ctx, detail.stories) : el("div", "empty", "No stories in this reading list yet.")
+          detail.stories.length ? storyGrid(ctx, detail.stories) : emptyState(
+            "This playlist is empty",
+            "Browse stories on the discovery feed and add them to this playlist.",
+            el("button", {
+              class: "btn primary",
+              onclick: function() { window.location.hash = "discover"; }
+            }, "Discover Stories"),
+            "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+          )
         );
       }
     } else {
@@ -186,7 +216,20 @@ export function renderLibrary(ctx) {
 
       const listsContainer = el("div", "reading-lists-container");
       if (ctx.state.readingLists.length === 0) {
-        listsContainer.appendChild(el("div", "empty", "No reading lists created yet."));
+        listsContainer.appendChild(
+          emptyState(
+            "No reading playlists yet",
+            "Create a reading playlist to organize your favorite serialized novels and comics.",
+            el("button", {
+              class: "btn primary",
+              onclick: function() {
+                ctx.ui.showCreateListForm = true;
+                ctx.render();
+              }
+            }, "Create List"),
+            "M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0-2-.9-2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"
+          )
+        );
       } else {
         ctx.state.readingLists.forEach(list => {
           const isOwner = list.user_id === ctx.state.user.id;

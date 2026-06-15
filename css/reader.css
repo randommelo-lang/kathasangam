@@ -1,0 +1,357 @@
+/* ─── Reader ─── */
+.reader-frame {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden
+}
+
+.reader-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(0, 0, 0, .15)
+}
+
+.reader-content {
+  min-height: 520px;
+  padding: clamp(24px, 5vw, 72px);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--reader-size, 19px);
+  line-height: 1.82;
+  max-width: 800px;
+  margin: 0 auto;
+  animation: readerFadeIn 0.22s ease-out;
+}
+
+@keyframes readerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reader-content.dark {
+  color: #f4efe6;
+  background: #1a1412
+}
+
+.reader-content.paginated {
+  max-width: 1040px;
+  column-count: 2;
+  column-gap: 56px;
+  column-rule: 1px solid rgba(229, 124, 51, .16)
+}
+
+.comic-pages {
+  display: grid;
+  gap: 14px
+}
+
+.comic-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px
+}
+
+.comic-reader {
+  max-width: 1120px;
+  width: 100%;
+  padding: clamp(18px, 3vw, 34px)
+}
+
+.comic-flip-stage {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  perspective: 1200px;
+  width: 100%;
+  height: 70vh;
+  min-height: 480px;
+  max-height: 840px;
+}
+
+.comic-double-pages {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.comic-page {
+  height: 100%;
+  max-height: 100%;
+  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.comic-page-current {
+  height: 100%;
+  max-height: 100%;
+  animation: pageFlipIn .32s cubic-bezier(.2, .9, .2, 1);
+  transform-origin: left center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.comic-double-pages .comic-page-current {
+  flex: 1 1 0;
+  max-width: min(50%, 540px);
+}
+
+.comic-double-pages .comic-page-current:only-child {
+  max-width: min(100%, 540px);
+}
+
+.comic-page-wrapper {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .42);
+  max-width: 100%;
+  max-height: 100%;
+  height: auto;
+  width: auto;
+}
+
+.comic-page-img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.comic-page-wrapper:before {
+  content: '';
+  position: absolute;
+  inset: 10%;
+  border: 2px solid rgba(255, 255, 255, .35);
+  transform: skew(-5deg);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.comic-page-wrapper:after {
+  content: attr(data-label);
+  position: absolute;
+  left: 20px;
+  bottom: 16px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #fff;
+  background: rgba(0, 0, 0, .5);
+  font-weight: 800;
+  font-size: .85rem;
+  z-index: 2;
+}
+
+.comic-page-current .comic-page-wrapper:after {
+  content: attr(data-label) " · " attr(data-page);
+}
+
+.comic-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  width: 44px;
+  height: 64px;
+  border: 1px solid rgba(253, 197, 160, .24);
+  border-radius: var(--radius);
+  color: #fff;
+  background: rgba(0, 0, 0, .42);
+  backdrop-filter: blur(8px);
+  font-size: 2rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  transition: transform .18s ease, background .18s ease, opacity .18s ease
+}
+
+.comic-nav.prev {
+  left: clamp(8px, 2vw, 24px)
+}
+
+.comic-nav.next {
+  right: clamp(8px, 2vw, 24px)
+}
+
+.comic-nav:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(229, 124, 51, .52)
+}
+
+.comic-nav:disabled {
+  cursor: default;
+  opacity: .28
+}
+
+@keyframes pageFlipIn {
+  from {
+    opacity: .35;
+    transform: rotateY(-9deg) translateX(10px)
+  }
+
+  to {
+    opacity: 1;
+    transform: rotateY(0) translateX(0)
+  }
+}
+
+.progress-shell {
+  width: min(100%, 240px);
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  overflow: hidden
+}
+
+.progress-bar {
+  display: block;
+  width: var(--progress);
+  height: 100%;
+  background: var(--warm-gradient-strong);
+  border-radius: 999px
+}
+
+/* Fullscreen Reader Styles */
+.reader-frame:fullscreen {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+  background: var(--surface) !important;
+  display: block !important;
+  overflow-y: auto !important;
+}
+
+.reader-frame:fullscreen .reader-toolbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 1000 !important;
+  background: #241E1A !important;
+  border-radius: 0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.reader-frame:fullscreen .reader-content {
+  overflow-y: visible !important;
+  padding: 40px clamp(24px, 8vw, 96px) 120px clamp(24px, 8vw, 96px) !important;
+  max-width: 900px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 auto !important;
+}
+
+/* Vendor prefixes for fullscreen compatibility */
+.reader-frame:-webkit-full-screen {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+  background: var(--surface) !important;
+  display: block !important;
+  overflow-y: auto !important;
+}
+
+.reader-frame:-webkit-full-screen .reader-toolbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 1000 !important;
+  background: #241E1A !important;
+  border-radius: 0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.reader-frame:-webkit-full-screen .reader-content {
+  overflow-y: visible !important;
+  padding: 40px clamp(24px, 8vw, 96px) 120px clamp(24px, 8vw, 96px) !important;
+  max-width: 900px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 auto !important;
+}
+
+/* Fullscreen Autohiding Scrollbar Styling (WebKit) */
+.reader-frame:fullscreen::-webkit-scrollbar,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar {
+  width: 12px !important;
+}
+
+.reader-frame:fullscreen::-webkit-scrollbar-track,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.reader-frame:fullscreen::-webkit-scrollbar-thumb,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar-thumb {
+  background: transparent !important;
+  border-radius: 6px !important;
+  border: 3px solid transparent !important;
+  background-clip: padding-box !important;
+}
+
+/* Only show scrollbar when hovering over the scrollbar track region */
+.reader-frame:fullscreen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(229, 124, 51, 0.4) !important;
+}
+
+/* Highlight thumb when directly hovered */
+.reader-frame:fullscreen::-webkit-scrollbar-thumb:hover,
+.reader-frame:-webkit-full-screen::-webkit-scrollbar-thumb:hover {
+  background: rgba(229, 124, 51, 0.8) !important;
+}
+
+.story-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+.story-progress-row .progress-shell {
+  flex: 1;
+  max-width: 140px;
+}
+.story-progress-row .mini-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+

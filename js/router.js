@@ -7,6 +7,7 @@ export function hydrateGenres(ctx) {
   ctx.genreFilter.innerHTML = '<option value="all">All genres</option>';
   
   var allGenres = [];
+  if (!ctx.state.stories) return;
   ctx.state.stories.forEach(function (s) {
     if (s.genre) {
       s.genre.split(",").forEach(function (g) {

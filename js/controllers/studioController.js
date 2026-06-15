@@ -1,4 +1,4 @@
-import { saveChapterFromEditor as saveChapterFromEditorModule } from "../editor.js?v=comic-fit-20260609-v27";
+import { saveChapterFromEditor as saveChapterFromEditorModule } from "../editor.js?v=a11y-focus-20260613-v28";
 
 export function handleStudioClick(ctx, action, target, e) {
   if (action === "manageStory") {

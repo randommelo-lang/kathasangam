@@ -1,5 +1,5 @@
-import { button, el, formatNumber, metric, segmentButton, select } from "../components.js?v=comic-fit-20260609-v27";
-import { storyCard } from "./shared.js?v=comic-fit-20260609-v27";
+import { button, el, formatNumber, metric, segmentButton, select } from "../components.js?v=a11y-focus-20260613-v28";
+import { storyCard, storyCardSkeleton, emptyState } from "./shared.js?v=a11y-focus-20260613-v28";
 
 var carouselIndex = 0;
 var carouselTimer = null;
@@ -49,6 +49,40 @@ function applyCarouselPosition() {
 
 export function renderDiscover(ctx) {
   ctx = ctx || this;
+
+  if (ctx.state.stories === null) {
+    // Render the skeleton layout!
+    
+    // 1. Hero Carousel skeleton
+    const carousel = el("section", "hero-carousel skeleton-hero skeleton");
+    ctx.view.appendChild(carousel);
+    
+    // 2. Stats Row skeleton
+    ctx.view.appendChild(el("div", "stats-row", [
+      el("div", "skeleton skeleton-metric"),
+      el("div", "skeleton skeleton-metric"),
+      el("div", "skeleton skeleton-metric"),
+      el("div", "skeleton skeleton-metric")
+    ]));
+    
+    // 3. Filter Toolbar placeholder
+    ctx.view.appendChild(el("div", "toolbar", [
+      el("div", "segmented", [
+        el("button", { class: "btn disabled", disabled: true }, "All"),
+        el("button", { class: "btn disabled", disabled: true }, "Web Novel"),
+        el("button", { class: "btn disabled", disabled: true }, "Chitrānk")
+      ])
+    ]));
+    
+    // 4. Story grid skeleton
+    const grid = el("section", "story-grid");
+    for (let i = 0; i < 4; i++) {
+      grid.appendChild(storyCardSkeleton());
+    }
+    ctx.view.appendChild(grid);
+    return;
+  }
+
   var stories = ctx.filteredStories();
   var featured = ctx.state.stories.slice(0, 3);
 
@@ -182,5 +216,23 @@ export function renderDiscover(ctx) {
   stories.forEach(function (story) {
     grid.appendChild(storyCard(ctx, story));
   });
-  ctx.view.appendChild(stories.length ? grid : el("div", "empty", "No stories match the current search."));
+  ctx.view.appendChild(stories.length ? grid : emptyState(
+    "No stories found",
+    "We couldn't find any stories matching your filters or search keywords. Try adjusting your query.",
+    el("button", {
+      class: "btn primary",
+      onclick: function() {
+        const searchInput = document.getElementById("searchInput");
+        if (searchInput) searchInput.value = "";
+        const genreFilter = document.getElementById("genreFilter");
+        if (genreFilter) genreFilter.value = "all";
+        ctx.ui.filterType = "all";
+        ctx.ui.filterStatus = "all";
+        ctx.ui.filterLanguage = "all";
+        ctx.ui.filterSort = "newest";
+        ctx.render();
+      }
+    }, "Reset Filters"),
+    "M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+  ));
 }

@@ -127,6 +127,15 @@ export function quickActionTile(iconName, label, action) {
     el("span", null, label)
   ]);
   tile.dataset.action = action;
+  tile.setAttribute("tabindex", "0");
+  tile.setAttribute("role", "button");
+  tile.setAttribute("aria-label", label);
+  tile.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      tile.click();
+    }
+  });
   return tile;
 }
 
@@ -258,10 +267,24 @@ export function showConfirm(options) {
   var isDanger = options.isDanger !== false;
 
   return new Promise(function (resolve) {
+    var previousActiveElement = document.activeElement;
+
     var overlay = el("div", "custom-modal-overlay");
     var box = el("div", "custom-modal-box");
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+    
+    var titleId = "confirm-dialog-title-" + Math.random().toString(16).slice(2);
+    var descId = "confirm-dialog-desc-" + Math.random().toString(16).slice(2);
+    box.setAttribute("aria-labelledby", titleId);
+    box.setAttribute("aria-describedby", descId);
+
     var h3 = el("h3", "custom-modal-title", title);
+    h3.id = titleId;
+    
     var p = el("p", "custom-modal-message", message);
+    p.id = descId;
+    
     var actions = el("div", "custom-modal-actions");
     
     var cancelBtn = el("button", "custom-btn btn-cancel", cancelText);
@@ -280,21 +303,54 @@ export function showConfirm(options) {
     
     document.body.appendChild(overlay);
     
-    // Animate in
+    // Animate in and focus default button
     setTimeout(function () {
       overlay.classList.add("active");
+      if (isDanger) {
+        cancelBtn.focus();
+      } else {
+        confirmBtn.focus();
+      }
     }, 10);
     
     var cleanUp = function (value) {
+      document.removeEventListener("keydown", handleKeyDown);
       overlay.classList.remove("active");
       setTimeout(function () {
         overlay.remove();
+        if (previousActiveElement && typeof previousActiveElement.focus === "function") {
+          previousActiveElement.focus();
+        }
         resolve(value);
         if (value && typeof options.onConfirm === "function") {
           options.onConfirm();
         }
       }, 200);
     };
+
+    var handleKeyDown = function (e) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cleanUp(false);
+      } else if (e.key === "Tab") {
+        var focusables = [cancelBtn, confirmBtn];
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            last.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === last) {
+            first.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+    
+    document.addEventListener("keydown", handleKeyDown);
     
     cancelBtn.addEventListener("click", function () { cleanUp(false); });
     confirmBtn.addEventListener("click", function () { cleanUp(true); });

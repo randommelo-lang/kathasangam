@@ -6,7 +6,7 @@ BEGIN
   VALUES (
     NEW.id,
     COALESCE(split_part(NEW.email, '@', 1), 'user_' || substr(NEW.id::text, 1, 8)),
-    'reader'::user_role
+    'reader'
   );
   RETURN NEW;
 END;

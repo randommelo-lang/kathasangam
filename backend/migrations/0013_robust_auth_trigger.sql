@@ -35,7 +35,7 @@ BEGIN
   VALUES (
     NEW.id,
     final_username,
-    'reader'::user_role
+    'reader'
   );
   RETURN NEW;
 END;

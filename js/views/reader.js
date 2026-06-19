@@ -1,4 +1,4 @@
-import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea } from "../components.js?v=auth-tabs-20260619-v29";
+import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea } from "../components.js?v=profile-redirect-20260619-v30";
 
 function extractRawUrl(bg) {
   if (!bg) return "";

@@ -1,6 +1,6 @@
-import { state, ui } from "./state.js?v=auth-tabs-20260619-v29";
-import { api, apiDelete } from "./api.js?v=auth-tabs-20260619-v29";
-import { el } from "./components.js?v=auth-tabs-20260619-v29";
+import { state, ui } from "./state.js?v=profile-redirect-20260619-v30";
+import { api, apiDelete } from "./api.js?v=profile-redirect-20260619-v30";
+import { el } from "./components.js?v=profile-redirect-20260619-v30";
 
 let ctx = null;
 

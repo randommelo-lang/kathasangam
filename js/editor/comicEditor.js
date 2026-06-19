@@ -1,6 +1,6 @@
-import { button, el } from "../components.js?v=auth-tabs-20260619-v29";
-import { getDraftKey, loadDraft, setupAutosave, showRecoveryBanner } from "./autosave.js?v=auth-tabs-20260619-v29";
-import { importComicPdf, importComicImages } from "./importers.js?v=auth-tabs-20260619-v29";
+import { button, el } from "../components.js?v=profile-redirect-20260619-v30";
+import { getDraftKey, loadDraft, setupAutosave, showRecoveryBanner } from "./autosave.js?v=profile-redirect-20260619-v30";
+import { importComicPdf, importComicImages } from "./importers.js?v=profile-redirect-20260619-v30";
 
 export function saveComicChapter(ctx, title, status) {
   const payload = {

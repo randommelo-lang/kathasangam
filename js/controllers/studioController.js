@@ -1,4 +1,4 @@
-import { saveChapterFromEditor as saveChapterFromEditorModule } from "../editor.js?v=auth-tabs-20260619-v29";
+import { saveChapterFromEditor as saveChapterFromEditorModule } from "../editor.js?v=profile-redirect-20260619-v30";
 
 export function handleStudioClick(ctx, action, target, e) {
   if (action === "manageStory") {

@@ -1,4 +1,4 @@
-import { button, el, formatDate, formatNumber, list, progress } from "../components.js?v=auth-tabs-20260619-v29";
+import { button, el, formatDate, formatNumber, list, progress } from "../components.js?v=profile-redirect-20260619-v30";
 
 export function renderStoryDetails(ctx) {
   ctx = ctx || this;

@@ -5,6 +5,9 @@ const API_BASE_URL = window.KATHASANGAM_API_URL || "";
 const TOKEN_TTL_MS = 4 * 60 * 1000;
 
 export let supabaseClient = null;
+export function getSupabaseClient() {
+  return supabaseClient;
+}
 export let adminEmail = "";
 export let moderatorEmails = [];
 

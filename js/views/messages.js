@@ -1,5 +1,5 @@
-import { el, formatDate } from "../components.js?v=auth-tabs-20260619-v29";
-import { conversationItemSkeleton, chatHistorySkeleton, emptyState } from "./shared.js?v=auth-tabs-20260619-v29";
+import { el, formatDate } from "../components.js?v=profile-redirect-20260619-v30";
+import { conversationItemSkeleton, chatHistorySkeleton, emptyState } from "./shared.js?v=profile-redirect-20260619-v30";
 
 export function renderMessages(ctx) {
   ctx = ctx || this;

@@ -1,5 +1,5 @@
-import { renderComicEditor, saveComicChapter } from "./editor/comicEditor.js?v=auth-tabs-20260619-v29";
-import { renderTextEditor, saveTextChapter } from "./editor/textEditor.js?v=auth-tabs-20260619-v29";
+import { renderComicEditor, saveComicChapter } from "./editor/comicEditor.js?v=profile-redirect-20260619-v30";
+import { renderTextEditor, saveTextChapter } from "./editor/textEditor.js?v=profile-redirect-20260619-v30";
 
 export function saveChapterFromEditor(ctx, status) {
   const titleEl = document.querySelector(".editor-title-input");

@@ -1,5 +1,5 @@
-import { el } from "../components.js?v=auth-tabs-20260619-v29";
-import { readingListCardSkeleton } from "../views/shared.js?v=auth-tabs-20260619-v29";
+import { el } from "../components.js?v=profile-redirect-20260619-v30";
+import { readingListCardSkeleton } from "../views/shared.js?v=profile-redirect-20260619-v30";
 
 export function handleCommunityClick(ctx, action, target, e) {
   ctx = ctx || this;

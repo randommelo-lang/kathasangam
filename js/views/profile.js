@@ -1,7 +1,7 @@
-import { state, ui } from "../state.js?v=auth-tabs-20260619-v29";
-import { api, apiPost, apiPut } from "../api.js?v=auth-tabs-20260619-v29";
-import { el, button, input, textarea, select, formatNumber } from "../components.js?v=auth-tabs-20260619-v29";
-import { storyCard } from "./shared.js?v=auth-tabs-20260619-v29";
+import { state, ui } from "../state.js?v=profile-redirect-20260619-v30";
+import { api, apiPost, apiPut } from "../api.js?v=profile-redirect-20260619-v30";
+import { el, button, input, textarea, select, formatNumber } from "../components.js?v=profile-redirect-20260619-v30";
+import { storyCard } from "./shared.js?v=profile-redirect-20260619-v30";
 
 let ctx = null;
 

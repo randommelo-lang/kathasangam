@@ -1,5 +1,5 @@
-import { button, el, formatNumber, metric, segmentButton, select } from "../components.js?v=auth-tabs-20260619-v29";
-import { storyCard, storyCardSkeleton, emptyState } from "./shared.js?v=auth-tabs-20260619-v29";
+import { button, el, formatNumber, metric, segmentButton, select } from "../components.js?v=profile-redirect-20260619-v30";
+import { storyCard, storyCardSkeleton, emptyState } from "./shared.js?v=profile-redirect-20260619-v30";
 
 var carouselIndex = 0;
 var carouselTimer = null;

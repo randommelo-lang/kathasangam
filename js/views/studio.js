@@ -1,5 +1,5 @@
-import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js?v=auth-tabs-20260619-v29";
-import { storyGrid, storyCardSkeleton } from "./shared.js?v=auth-tabs-20260619-v29";
+import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js?v=profile-redirect-20260619-v30";
+import { storyGrid, storyCardSkeleton } from "./shared.js?v=profile-redirect-20260619-v30";
 
 export function renderStudio(ctx) {
   ctx = ctx || this;

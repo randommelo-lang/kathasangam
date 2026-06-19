@@ -1,4 +1,4 @@
-import { button, el, formatNumber, iconButton, progress, svgEl } from "../components.js?v=auth-tabs-20260619-v29";
+import { button, el, formatNumber, iconButton, progress, svgEl } from "../components.js?v=profile-redirect-20260619-v30";
 
 export function storyGrid(ctx, stories, options) {
   var g = el("section", "story-grid");

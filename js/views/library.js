@@ -1,5 +1,5 @@
-import { el, list, progress, formatDate } from "../components.js?v=auth-tabs-20260619-v29";
-import { storyGrid, storyCardSkeleton, readingListCardSkeleton, emptyState } from "./shared.js?v=auth-tabs-20260619-v29";
+import { el, list, progress, formatDate } from "../components.js?v=profile-redirect-20260619-v30";
+import { storyGrid, storyCardSkeleton, readingListCardSkeleton, emptyState } from "./shared.js?v=profile-redirect-20260619-v30";
 
 export function renderLibrary(ctx) {
   ctx = ctx || this;
@@ -186,12 +186,15 @@ export function renderLibrary(ctx) {
           style: "background: var(--surface-2); padding: 20px; border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius); margin-bottom: 20px;",
           onsubmit: function(e) {
             e.preventDefault();
+            console.log("[LIBRARY] onsubmit handler invoked!");
             const name = nameInput.value.trim();
             const description = descInput.value.trim();
             const is_private = privateCheck.checked;
+            console.log("[LIBRARY] Submitting reading list:", { name, description, is_private });
 
             ctx.apiPost("/reading-lists", { name, description: description || null, is_private })
               .then(newList => {
+                console.log("[LIBRARY] Reading list created successfully:", newList);
                 ctx.ui.showCreateListForm = false;
                 ctx.state.readingLists.unshift(newList);
                 ctx.render();

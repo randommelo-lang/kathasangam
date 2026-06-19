@@ -6,7 +6,7 @@ export async function importComicPdf(file, ctx, uploadStatus, onPageAdded) {
   reader.onload = async function (evt) {
     const arrayBuffer = evt.target.result;
     if (window.pdfjsLib) {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js?v=auth-tabs-20260619-v29";
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js?v=profile-redirect-20260619-v30";
       try {
         const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const numPages = pdf.numPages;
@@ -122,7 +122,7 @@ export function importTextFile(file, uploadStatus, onLoadParagraphs) {
     reader.onload = function (evt) {
       const arrayBuffer = evt.target.result;
       if (window.pdfjsLib) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js?v=auth-tabs-20260619-v29";
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js?v=profile-redirect-20260619-v30";
         window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
           .then(function (pdf) {
             const numPages = pdf.numPages;

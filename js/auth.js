@@ -1,7 +1,7 @@
-import { state, ui } from "./state.js?v=auth-tabs-20260619-v29";
-import { log } from "./logger.js?v=auth-tabs-20260619-v29";
-import { api, apiPatch, apiPut, adminEmail, moderatorEmails, supabaseClient } from "./api.js?v=auth-tabs-20260619-v29";
-import { el } from "./components.js?v=auth-tabs-20260619-v29";
+import { state, ui } from "./state.js?v=profile-redirect-20260619-v30";
+import { log } from "./logger.js?v=profile-redirect-20260619-v30";
+import { api, apiPatch, apiPut, adminEmail, moderatorEmails, getSupabaseClient } from "./api.js?v=profile-redirect-20260619-v30";
+import { el } from "./components.js?v=profile-redirect-20260619-v30";
 
 let ctx = null;
 
@@ -100,6 +100,7 @@ export function setAuthLoading(formEl, loading) {
 
 export async function handleLogin(e) {
   e.preventDefault();
+  const supabaseClient = getSupabaseClient();
   if (!supabaseClient) {
     showAuthError("Supabase not configured. Config could not be loaded.");
     return;
@@ -142,6 +143,7 @@ export async function handleLogin(e) {
 
 export async function handleSignup(e) {
   e.preventDefault();
+  const supabaseClient = getSupabaseClient();
   if (!supabaseClient) {
     showAuthError("Supabase not configured. Config could not be loaded.");
     return;
@@ -196,6 +198,7 @@ export async function handleSignup(e) {
 }
 
 export async function handleSignOut() {
+  const supabaseClient = getSupabaseClient();
   if (!supabaseClient) return;
   await supabaseClient.auth.signOut();
 }
@@ -239,6 +242,10 @@ export async function fetchProfile() {
     state.profile = null;
     state.role = "reader";
     loadPreferences();
+    if (e.status === 404 || e.status === 401) {
+      log.debug("[PROFILE] Session user profile not found or unauthorized (404/401). Forcing sign out.");
+      handleSignOut();
+    }
   }
 }
 
@@ -591,10 +598,16 @@ export function initAuthModule(context) {
   if (els.loginForm) els.loginForm.addEventListener("submit", handleLogin);
   if (els.signupForm) els.signupForm.addEventListener("submit", handleSignup);
 
+  const supabaseClient = getSupabaseClient();
   if (!supabaseClient) {
     console.warn("[AUTH] Supabase not initialized - auth disabled");
     updateAuthUI();
     return;
+  }
+
+  // Enable sign in button once client is ready
+  if (els.signInBtn) {
+    els.signInBtn.disabled = false;
   }
 
   log.debug("[AUTH] Initializing auth listeners...");

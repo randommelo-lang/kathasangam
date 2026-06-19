@@ -1,7 +1,7 @@
-import { state, ui } from "./state.js?v=a11y-focus-20260613-v28";
-import { log } from "./logger.js?v=a11y-focus-20260613-v28";
-import { api, apiPatch, apiPut, adminEmail, moderatorEmails, supabaseClient } from "./api.js?v=a11y-focus-20260613-v28";
-import { el } from "./components.js?v=a11y-focus-20260613-v28";
+import { state, ui } from "./state.js?v=auth-tabs-20260619-v29";
+import { log } from "./logger.js?v=auth-tabs-20260619-v29";
+import { api, apiPatch, apiPut, adminEmail, moderatorEmails, supabaseClient } from "./api.js?v=auth-tabs-20260619-v29";
+import { el } from "./components.js?v=auth-tabs-20260619-v29";
 
 let ctx = null;
 

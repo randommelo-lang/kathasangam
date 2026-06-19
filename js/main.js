@@ -1,28 +1,28 @@
-import { state, ui } from "./state.js?v=a11y-focus-20260613-v28";
-import { log } from "./logger.js?v=a11y-focus-20260613-v28";
-import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js?v=a11y-focus-20260613-v28";
-import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js?v=a11y-focus-20260613-v28";
-import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js?v=a11y-focus-20260613-v28";
-import { el, button, select, input, textarea, showConfirm, calculateStars } from "./components.js?v=a11y-focus-20260613-v28";
+import { state, ui } from "./state.js?v=auth-tabs-20260619-v29";
+import { log } from "./logger.js?v=auth-tabs-20260619-v29";
+import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js?v=auth-tabs-20260619-v29";
+import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js?v=auth-tabs-20260619-v29";
+import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js?v=auth-tabs-20260619-v29";
+import { el, button, select, input, textarea, showConfirm, calculateStars } from "./components.js?v=auth-tabs-20260619-v29";
 
 // Import view modules
-import { renderDiscover } from "./views/discover.js?v=a11y-focus-20260613-v28";
-import { renderLibrary } from "./views/library.js?v=a11y-focus-20260613-v28";
-import { renderReader } from "./views/reader.js?v=a11y-focus-20260613-v28";
-import { renderStudio } from "./views/studio.js?v=a11y-focus-20260613-v28";
-import { renderModeration } from "./views/moderation.js?v=a11y-focus-20260613-v28";
-import { renderStoryDetails } from "./views/story.js?v=a11y-focus-20260613-v28";
-import { renderMessages } from "./views/messages.js?v=a11y-focus-20260613-v28";
-import { canDeleteStory, storyCard } from "./views/shared.js?v=a11y-focus-20260613-v28";
+import { renderDiscover } from "./views/discover.js?v=auth-tabs-20260619-v29";
+import { renderLibrary } from "./views/library.js?v=auth-tabs-20260619-v29";
+import { renderReader } from "./views/reader.js?v=auth-tabs-20260619-v29";
+import { renderStudio } from "./views/studio.js?v=auth-tabs-20260619-v29";
+import { renderModeration } from "./views/moderation.js?v=auth-tabs-20260619-v29";
+import { renderStoryDetails } from "./views/story.js?v=auth-tabs-20260619-v29";
+import { renderMessages } from "./views/messages.js?v=auth-tabs-20260619-v29";
+import { canDeleteStory, storyCard } from "./views/shared.js?v=auth-tabs-20260619-v29";
 
 // Import controller modules
-import { handleDiscoverClick } from "./controllers/discoverController.js?v=a11y-focus-20260613-v28";
-import { handleLibraryClick } from "./controllers/libraryController.js?v=a11y-focus-20260613-v28";
-import { handleReaderClick, handleReaderInput, handleReaderSubmit } from "./controllers/readerController.js?v=a11y-focus-20260613-v28";
-import { handleStudioClick, handleStudioSubmit } from "./controllers/studioController.js?v=a11y-focus-20260613-v28";
-import { handleModerationClick } from "./controllers/moderationController.js?v=a11y-focus-20260613-v28";
-import { handleProfileClick } from "./controllers/profileController.js?v=a11y-focus-20260613-v28";
-import { handleCommunityClick, handleCommunitySubmit } from "./controllers/communityController.js?v=a11y-focus-20260613-v28";
+import { handleDiscoverClick } from "./controllers/discoverController.js?v=auth-tabs-20260619-v29";
+import { handleLibraryClick } from "./controllers/libraryController.js?v=auth-tabs-20260619-v29";
+import { handleReaderClick, handleReaderInput, handleReaderSubmit } from "./controllers/readerController.js?v=auth-tabs-20260619-v29";
+import { handleStudioClick, handleStudioSubmit } from "./controllers/studioController.js?v=auth-tabs-20260619-v29";
+import { handleModerationClick } from "./controllers/moderationController.js?v=auth-tabs-20260619-v29";
+import { handleProfileClick } from "./controllers/profileController.js?v=auth-tabs-20260619-v29";
+import { handleCommunityClick, handleCommunitySubmit } from "./controllers/communityController.js?v=auth-tabs-20260619-v29";
 
 // Split Cleanups
 import {
@@ -38,26 +38,27 @@ import {
   initAuthModule,
   closeAccountMenu,
   toggleAccountMenu,
-  updateAuthUI
-} from "./auth.js?v=a11y-focus-20260613-v28";
+  updateAuthUI,
+  switchAuthTab
+} from "./auth.js?v=auth-tabs-20260619-v29";
 
 import {
   updateHeroNotificationUI,
   closeNotificationMenu,
   startNotificationPolling,
   initNotificationsModule
-} from "./notifications.js?v=a11y-focus-20260613-v28";
+} from "./notifications.js?v=auth-tabs-20260619-v29";
 
 import {
   renderProfileSettings
-} from "./views/profile.js?v=a11y-focus-20260613-v28";
+} from "./views/profile.js?v=auth-tabs-20260619-v29";
 
 import {
   openStoryModal,
   openStorySettingsModal,
   closeStoryModal,
   initStoryController
-} from "./controllers/storyController.js?v=a11y-focus-20260613-v28";
+} from "./controllers/storyController.js?v=auth-tabs-20260619-v29";
 
 import {
   getStoryReadingProgress,
@@ -66,7 +67,7 @@ import {
   calculateStoryProgressPercent,
   calculateActiveReaderProgress,
   initReadingProgress
-} from "./readingProgress.js?v=a11y-focus-20260613-v28";
+} from "./readingProgress.js?v=auth-tabs-20260619-v29";
 
 var view = document.getElementById("view");
 var pageTitle = document.getElementById("pageTitle");

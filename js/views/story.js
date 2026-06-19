@@ -1,4 +1,4 @@
-import { button, el, formatDate, formatNumber, list, progress } from "../components.js?v=a11y-focus-20260613-v28";
+import { button, el, formatDate, formatNumber, list, progress } from "../components.js?v=auth-tabs-20260619-v29";
 
 export function renderStoryDetails(ctx) {
   ctx = ctx || this;

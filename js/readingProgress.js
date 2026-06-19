@@ -1,5 +1,5 @@
-import { state, ui } from "./state.js?v=a11y-focus-20260613-v28";
-import { apiPost } from "./api.js?v=a11y-focus-20260613-v28";
+import { state, ui } from "./state.js?v=auth-tabs-20260619-v29";
+import { apiPost } from "./api.js?v=auth-tabs-20260619-v29";
 
 let ctx = null;
 

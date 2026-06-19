@@ -1,5 +1,5 @@
-import { el, list, progress, formatDate } from "../components.js?v=a11y-focus-20260613-v28";
-import { storyGrid, storyCardSkeleton, readingListCardSkeleton, emptyState } from "./shared.js?v=a11y-focus-20260613-v28";
+import { el, list, progress, formatDate } from "../components.js?v=auth-tabs-20260619-v29";
+import { storyGrid, storyCardSkeleton, readingListCardSkeleton, emptyState } from "./shared.js?v=auth-tabs-20260619-v29";
 
 export function renderLibrary(ctx) {
   ctx = ctx || this;

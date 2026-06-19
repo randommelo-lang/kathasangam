@@ -1,4 +1,4 @@
-import { button, el, formatDate } from "../components.js?v=a11y-focus-20260613-v28";
+import { button, el, formatDate } from "../components.js?v=auth-tabs-20260619-v29";
 
 export function getDraftKey(chapterId) {
   return "kathasangam_draft_" + chapterId;

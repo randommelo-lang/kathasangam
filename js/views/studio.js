@@ -1,5 +1,5 @@
-import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js?v=a11y-focus-20260613-v28";
-import { storyGrid, storyCardSkeleton } from "./shared.js?v=a11y-focus-20260613-v28";
+import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js?v=auth-tabs-20260619-v29";
+import { storyGrid, storyCardSkeleton } from "./shared.js?v=auth-tabs-20260619-v29";
 
 export function renderStudio(ctx) {
   ctx = ctx || this;

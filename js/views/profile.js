@@ -1,7 +1,7 @@
-import { state, ui } from "../state.js?v=a11y-focus-20260613-v28";
-import { api, apiPost, apiPut } from "../api.js?v=a11y-focus-20260613-v28";
-import { el, button, input, textarea, select, formatNumber } from "../components.js?v=a11y-focus-20260613-v28";
-import { storyCard } from "./shared.js?v=a11y-focus-20260613-v28";
+import { state, ui } from "../state.js?v=auth-tabs-20260619-v29";
+import { api, apiPost, apiPut } from "../api.js?v=auth-tabs-20260619-v29";
+import { el, button, input, textarea, select, formatNumber } from "../components.js?v=auth-tabs-20260619-v29";
+import { storyCard } from "./shared.js?v=auth-tabs-20260619-v29";
 
 let ctx = null;
 

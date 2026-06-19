@@ -1,4 +1,4 @@
-import { saveChapterFromEditor as saveChapterFromEditorModule } from "../editor.js?v=a11y-focus-20260613-v28";
+import { saveChapterFromEditor as saveChapterFromEditorModule } from "../editor.js?v=auth-tabs-20260619-v29";
 
 export function handleStudioClick(ctx, action, target, e) {
   if (action === "manageStory") {

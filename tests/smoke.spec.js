@@ -511,5 +511,49 @@ test.describe('KathaSangam Smoke Tests', () => {
     // Go back to studio/dashboard
     await page.click('button:has-text("Cancel")');
   });
+
+  test('Mobile header and search ergonomics toggles', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Set viewport to a mobile layout (600x800)
+    await page.setViewportSize({ width: 600, height: 800 });
+
+    // 2. Go to home page
+    await page.goto('/');
+
+    // 3. Verify page title
+    await expect(page).toHaveTitle(/KathaSangam/);
+
+    // 4. Verify toggle buttons are visible and navigation/search are not visible
+    const mobileMenuBtn = page.locator('#mobileMenuBtn');
+    const mobileSearchBtn = page.locator('#mobileSearchBtn');
+    const navLinks = page.locator('.nav-links');
+    const searchBar = page.locator('.searchbar');
+
+    await expect(mobileMenuBtn).toBeVisible();
+    await expect(mobileSearchBtn).toBeVisible();
+    await expect(navLinks).not.toBeVisible();
+    await expect(searchBar).not.toBeVisible();
+
+    // 5. Click mobile menu toggle button, verify navLinks becomes visible (active)
+    await mobileMenuBtn.click();
+    await expect(navLinks).toBeVisible();
+    await expect(searchBar).not.toBeVisible();
+    await expect(mobileMenuBtn).toHaveAttribute('aria-expanded', 'true');
+
+    // 6. Click mobile search toggle button, verify searchBar becomes visible (active) and navLinks is hidden
+    await mobileSearchBtn.click();
+    await expect(searchBar).toBeVisible();
+    await expect(navLinks).not.toBeVisible();
+    await expect(mobileSearchBtn).toHaveAttribute('aria-expanded', 'true');
+    await expect(mobileMenuBtn).toHaveAttribute('aria-expanded', 'false');
+
+    // 7. Click outside the hero bar to dismiss both
+    await page.click('body', { position: { x: 300, y: 400 } });
+    await expect(navLinks).not.toBeVisible();
+    await expect(searchBar).not.toBeVisible();
+    await expect(mobileMenuBtn).toHaveAttribute('aria-expanded', 'false');
+    await expect(mobileSearchBtn).toHaveAttribute('aria-expanded', 'false');
+  });
 });
 

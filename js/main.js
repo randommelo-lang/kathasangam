@@ -207,6 +207,59 @@ function bindGlobalEvents() {
   view.addEventListener("click", handleViewClick);
   view.addEventListener("input", handleViewInput);
   document.addEventListener("submit", handleViewSubmit);
+
+  // Mobile menu and search toggle events
+  var mobileMenuBtn = document.getElementById("mobileMenuBtn");
+  var mobileSearchBtn = document.getElementById("mobileSearchBtn");
+  var navLinks = document.querySelector(".nav-links");
+  var searchBar = document.querySelector(".searchbar");
+
+  if (mobileMenuBtn && mobileSearchBtn && navLinks && searchBar) {
+    mobileMenuBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var isExpanded = mobileMenuBtn.getAttribute("aria-expanded") === "true";
+      mobileMenuBtn.setAttribute("aria-expanded", !isExpanded);
+      navLinks.classList.toggle("active");
+
+      // Close search bar if opening menu
+      if (!isExpanded) {
+        searchBar.classList.remove("active");
+        mobileSearchBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    mobileSearchBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var isExpanded = mobileSearchBtn.getAttribute("aria-expanded") === "true";
+      mobileSearchBtn.setAttribute("aria-expanded", !isExpanded);
+      searchBar.classList.toggle("active");
+
+      // Close menu if opening search
+      if (!isExpanded) {
+        navLinks.classList.remove("active");
+        mobileMenuBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    // Close menu when clicking a nav link
+    navLinks.addEventListener("click", function (e) {
+      if (e.target.closest("a")) {
+        navLinks.classList.remove("active");
+        mobileMenuBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    // Close panels when clicking outside hero bar
+    document.addEventListener("click", function (e) {
+      var heroBar = document.getElementById("heroBar");
+      if (heroBar && !heroBar.contains(e.target)) {
+        navLinks.classList.remove("active");
+        mobileMenuBtn.setAttribute("aria-expanded", "false");
+        searchBar.classList.remove("active");
+        mobileSearchBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
 }
 
 function bindAuthEvents() {

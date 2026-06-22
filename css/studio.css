@@ -489,6 +489,70 @@
   display: block;
 }
 
+.svg-chart circle:focus-visible {
+  stroke: #fff !important;
+  stroke-width: 3px !important;
+  r: 6px !important;
+  fill: #f36b15 !important;
+}
+
+/* Chart Summary Table */
+.studio-chart-table-container {
+  margin-top: 16px;
+  background: rgba(25, 25, 25, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.studio-chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.studio-chart-table th,
+.studio-chart-table td {
+  padding: 10px 14px;
+}
+
+.studio-chart-table th {
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.studio-chart-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background-color 0.2s ease;
+}
+
+.studio-chart-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.studio-chart-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.studio-table-chapter {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.studio-table-value {
+  text-align: right;
+  font-weight: 700;
+  color: var(--accent);
+}
+
 /* Quick Actions */
 .quick-actions-grid {
   display: grid;

@@ -72,6 +72,11 @@ export function handleReaderClick(ctx, action, target, e) {
     ctx.toggleFullscreen();
     return true;
   }
+  if (action === "toggleSettingsDrawer") {
+    ctx.ui.showSettingsDrawer = !ctx.ui.showSettingsDrawer;
+    ctx.render();
+    return true;
+  }
   if (action === "theme") {
     ctx.ui.readerTheme = ctx.ui.readerTheme === "dark" ? "light" : "dark";
     ctx.render();
@@ -175,6 +180,62 @@ export function handleReaderInput(ctx, action, target, e) {
     ctx.ui.readerSize = Number(target.value);
     var c = ctx.view.querySelector(".reader-content");
     if (c) c.style.setProperty("--reader-size", ctx.ui.readerSize + "px");
+    
+    // Dynamically update the slider label text without rerendering the whole drawer
+    var parentLabel = target.parentElement.querySelector("label");
+    if (parentLabel) {
+      parentLabel.textContent = "Text Size (" + target.value + "px)";
+    }
+    
+    ctx.autoSaveReaderPreferences();
+    return true;
+  }
+  if (action === "readerModeSelect") {
+    ctx.ui.readerMode = target.value;
+    ctx.ui.currentComicPageIndex = 0;
+    ctx.ui.currentTextPageIndex = 0;
+    ctx.render();
+    ctx.syncCurrentProgress();
+    ctx.autoSaveReaderPreferences();
+    return true;
+  }
+  if (action === "readerThemeSelect") {
+    ctx.ui.readerTheme = target.value;
+    var frame = ctx.view.querySelector(".reader-frame");
+    if (frame) {
+      frame.className = "reader-frame " + target.value;
+    }
+    var content = ctx.view.querySelector(".reader-content");
+    if (content) {
+      content.className = "reader-content " + target.value + " font-" + (ctx.ui.readerFont || "sans");
+    }
+    ctx.autoSaveReaderPreferences();
+    return true;
+  }
+  if (action === "readerFontSelect") {
+    ctx.ui.readerFont = target.value;
+    var content = ctx.view.querySelector(".reader-content");
+    if (content) {
+      content.className = "reader-content " + ctx.ui.readerTheme + " font-" + target.value;
+    }
+    ctx.autoSaveReaderPreferences();
+    return true;
+  }
+  if (action === "readerLineHeightSelect") {
+    ctx.ui.readerLineHeight = target.value;
+    var content = ctx.view.querySelector(".reader-content");
+    if (content) {
+      content.style.setProperty("--reader-line-height", target.value);
+    }
+    ctx.autoSaveReaderPreferences();
+    return true;
+  }
+  if (action === "readerWidthSelect") {
+    ctx.ui.readerWidth = target.value;
+    var content = ctx.view.querySelector(".reader-content");
+    if (content) {
+      content.style.setProperty("--reader-width", target.value);
+    }
     ctx.autoSaveReaderPreferences();
     return true;
   }

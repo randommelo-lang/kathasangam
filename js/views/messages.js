@@ -273,23 +273,51 @@ export function renderMessages(ctx) {
       onsubmit: function(e) {
         e.preventDefault();
         const content = inputField.value.trim();
-        if (!content) return;
+        
+        const existingError = chatPane.querySelector(".messages-feedback");
+        if (existingError) existingError.remove();
+
+        if (!content) {
+          const errorMsg = el("div", "form-feedback error messages-feedback", "Message content cannot be empty. Please check your input and try again.");
+          chatPane.insertBefore(errorMsg, sendForm);
+          return;
+        }
+        
+        const sendBtn = sendForm.querySelector("button[type='submit']");
+        if (sendBtn) {
+          sendBtn.disabled = true;
+          sendBtn.textContent = "Sending...";
+        }
         
         ctx.apiPost("/messages", {
           receiver_id: otherUser.id,
           content: content
         }).then(() => {
+          if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = "Send";
+          }
           inputField.value = "";
           loadActiveChat(true); // immediately reload chat history & convo list, scroll to bottom
         }).catch(err => {
+          if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = "Send";
+          }
           console.error("Failed to send message:", err);
-          ctx.notify("Error sending message: " + (err.message || err));
+          const errorMsg = el("div", "form-feedback error messages-feedback", (err.message || "Failed to send message.") + " Please check your input and try again.");
+          chatPane.insertBefore(errorMsg, sendForm);
         });
       }
     }, [
       inputField,
       el("button", { type: "submit", class: "btn primary" }, "Send")
     ]);
+
+    inputField.addEventListener("input", function() {
+      const existingError = chatPane.querySelector(".messages-feedback");
+      if (existingError) existingError.remove();
+    });
 
     chatPane.appendChild(header);
     chatPane.appendChild(history);

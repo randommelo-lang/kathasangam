@@ -128,32 +128,52 @@ function openAddToReadingListModal(ctx, storyId) {
               required: true
             });
 
+            const playlistFeedback = el("div", "playlist-modal-feedback");
+
             const createForm = el("form", {
-              style: "display: flex; gap: 8px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px;",
+              style: "display: flex; flex-direction: column; gap: 8px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px;",
               onsubmit: function(e) {
                 e.preventDefault();
+                playlistFeedback.innerHTML = "";
                 const name = newListNameInput.value.trim();
-                if (!name) return;
+                
+                if (!name) {
+                  const err = el("p", "form-feedback error", "Playlist name cannot be empty. Please check your input and try again.");
+                  playlistFeedback.appendChild(err);
+                  return;
+                }
+
+                const submitBtn = createForm.querySelector("button[type='submit']");
+                if (submitBtn) {
+                  submitBtn.disabled = true;
+                  submitBtn.textContent = "Adding...";
+                }
 
                 ctx.apiPost("/reading-lists", {
                   name: name,
                   description: null,
                   is_private: false
                 }).then(newList => {
-                  // Add story directly to this new list
                   return ctx.apiPost(`/reading-lists/${newList.id}/entries`, { story_id: storyId });
                 }).then(() => {
-                  // Invalidate cache
-                  ctx.state.readingLists = null;
+                  ctx.state.readingLists = null; // Invalidate cache
                   renderModalBody();
                 }).catch(err => {
+                  if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = "Create & Add";
+                  }
                   console.error("Failed to create list and add entry:", err);
-                  ctx.notify("Error: " + (err.message || err));
+                  const errMsg = el("p", "form-feedback error", (err.message || "Failed to create reading list.") + " Please check your input and try again.");
+                  playlistFeedback.appendChild(errMsg);
                 });
               }
             }, [
-              newListNameInput,
-              el("button", { type: "submit", class: "btn primary" }, "Create & Add")
+              el("div", { style: "display: flex; gap: 8px; width: 100%;" }, [
+                newListNameInput,
+                el("button", { type: "submit", class: "btn primary" }, "Create & Add")
+              ]),
+              playlistFeedback
             ]);
 
             contentEl.appendChild(listContainer);

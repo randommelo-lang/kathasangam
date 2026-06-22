@@ -110,6 +110,49 @@ pub async fn update_profile_role(
     Ok(StatusCode::OK)
 }
 
+/// Validates that an avatar URL is either empty (to clear the avatar),
+/// a local upload path, or a Supabase Storage URL matching our configured host.
+fn is_valid_avatar_url(url: &str) -> bool {
+    let url = url.trim();
+    // Empty string clears the avatar
+    if url.is_empty() {
+        return true;
+    }
+
+    // Local upload path
+    if url.starts_with("/uploads/") {
+        let filename = &url["/uploads/".len()..];
+        // Must have a filename with a valid image extension, no path traversal
+        if filename.is_empty() || filename.contains('/') || filename.contains("..") || filename.contains('?') || filename.contains('#') {
+            return false;
+        }
+        let valid_exts = ["webp", "png", "jpg", "jpeg", "gif"];
+        return filename.rsplit('.').next()
+            .map(|ext| valid_exts.contains(&ext.to_lowercase().as_str()))
+            .unwrap_or(false);
+    }
+
+    // Supabase Storage public URL
+    if let Ok(supabase_url) = std::env::var("SUPABASE_URL") {
+        if !supabase_url.is_empty() {
+            let expected_prefix = format!("{}/storage/v1/object/public/kathasangam/", supabase_url);
+            if url.starts_with(&expected_prefix) {
+                let filename = &url[expected_prefix.len()..];
+                // Must have a filename with a valid image extension, no path traversal
+                if filename.is_empty() || filename.contains('/') || filename.contains("..") || filename.contains('?') || filename.contains('#') {
+                    return false;
+                }
+                let valid_exts = ["webp", "png", "jpg", "jpeg", "gif"];
+                return filename.rsplit('.').next()
+                    .map(|ext| valid_exts.contains(&ext.to_lowercase().as_str()))
+                    .unwrap_or(false);
+            }
+        }
+    }
+
+    false
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UpdateProfileRequest {
     pub username: Option<String>,
@@ -146,6 +189,13 @@ pub async fn update_profile(
     let mut avatar_was_replaced = false;
 
     if let Some(ref new_avatar) = body.avatar_url {
+        // Validate the avatar URL format
+        if !is_valid_avatar_url(new_avatar) {
+            return Err(AppError::bad_request(
+                "Invalid avatar URL. Please upload an avatar image using the upload button."
+            ));
+        }
+
         // Query the old avatar url to check if it has changed
         let row: Option<(Option<String>,)> = sqlx::query_as("SELECT avatar_url FROM profiles WHERE id = $1")
             .bind(auth.user_id)
@@ -180,10 +230,23 @@ pub async fn update_profile(
     .await?;
 
     if avatar_was_replaced {
-        if let Some(url) = old_avatar_url {
-            tokio::spawn(async move {
-                crate::routes::upload::delete_uploaded_file(&url).await;
-            });
+        if let Some(ref url) = old_avatar_url {
+            // Only delete the old file if no other profile or story cover references it
+            let ref_count: (i64,) = sqlx::query_as(
+                "SELECT (SELECT COUNT(*) FROM profiles WHERE avatar_url = $1) + \
+                 (SELECT COUNT(*) FROM stories WHERE cover = $1)"
+            )
+            .bind(url)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or((0,));
+
+            if ref_count.0 == 0 {
+                let url_owned = url.clone();
+                tokio::spawn(async move {
+                    crate::routes::upload::delete_uploaded_file(&url_owned).await;
+                });
+            }
         }
     }
 

@@ -46,6 +46,51 @@ impl RateLimiter {
     }
 }
 
+fn is_trusted_proxy_ip(ip: &std::net::IpAddr) -> bool {
+    // Check custom TRUSTED_PROXIES env variable if present
+    if let Ok(proxies_env) = std::env::var("TRUSTED_PROXIES") {
+        let ip_str = ip.to_string();
+        for p in proxies_env.split(',') {
+            if p.trim() == ip_str {
+                return true;
+            }
+        }
+    }
+    
+    // Fallback to loopbacks and private ranges
+    match ip {
+        std::net::IpAddr::V4(ipv4) => ipv4.is_loopback() || ipv4.is_private(),
+        std::net::IpAddr::V6(ipv6) => ipv6.is_loopback() || is_ipv6_private(ipv6),
+    }
+}
+
+fn is_ipv6_private(ipv6: &std::net::Ipv6Addr) -> bool {
+    // Unique Local Addresses (ULA): fc00::/7
+    // Link-local addresses: fe80::/10
+    let segments = ipv6.segments();
+    let first = segments[0];
+    (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
+}
+
+fn resolve_client_ip(headers: &HeaderMap, socket_addr: SocketAddr) -> String {
+    let socket_ip = socket_addr.ip();
+    if is_trusted_proxy_ip(&socket_ip) {
+        headers
+            .get("cf-connecting-ip")
+            .and_then(|h| h.to_str().ok())
+            .or_else(|| {
+                headers
+                    .get("x-forwarded-for")
+                    .and_then(|h| h.to_str().ok())
+                    .and_then(|h| h.split(',').next())
+            })
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| socket_ip.to_string())
+    } else {
+        socket_ip.to_string()
+    }
+}
+
 pub async fn rate_limit_middleware(
     State(limiter): State<Arc<RateLimiter>>,
     headers: HeaderMap,
@@ -53,18 +98,8 @@ pub async fn rate_limit_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    // Resolve the real client IP (handling reverse proxies like Cloudflare or Railway)
-    let ip = headers
-        .get("cf-connecting-ip")
-        .and_then(|h| h.to_str().ok())
-        .or_else(|| {
-            headers
-                .get("x-forwarded-for")
-                .and_then(|h| h.to_str().ok())
-                .and_then(|h| h.split(',').next())
-        })
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| addr.ip().to_string());
+    // Resolve client IP (trusting headers only from known proxies)
+    let ip = resolve_client_ip(&headers, addr);
 
     let path = request.uri().path();
 
@@ -98,18 +133,8 @@ pub async fn request_tracing_middleware(
         .map(|s| s.to_string())
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-    // Resolve client IP (taking proxies into account)
-    let ip = headers
-        .get("cf-connecting-ip")
-        .and_then(|h| h.to_str().ok())
-        .or_else(|| {
-            headers
-                .get("x-forwarded-for")
-                .and_then(|h| h.to_str().ok())
-                .and_then(|h| h.split(',').next())
-        })
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| addr.ip().to_string());
+    // Resolve client IP (trusting headers only from known proxies)
+    let ip = resolve_client_ip(&headers, addr);
 
     let method = request.method().clone();
     let path = request.uri().path().to_string();

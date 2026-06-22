@@ -1,3 +1,36 @@
+function setFormFeedback(container, message, type) {
+  if (!container) return;
+  var existing = container.querySelectorAll(".form-feedback");
+  existing.forEach(function (e) { e.remove(); });
+  
+  if (!message) return;
+  
+  var feedback = document.createElement("p");
+  feedback.className = "form-feedback " + (type || "info");
+  feedback.textContent = message;
+  
+  var row = container.querySelector(".settings-field-row, .settings-field-row-wrap");
+  if (row) {
+    row.parentNode.insertBefore(feedback, row.nextSibling);
+  } else {
+    container.appendChild(feedback);
+  }
+}
+
+function setButtonLoading(btn, isLoading, originalText) {
+  if (!btn) return;
+  if (isLoading) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.textContent;
+    btn.textContent = originalText || "Saving...";
+  } else {
+    btn.disabled = false;
+    if (btn.dataset.originalText) {
+      btn.textContent = btn.dataset.originalText;
+    }
+  }
+}
+
 export function handleProfileClick(ctx, action, target, e) {
   if (action === "profileTab") {
     ctx.ui.currentView = target.dataset.value;
@@ -6,74 +39,84 @@ export function handleProfileClick(ctx, action, target, e) {
     return true;
   }
   if (action === "updateUsername") {
+    var group = target.closest(".settings-group");
     var row = target.closest(".settings-field-row");
     var uInput = row ? row.querySelector("input[name='username']") : null;
     var newUsername = uInput ? uInput.value.trim() : "";
+    
+    setFormFeedback(group, "", "");
+
     if (!newUsername) {
-      ctx.notify("Username cannot be empty.");
+      setFormFeedback(group, "Username cannot be empty. Please check your input and try again.", "error");
       return true;
     }
+    
+    setButtonLoading(target, true, "Updating...");
     ctx.apiPut("/profile", { username: newUsername }).then(function () {
-      ctx.notify("Username updated successfully.");
+      setButtonLoading(target, false);
+      setFormFeedback(group, "Username updated successfully!", "success");
       if (ctx.state.profile) ctx.state.profile.username = newUsername;
-      ctx.render();
+      setTimeout(function () {
+        ctx.render();
+      }, 1000);
     }).catch(function (err) {
+      setButtonLoading(target, false);
       console.error(err);
+      var msg = "Failed to update username.";
       if (err.status === 409) {
-        ctx.notify("Username is already taken.");
-      } else {
-        ctx.notify(err.message || "Failed to update username.");
+        msg = "Username is already taken.";
+      } else if (err.message) {
+        msg = err.message;
       }
-    });
-    return true;
-  }
-  if (action === "updateAvatar") {
-    var row = target.closest(".settings-field-row");
-    var avInput = row ? row.querySelector("input[name='avatar_url']") : null;
-    var newAvatarUrl = avInput ? avInput.value.trim() : "";
-    ctx.apiPut("/profile", { avatar_url: newAvatarUrl }).then(function () {
-      ctx.notify("Avatar URL updated successfully.");
-      if (ctx.state.profile) ctx.state.profile.avatar_url = newAvatarUrl;
-      ctx.render();
-    }).catch(function (err) {
-      console.error(err);
-      ctx.notify(err.message || "Failed to update avatar.");
+      setFormFeedback(group, msg + " Please check your input and try again.", "error");
     });
     return true;
   }
   if (action === "updateBio") {
+    var group = target.closest(".settings-group");
     var panel = target.closest(".profile-settings-panel");
     var txtArea = panel ? panel.querySelector("textarea[name='bio']") : null;
     var newBio = txtArea ? txtArea.value.trim() : "";
+    
+    setFormFeedback(group, "", "");
+    
+    setButtonLoading(target, true, "Updating...");
     ctx.apiPut("/profile", { bio: newBio }).then(function () {
-      ctx.notify("Bio updated successfully.");
+      setButtonLoading(target, false);
+      setFormFeedback(group, "Bio updated successfully!", "success");
       if (ctx.state.profile) ctx.state.profile.bio = newBio;
-      ctx.render();
+      setTimeout(function () {
+        ctx.render();
+      }, 1000);
     }).catch(function (err) {
+      setButtonLoading(target, false);
       console.error(err);
-      ctx.notify(err.message || "Failed to update bio.");
+      setFormFeedback(group, (err.message || "Failed to update bio.") + " Please check your input and try again.", "error");
     });
     return true;
   }
   if (action === "updatePreferences") {
+    var group = target.closest(".settings-group");
     var panel = target.closest(".profile-settings-panel");
     var themeSelect = panel ? panel.querySelector("select[name='reader_theme']") : null;
     var modeSelect = panel ? panel.querySelector("select[name='reader_mode']") : null;
     var sizeInput = panel ? panel.querySelector("input[name='reader_size']") : null;
     var emailCheck = panel ? panel.querySelector("input[name='email_notifications']") : null;
     var inAppCheck = panel ? panel.querySelector("input[name='in_app_notifications']") : null;
-
+ 
     var themeVal = themeSelect ? themeSelect.value : "light";
     var modeVal = modeSelect ? modeSelect.value : "scroll";
     var sizeVal = sizeInput ? Number(sizeInput.value) : 19;
     var emailVal = emailCheck ? emailCheck.checked : true;
     var inAppVal = inAppCheck ? inAppCheck.checked : true;
+ 
+    setFormFeedback(group, "", "");
 
     if (sizeVal < 16 || sizeVal > 26) {
-      ctx.notify("Font size must be between 16 and 26px.");
+      setFormFeedback(group, "Font size must be between 16 and 26px. Please check your input and try again.", "error");
       return true;
     }
-
+ 
     var prefs = {
       reader_theme: themeVal,
       reader_size: sizeVal,
@@ -81,17 +124,22 @@ export function handleProfileClick(ctx, action, target, e) {
       email_notifications: emailVal,
       in_app_notifications: inAppVal
     };
-
+ 
+    setButtonLoading(target, true, "Saving...");
     ctx.apiPut("/profile", { preferences: prefs }).then(function () {
-      ctx.notify("Preferences updated successfully.");
+      setButtonLoading(target, false);
+      setFormFeedback(group, "Preferences updated successfully!", "success");
       if (ctx.state.profile) ctx.state.profile.preferences = prefs;
       ctx.ui.readerTheme = themeVal;
       ctx.ui.readerSize = sizeVal;
       ctx.ui.readerMode = modeVal;
-      ctx.render();
+      setTimeout(function () {
+        ctx.render();
+      }, 1000);
     }).catch(function (err) {
+      setButtonLoading(target, false);
       console.error(err);
-      ctx.notify(err.message || "Failed to update preferences.");
+      setFormFeedback(group, (err.message || "Failed to update preferences.") + " Please check your input and try again.", "error");
     });
     return true;
   }
@@ -103,10 +151,13 @@ export function handleProfileClick(ctx, action, target, e) {
       isDanger: true
     }).then(function (confirmed) {
       if (!confirmed) return;
+      setButtonLoading(target, true, "Deleting...");
       ctx.apiDelete("/profile").then(function () {
+        setButtonLoading(target, false);
         ctx.notify("Account deleted successfully.");
         ctx.handleSignOut();
       }).catch(function (err) {
+        setButtonLoading(target, false);
         console.error(err);
         ctx.notify(err.message || "Failed to delete account.");
       });

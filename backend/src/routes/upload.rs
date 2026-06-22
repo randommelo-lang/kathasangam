@@ -3,21 +3,14 @@ use crate::models::UploadResponse;
 use crate::errors::AppError;
 use axum::{extract::Multipart, Json};
 use uuid::Uuid;
+use tokio::io::AsyncWriteExt;
+
+const MAX_UPLOAD_SIZE: usize = 10 * 1024 * 1024; // 10 MB
 
 async fn compress_image_with_bun(
-    raw_data: &[u8],
-    original_ext: &str,
-) -> Option<(Vec<u8>, String)> {
-    let uuid = Uuid::new_v4();
-    let raw_temp_path = format!("temp_raw_{}.{}", uuid, original_ext);
-    let compressed_temp_path = format!("temp_compressed_{}.webp", uuid);
-
-    // 1. Write raw bytes to temporary file
-    if let Err(e) = tokio::fs::write(&raw_temp_path, raw_data).await {
-        tracing::error!("⚠️ Failed to write raw temp file: {:?}", e);
-        return None;
-    }
-
+    raw_temp_path: &str,
+    compressed_temp_path: &str,
+) -> Option<Vec<u8>> {
     // 2. Resolve Bun path (locating local .bun/bin/bun if not in PATH)
     let bun_exe = if let Ok(profile) = std::env::var("USERPROFILE") {
         let path = format!(r"{}\.bun\bin\bun.exe", profile);
@@ -39,38 +32,35 @@ async fn compress_image_with_bun(
 
     // 3. Spawn bun command asynchronously
     let status = tokio::process::Command::new(bun_exe)
-        .args(&["run", "compress.js", &raw_temp_path, &compressed_temp_path])
+        .args(&["run", "compress.js", raw_temp_path, compressed_temp_path])
         .status()
         .await;
-
-    // 4. Clean up raw temp file
-    let _ = tokio::fs::remove_file(&raw_temp_path).await;
 
     match status {
         Ok(s) if s.success() => {
             // 5. Read compressed webp bytes
-            match tokio::fs::read(&compressed_temp_path).await {
+            match tokio::fs::read(compressed_temp_path).await {
                 Ok(compressed_data) => {
                     // Clean up compressed temp file
-                    let _ = tokio::fs::remove_file(&compressed_temp_path).await;
+                    let _ = tokio::fs::remove_file(compressed_temp_path).await;
                     tracing::info!("✅ Bun image compression complete (WebP)");
-                    Some((compressed_data, "webp".to_string()))
+                    Some(compressed_data)
                 }
                 Err(e) => {
                     tracing::error!("⚠️ Failed to read compressed temp file: {:?}", e);
-                    let _ = tokio::fs::remove_file(&compressed_temp_path).await;
+                    let _ = tokio::fs::remove_file(compressed_temp_path).await;
                     None
                 }
             }
         }
         Ok(s) => {
             tracing::error!("⚠️ Bun compression script exited with non-zero status: {:?}", s);
-            let _ = tokio::fs::remove_file(&compressed_temp_path).await;
+            let _ = tokio::fs::remove_file(compressed_temp_path).await;
             None
         }
         Err(e) => {
             tracing::error!("⚠️ Failed to execute Bun compression: {:?}", e);
-            let _ = tokio::fs::remove_file(&compressed_temp_path).await;
+            let _ = tokio::fs::remove_file(compressed_temp_path).await;
             None
         }
     }
@@ -108,7 +98,7 @@ fn validate_image_magic_bytes(data: &[u8]) -> bool {
 
 /// POST /api/upload/image
 pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<Json<UploadResponse>, AppError> {
-    while let Some(field) = multipart
+    while let Some(mut field) = multipart
         .next_field()
         .await
         .map_err(|_| AppError::bad_request("Failed to read upload form data."))?
@@ -116,24 +106,130 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
         let name = field.name().unwrap_or("").to_string();
         if name == "file" {
             let filename = field.file_name().unwrap_or("upload.png").to_string();
-            let mut ext = filename.rsplit('.').next().unwrap_or("png").to_string();
-            let mut data = field.bytes().await
-                .map_err(|_| AppError::bad_request("Failed to read uploaded file data."))?.to_vec();
+            let ext = filename.rsplit('.').next().unwrap_or("png").to_string();
 
-            // Validate magic bytes before doing any processing or storage
-            if !validate_image_magic_bytes(&data) {
-                return Err(AppError::bad_request("Unsupported image format. Please upload PNG, JPEG, WebP, or GIF."));
+            let uuid = Uuid::new_v4();
+            let raw_temp_path = format!("temp_raw_{}.{}", uuid, ext);
+            let compressed_temp_path = format!("temp_compressed_{}.webp", uuid);
+
+            let mut file = match tokio::fs::File::create(&raw_temp_path).await {
+                Ok(f) => f,
+                Err(e) => {
+                    tracing::error!("Failed to create temporary file: {:?}", e);
+                    return Err(AppError::internal_server_error("Failed to save uploaded file temporarily."));
+                }
+            };
+
+            let mut total_written = 0;
+            let mut magic_buffer = Vec::new();
+            let mut magic_validated = false;
+
+            while let Some(chunk) = field.chunk().await
+                .map_err(|e| {
+                    tracing::error!("Error reading chunk: {:?}", e);
+                    AppError::bad_request("Failed to read uploaded file chunk.")
+                })?
+            {
+                if total_written + chunk.len() > MAX_UPLOAD_SIZE {
+                    drop(file);
+                    let _ = tokio::fs::remove_file(&raw_temp_path).await;
+
+                    // Drain remaining chunks of the current field
+                    while let Ok(Some(_)) = field.chunk().await {}
+                    // Drain any remaining fields in the multipart form
+                    while let Ok(Some(mut next_field)) = multipart.next_field().await {
+                        while let Ok(Some(_)) = next_field.chunk().await {}
+                    }
+
+                    return Err(AppError::bad_request("Upload size limit exceeded. Max 10MB allowed."));
+                }
+
+                if !magic_validated {
+                    let needed = 12 - magic_buffer.len();
+                    let to_copy = std::cmp::min(needed, chunk.len());
+                    magic_buffer.extend_from_slice(&chunk[..to_copy]);
+                    if magic_buffer.len() >= 12 || (chunk.len() == to_copy && to_copy > 0) {
+                        if !validate_image_magic_bytes(&magic_buffer) {
+                            drop(file);
+                            let _ = tokio::fs::remove_file(&raw_temp_path).await;
+
+                            // Drain remaining chunks of the current field
+                            while let Ok(Some(_)) = field.chunk().await {}
+                            // Drain any remaining fields in the multipart form
+                            while let Ok(Some(mut next_field)) = multipart.next_field().await {
+                                while let Ok(Some(_)) = next_field.chunk().await {}
+                            }
+
+                            return Err(AppError::bad_request("Unsupported image format. Please upload PNG, JPEG, WebP, or GIF."));
+                        }
+                        magic_validated = true;
+                    }
+                }
+
+                if let Err(e) = file.write_all(&chunk).await {
+                    tracing::error!("Error writing chunk to file: {:?}", e);
+                    drop(file);
+                    let _ = tokio::fs::remove_file(&raw_temp_path).await;
+                    return Err(AppError::internal_server_error("Failed to write uploaded file chunk."));
+                }
+
+                total_written += chunk.len();
+            }
+
+            if let Err(e) = file.flush().await {
+                tracing::error!("Failed to flush temporary file: {:?}", e);
+                let _ = tokio::fs::remove_file(&raw_temp_path).await;
+                return Err(AppError::internal_server_error("Failed to flush temporary file."));
+            }
+            drop(file);
+
+            if total_written == 0 {
+                let _ = tokio::fs::remove_file(&raw_temp_path).await;
+                return Err(AppError::bad_request("Uploaded file is empty."));
+            }
+
+            if !magic_validated {
+                if !validate_image_magic_bytes(&magic_buffer) {
+                    let _ = tokio::fs::remove_file(&raw_temp_path).await;
+
+                    // Drain any remaining fields in the multipart form
+                    while let Ok(Some(mut next_field)) = multipart.next_field().await {
+                        while let Ok(Some(_)) = next_field.chunk().await {}
+                    }
+
+                    return Err(AppError::bad_request("Unsupported image format. Please upload PNG, JPEG, WebP, or GIF."));
+                }
             }
 
             // Attempt to compress image using Bun
-            if let Some((compressed_data, new_ext)) = compress_image_with_bun(&data, &ext).await {
-                data = compressed_data;
-                ext = new_ext;
-            }
+            let mut final_ext = ext;
+            let data = match compress_image_with_bun(&raw_temp_path, &compressed_temp_path).await {
+                Some(compressed_data) => {
+                    final_ext = "webp".to_string();
+                    compressed_data
+                }
+                None => {
+                    // Compression failed or skipped, read raw data from disk
+                    match tokio::fs::read(&raw_temp_path).await {
+                        Ok(raw_data) => raw_data,
+                        Err(e) => {
+                            tracing::error!("Failed to read raw temp file: {:?}", e);
+                            let _ = tokio::fs::remove_file(&raw_temp_path).await;
+                            return Err(AppError::internal_server_error("Failed to read uploaded file."));
+                        }
+                    }
+                }
+            };
 
-            let stored_name = format!("{}.{}", Uuid::new_v4(), ext);
+            // Clean up raw temp file
+            let _ = tokio::fs::remove_file(&raw_temp_path).await;
+
+            let stored_name = format!("{}.{}", Uuid::new_v4(), final_ext);
             let supabase_url = std::env::var("SUPABASE_URL").ok();
             let service_role_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY").ok();
+
+            // Convert to Bytes to avoid cloning the large byte buffer
+            let data_bytes = bytes::Bytes::from(data);
 
             if let (Some(url), Some(key)) = (supabase_url, service_role_key) {
                 if !url.is_empty() && !key.is_empty() {
@@ -141,7 +237,7 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
                     let upload_url = format!("{}/storage/v1/object/{}/{}", url, bucket, stored_name);
 
                     let client = reqwest::Client::new();
-                    let content_type = match ext.to_lowercase().as_str() {
+                    let content_type = match final_ext.to_lowercase().as_str() {
                         "png" => "image/png",
                         "jpg" | "jpeg" => "image/jpeg",
                         "webp" => "image/webp",
@@ -155,7 +251,7 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
                         .header("apikey", &key)
                         .header("Authorization", format!("Bearer {}", key))
                         .header("Content-Type", content_type)
-                        .body(data.clone())
+                        .body(data_bytes.clone())
                         .send()
                         .await;
 
@@ -180,7 +276,7 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
 
             // Fallback: local disk storage
             let path = format!("uploads/{}", stored_name);
-            tokio::fs::write(&path, &data)
+            tokio::fs::write(&path, &data_bytes)
                 .await?;
 
             return Ok(Json(UploadResponse {

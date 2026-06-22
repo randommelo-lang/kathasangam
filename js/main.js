@@ -7,7 +7,7 @@ import { el, button, select, input, textarea, showConfirm, calculateStars } from
 
 // Import view modules
 import { renderDiscover } from "./views/discover.js?v=profile-redirect-20260619-v30";
-import { renderLibrary } from "./views/library.js?v=profile-redirect-20260619-v30";
+import { renderLibrary, renderLibraryNotifications } from "./views/library.js?v=profile-redirect-20260619-v30";
 import { renderReader } from "./views/reader.js?v=profile-redirect-20260619-v30";
 import { renderStudio } from "./views/studio.js?v=profile-redirect-20260619-v30";
 import { renderModeration } from "./views/moderation.js?v=profile-redirect-20260619-v30";
@@ -103,6 +103,7 @@ var ctx = {
   render: render,
   renderDiscover: renderDiscover,
   renderLibrary: renderLibrary,
+  renderLibraryNotifications: function () { renderLibraryNotifications(ctx); },
   renderReader: renderReader,
   renderStudio: renderStudio,
   renderModeration: renderModeration,
@@ -206,6 +207,7 @@ function bindGlobalEvents() {
   genreFilter.addEventListener("change", render);
   view.addEventListener("click", handleViewClick);
   view.addEventListener("input", handleViewInput);
+  view.addEventListener("change", handleViewInput);
   document.addEventListener("submit", handleViewSubmit);
 
   // Mobile menu and search toggle events
@@ -365,6 +367,15 @@ function bindAuthEvents() {
     if (!authArea.contains(e.target)) closeAccountMenu();
     var notifArea = document.getElementById("heroNotificationArea");
     if (notifArea && !notifArea.contains(e.target)) closeNotificationMenu();
+
+    if (ui.showSettingsDrawer) {
+      var drawer = document.querySelector(".reader-settings-drawer");
+      var comfortBtn = e.target.closest('[data-action="toggleSettingsDrawer"]');
+      if (drawer && !drawer.contains(e.target) && !comfortBtn) {
+        ui.showSettingsDrawer = false;
+        render();
+      }
+    }
   });
 
   loginForm.addEventListener("submit", handleLogin);

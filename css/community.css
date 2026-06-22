@@ -202,6 +202,80 @@
   font-size: .8rem;
 }
 
+/* ── Avatar Upload Widget ── */
+.settings-avatar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.settings-avatar-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+  background-size: cover;
+  background-position: center;
+  border: 3px solid rgba(255, 255, 255, .1);
+  box-shadow: 0 4px 20px rgba(229, 124, 51, .15);
+  position: relative;
+  overflow: hidden;
+  transition: border-color .25s ease, box-shadow .25s ease;
+}
+
+.settings-avatar-preview:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 24px rgba(229, 124, 51, .3);
+}
+
+.settings-avatar-preview.loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-avatar-preview.loading::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 3px solid rgba(255, 255, 255, .3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: avatarSpin .6s linear infinite;
+  z-index: 2;
+}
+
+@keyframes avatarSpin {
+  to { transform: rotate(360deg); }
+}
+
+.settings-avatar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-avatar-actions .btn {
+  min-width: 130px;
+  justify-content: center;
+}
+
+
 /* User Profile Management */
 .story-author-link {
   color: var(--accent);

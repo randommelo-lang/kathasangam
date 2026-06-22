@@ -32,6 +32,10 @@ export const ui = {
   readerMode: "scroll",
   readerTheme: "light",
   readerSize: 19,
+  readerFont: "sans",
+  readerLineHeight: "1.6",
+  readerWidth: "800px",
+  showSettingsDrawer: false,
   activeLibraryTab: "bookmarks",
   activeConversationUserId: null,
   activeConversationUser: null

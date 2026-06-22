@@ -408,6 +408,17 @@ test.describe('KathaSangam Smoke Tests', () => {
     // Verify SVG chart is visible
     await expect(page.locator('.svg-chart')).toBeVisible();
 
+    // Verify SVG chart points accessibility
+    const chartPoints = page.locator('.svg-chart circle');
+    await expect(chartPoints.first()).toBeVisible();
+    await expect(chartPoints.first()).toHaveAttribute('tabindex', '0');
+    await expect(chartPoints.first()).toHaveAttribute('role', 'button');
+    await expect(chartPoints.first()).toHaveAttribute('aria-label', /.*/);
+
+    // Verify data table summary is visible
+    await expect(page.locator('.studio-chart-table-container')).toBeVisible();
+    await expect(page.locator('.studio-chart-table')).toBeVisible();
+
     // Click Likes to toggle metric
     await page.click('text=Likes');
     
@@ -554,6 +565,55 @@ test.describe('KathaSangam Smoke Tests', () => {
     await expect(searchBar).not.toBeVisible();
     await expect(mobileMenuBtn).toHaveAttribute('aria-expanded', 'false');
     await expect(mobileSearchBtn).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('Oversized image upload is rejected by backend', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    await page.goto('/');
+
+    // Perform the upload using page.evaluate to trigger a fetch request directly from the browser context
+    const response = await page.evaluate(async () => {
+      // Create a large 11MB dummy data buffer
+      const bufferSize = 11 * 1024 * 1024;
+      const u8 = new Uint8Array(bufferSize);
+      
+      // PNG magic bytes
+      u8[0] = 0x89;
+      u8[1] = 0x50;
+      u8[2] = 0x4E;
+      u8[3] = 0x47;
+      u8[4] = 0x0D;
+      u8[5] = 0x0A;
+      u8[6] = 0x1A;
+      u8[7] = 0x0A;
+
+      const blob = new Blob([u8], { type: 'image/png' });
+      const formData = new FormData();
+      formData.append('file', blob, 'oversized.png');
+
+      try {
+        const res = await fetch('/api/upload/image', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer mock-access-token'
+          },
+          body: formData
+        });
+        return {
+          status: res.status,
+          text: await res.text()
+        };
+      } catch (err) {
+        return {
+          status: -1,
+          text: err.message
+        };
+      }
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.text).toContain('Upload size limit exceeded. Max 10MB allowed.');
   });
 });
 

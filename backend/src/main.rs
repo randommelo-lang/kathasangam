@@ -224,7 +224,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route(
             "/upload/image",
             post(routes::upload::upload_image)
-                .layer(axum::extract::DefaultBodyLimit::max(5 * 1024 * 1024)),
+                .layer(axum::extract::DefaultBodyLimit::disable()),
         )
 
 
@@ -269,6 +269,66 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         ));
 
 
+    let allowed_origins_env = std::env::var("ALLOWED_ORIGINS").ok();
+
+    // Configure strict/allowlist CORS policy
+    let cors_layer = {
+        let base_cors = CorsLayer::new()
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PUT,
+                axum::http::Method::PATCH,
+                axum::http::Method::DELETE,
+                axum::http::Method::OPTIONS,
+            ])
+            .allow_headers([
+                axum::http::header::AUTHORIZATION,
+                axum::http::header::CONTENT_TYPE,
+            ])
+            .allow_credentials(true);
+
+        if let Some(origins_str) = allowed_origins_env {
+            let origins: Vec<String> = origins_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            base_cors.allow_origin(tower_http::cors::AllowOrigin::predicate(
+                move |origin: &axum::http::HeaderValue, _request_parts: &axum::http::request::Parts| {
+                    if let Ok(origin_str) = origin.to_str() {
+                        // 1. Check exact match in ALLOWED_ORIGINS
+                        if origins.iter().any(|o| o == origin_str) {
+                            return true;
+                        }
+                        // 2. Allow local loopback origins
+                        if origin_str.starts_with("http://localhost:") || origin_str.starts_with("http://127.0.0.1:") {
+                            return true;
+                        }
+                        // 3. Allow Vercel preview domains
+                        if origin_str.ends_with(".vercel.app") {
+                            return true;
+                        }
+                    }
+                    false
+                }
+            ))
+        } else {
+            // Default allowed origins if ALLOWED_ORIGINS env is not configured
+            base_cors.allow_origin(tower_http::cors::AllowOrigin::predicate(
+                move |origin: &axum::http::HeaderValue, _request_parts: &axum::http::request::Parts| {
+                    if let Ok(origin_str) = origin.to_str() {
+                        if origin_str.starts_with("http://localhost:") || origin_str.starts_with("http://127.0.0.1:") || origin_str.ends_with(".vercel.app") {
+                            return true;
+                        }
+                    }
+                    false
+                }
+            ))
+        }
+    };
+
     let uploads_service =
         ServeDir::new("uploads");
 
@@ -292,7 +352,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         .layer(axum::middleware::from_fn(middleware::request_tracing_middleware))
 
-        .layer(CorsLayer::permissive())
+        .layer(cors_layer)
 
         .with_state(pool);
 

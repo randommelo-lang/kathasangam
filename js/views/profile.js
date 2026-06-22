@@ -338,14 +338,142 @@ export function renderProfileSettings(context) {
         el("p", "settings-hint", "Email changes are managed through your authentication provider.")
       ]),
 
-      el("div", "settings-group", [
-        el("label", "settings-label", "Avatar URL"),
-        el("div", "settings-field-row", [
-          input("text", avatarUrl, { name: "avatar_url", placeholder: "https://example.com/avatar.jpg" }),
-          button("Update", "btn primary btn-sm", { action: "updateAvatar" })
-        ]),
-        el("p", "settings-hint", "Paste a URL to an image to use as your avatar.")
-      ]),
+      (function () {
+        var avatarPreview = el("div", "settings-avatar-preview");
+        if (avatarUrl) {
+          avatarPreview.style.backgroundImage = "url('" + avatarUrl + "')";
+        } else {
+          avatarPreview.textContent = initial;
+        }
+
+        var avatarFeedback = el("p", "form-feedback", "");
+        avatarFeedback.style.display = "none";
+
+        var fileInput = el("input");
+        fileInput.type = "file";
+        fileInput.accept = "image/png,image/jpeg,image/webp,image/gif";
+        fileInput.style.display = "none";
+
+        var uploadBtn = button("Upload Photo", "btn primary btn-sm", {});
+        uploadBtn.type = "button";
+        uploadBtn.addEventListener("click", function () { fileInput.click(); });
+
+        var removeBtn = button("Remove Photo", "btn secondary btn-sm", {});
+        removeBtn.type = "button";
+        removeBtn.style.display = avatarUrl ? "" : "none";
+
+        fileInput.addEventListener("change", function (evt) {
+          var file = evt.target.files[0];
+          if (!file) return;
+
+          // Client-side validation
+          var allowedTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+          if (!allowedTypes.includes(file.type)) {
+            avatarFeedback.textContent = "Please select a PNG, JPEG, WebP, or GIF image.";
+            avatarFeedback.className = "form-feedback error";
+            avatarFeedback.style.display = "";
+            fileInput.value = "";
+            return;
+          }
+          if (file.size > 5 * 1024 * 1024) {
+            avatarFeedback.textContent = "Image is too large. Maximum size is 5 MB.";
+            avatarFeedback.className = "form-feedback error";
+            avatarFeedback.style.display = "";
+            fileInput.value = "";
+            return;
+          }
+
+          // Show loading state
+          avatarPreview.classList.add("loading");
+          avatarFeedback.textContent = "Uploading...";
+          avatarFeedback.className = "form-feedback info";
+          avatarFeedback.style.display = "";
+          uploadBtn.disabled = true;
+          removeBtn.disabled = true;
+
+          var fd = new FormData();
+          fd.append("file", file);
+
+          api("/upload/image", { method: "POST", body: fd })
+            .then(function (resp) {
+              if (!resp || !resp.url) throw new Error("Upload failed");
+              return apiPut("/profile", { avatar_url: resp.url }).then(function () {
+                return resp.url;
+              });
+            })
+            .then(function (newUrl) {
+              avatarPreview.classList.remove("loading");
+              avatarPreview.textContent = "";
+              avatarPreview.style.backgroundImage = "url('" + newUrl + "')";
+              if (ctx.state && ctx.state.profile) ctx.state.profile.avatar_url = newUrl;
+              avatarFeedback.textContent = "Avatar updated successfully!";
+              avatarFeedback.className = "form-feedback success";
+              removeBtn.style.display = "";
+              uploadBtn.disabled = false;
+              removeBtn.disabled = false;
+              fileInput.value = "";
+            })
+            .catch(function (err) {
+              avatarPreview.classList.remove("loading");
+              uploadBtn.disabled = false;
+              removeBtn.disabled = false;
+              fileInput.value = "";
+              console.error(err);
+              if (err.status === 413) {
+                avatarFeedback.textContent = "Upload failed: File is too large (max 5 MB).";
+              } else if (err.status === 415) {
+                avatarFeedback.textContent = "Upload failed: Invalid format. Only PNG, JPG, WEBP, and GIF allowed.";
+              } else {
+                avatarFeedback.textContent = (err.message || "Failed to upload avatar.") + " Please try again.";
+              }
+              avatarFeedback.className = "form-feedback error";
+            });
+        });
+
+        removeBtn.addEventListener("click", function () {
+          avatarPreview.classList.add("loading");
+          avatarFeedback.textContent = "Removing...";
+          avatarFeedback.className = "form-feedback info";
+          avatarFeedback.style.display = "";
+          uploadBtn.disabled = true;
+          removeBtn.disabled = true;
+
+          apiPut("/profile", { avatar_url: "" })
+            .then(function () {
+              avatarPreview.classList.remove("loading");
+              avatarPreview.style.backgroundImage = "";
+              avatarPreview.textContent = initial;
+              if (ctx.state && ctx.state.profile) ctx.state.profile.avatar_url = "";
+              avatarFeedback.textContent = "Avatar removed.";
+              avatarFeedback.className = "form-feedback success";
+              removeBtn.style.display = "none";
+              uploadBtn.disabled = false;
+              removeBtn.disabled = false;
+            })
+            .catch(function (err) {
+              avatarPreview.classList.remove("loading");
+              uploadBtn.disabled = false;
+              removeBtn.disabled = false;
+              console.error(err);
+              avatarFeedback.textContent = (err.message || "Failed to remove avatar.") + " Please try again.";
+              avatarFeedback.className = "form-feedback error";
+            });
+        });
+
+        return el("div", "settings-group", [
+          el("label", "settings-label", "Profile Photo"),
+          el("div", "settings-avatar-wrapper", [
+            avatarPreview,
+            el("div", "settings-avatar-actions", [
+              uploadBtn,
+              removeBtn,
+              fileInput
+            ])
+          ]),
+          avatarFeedback,
+          el("p", "settings-hint", "Upload a PNG, JPEG, WebP, or GIF image (max 5 MB).")
+        ]);
+      })(),
 
       el("div", "settings-group", [
         el("label", "settings-label", "Bio"),

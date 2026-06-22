@@ -255,12 +255,18 @@ export function loadPreferences() {
     ui.readerTheme = p.reader_theme || "light";
     ui.readerSize = p.reader_size || 19;
     ui.readerMode = p.reader_mode || "scroll";
+    ui.readerFont = p.reader_font || "sans";
+    ui.readerLineHeight = p.reader_line_height || "1.6";
+    ui.readerWidth = p.reader_width || "800px";
   } else {
     try {
       var localPref = JSON.parse(localStorage.getItem("kathasangam_anon_preferences") || "{}");
       ui.readerTheme = localPref.reader_theme || "light";
       ui.readerSize = localPref.reader_size || 19;
       ui.readerMode = localPref.reader_mode || "scroll";
+      ui.readerFont = localPref.reader_font || "sans";
+      ui.readerLineHeight = localPref.reader_line_height || "1.6";
+      ui.readerWidth = localPref.reader_width || "800px";
     } catch (e) {
       console.warn("Failed to load local preferences:", e);
     }
@@ -285,6 +291,9 @@ export function autoSaveReaderPreferences() {
       reader_theme: ui.readerTheme,
       reader_size: ui.readerSize,
       reader_mode: ui.readerMode,
+      reader_font: ui.readerFont,
+      reader_line_height: ui.readerLineHeight,
+      reader_width: ui.readerWidth,
       email_notifications: emailNotif,
       in_app_notifications: inAppNotif
     };

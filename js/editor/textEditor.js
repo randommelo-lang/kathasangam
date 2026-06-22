@@ -2,6 +2,44 @@ import { button, el, formatNumber } from "../components.js?v=profile-redirect-20
 import { getDraftKey, loadDraft, setupAutosave, showRecoveryBanner } from "./autosave.js?v=profile-redirect-20260619-v30";
 import { importTextFile } from "./importers.js?v=profile-redirect-20260619-v30";
 
+function setFormFeedback(message, type) {
+  const panel = document.querySelector(".editor-panel");
+  if (!panel) return;
+  const existing = panel.querySelectorAll(".form-feedback");
+  existing.forEach(function (e) { e.remove(); });
+  
+  if (!message) return;
+  
+  const feedback = el("p", "form-feedback " + (type || "info"), message);
+  const actionsRow = panel.querySelector(".editor-actions-row");
+  if (actionsRow) {
+    actionsRow.parentNode.insertBefore(feedback, actionsRow);
+  } else {
+    panel.appendChild(feedback);
+  }
+}
+
+function setButtonsLoading(isLoading, activeAction) {
+  const actionsRow = document.querySelector(".editor-actions-row");
+  if (!actionsRow) return;
+  const buttons = actionsRow.querySelectorAll("button");
+  buttons.forEach(function (btn) {
+    if (isLoading) {
+      btn.disabled = true;
+      if (btn.dataset.action === activeAction) {
+        btn.dataset.originalText = btn.textContent;
+        btn.textContent = activeAction === "publishChapter" ? "Publishing..." : "Saving...";
+      }
+    } else {
+      btn.disabled = false;
+      if (btn.dataset.originalText) {
+        btn.textContent = btn.dataset.originalText;
+        delete btn.dataset.originalText;
+      }
+    }
+  });
+}
+
 export function saveTextChapter(ctx, title, paragraphs, status) {
   const payload = {
     title: title,
@@ -9,19 +47,28 @@ export function saveTextChapter(ctx, title, paragraphs, status) {
     status: status
   };
 
+  setFormFeedback("", "");
+  const activeAction = status === "published" ? "publishChapter" : "saveChapterDraft";
+  setButtonsLoading(true, activeAction);
+
   const draftKey = getDraftKey(ctx.ui.editingChapterId);
   ctx.apiPut("/chapters/" + ctx.ui.editingChapterId, payload).then(function () {
+    setButtonsLoading(false, activeAction);
+    setFormFeedback("Chapter saved successfully!", "success");
+    ctx.notify("Chapter saved.");
     localStorage.removeItem(draftKey);
     return ctx.api("/stories");
   }).then(function (s) {
     ctx.state.stories = s;
-    ctx.notify("Chapter saved.");
-    ctx.ui.currentView = "studio";
-    window.location.hash = "studio";
-    ctx.render();
+    setTimeout(function () {
+      ctx.ui.currentView = "studio";
+      window.location.hash = "studio";
+      ctx.render();
+    }, 1000);
   }).catch(function (err) {
+    setButtonsLoading(false, activeAction);
     console.error(err);
-    ctx.notify("Failed to save chapter.");
+    setFormFeedback((err.message || "Failed to save chapter.") + " Please check your input and try again.", "error");
   });
 }
 

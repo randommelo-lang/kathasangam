@@ -58,7 +58,7 @@ function comicFlipContent(ctx, chapter) {
   var currentFirst = pages[firstIdx];
   var currentSecond = secondIdx < pages.length ? pages[secondIdx] : null;
 
-  var container = el("article", "reader-content comic-reader flip-mode" + (ctx.ui.readerTheme === "dark" ? " dark" : ""));
+  var container = el("article", "reader-content comic-reader flip-mode " + ctx.ui.readerTheme);
   if (!currentFirst) return container;
 
   var wrapperFirst = el("div", "comic-page-wrapper", [
@@ -93,10 +93,101 @@ function comicFlipContent(ctx, chapter) {
   return container;
 }
 
+function settingsDrawer(ctx) {
+  var isComic = ctx.getCurrentStory().type === "Chitrānk";
+  
+  var closeBtn = button("✕", "drawer-close-btn", { action: "toggleSettingsDrawer" });
+  
+  var drawerContent = [
+    el("div", "drawer-header", [
+      el("h3", null, "Reader Settings"),
+      closeBtn
+    ])
+  ];
+
+  var modeSelect = select("readerMode", [
+    ["scroll", "Continuous Scroll"],
+    ["pages", "Paginated Pages"]
+  ], ctx.ui.readerMode);
+  modeSelect.dataset.action = "readerModeSelect";
+  
+  drawerContent.push(el("div", "drawer-section", [
+    el("label", null, "Reading Mode"),
+    modeSelect
+  ]));
+
+  var themeSelect = select("readerTheme", [
+    ["light", "Light Theme"],
+    ["dark", "Dark Theme"],
+    ["sepia", "Sepia Theme"]
+  ], ctx.ui.readerTheme);
+  themeSelect.dataset.action = "readerThemeSelect";
+
+  drawerContent.push(el("div", "drawer-section", [
+    el("label", null, "Color Theme"),
+    themeSelect
+  ]));
+
+  if (!isComic) {
+    var fontSelect = select("readerFont", [
+      ["sans", "Sans-serif (Inter)"],
+      ["serif", "Serif (Georgia)"],
+      ["mono", "Monospace (JetBrains)"]
+    ], ctx.ui.readerFont || "sans");
+    fontSelect.dataset.action = "readerFontSelect";
+
+    drawerContent.push(el("div", "drawer-section", [
+      el("label", null, "Font Style"),
+      fontSelect
+    ]));
+
+    var sizeInput = input("range", ctx.ui.readerSize, { min: "16", max: "32", action: "fontSize" });
+    drawerContent.push(el("div", "drawer-section", [
+      el("label", null, "Text Size (" + ctx.ui.readerSize + "px)"),
+      sizeInput
+    ]));
+
+    var lhSelect = select("readerLineHeight", [
+      ["1.4", "Compact (1.4)"],
+      ["1.6", "Normal (1.6)"],
+      ["1.8", "Spacious (1.8)"],
+      ["2.0", "Double (2.0)"]
+    ], ctx.ui.readerLineHeight || "1.6");
+    lhSelect.dataset.action = "readerLineHeightSelect";
+
+    drawerContent.push(el("div", "drawer-section", [
+      el("label", null, "Line Spacing"),
+      lhSelect
+    ]));
+
+    var widthSelect = select("readerWidth", [
+      ["600px", "Narrow (600px)"],
+      ["800px", "Medium (800px)"],
+      ["1000px", "Wide (1000px)"],
+      ["100%", "Full Width"]
+    ], ctx.ui.readerWidth || "800px");
+    widthSelect.dataset.action = "readerWidthSelect";
+
+    drawerContent.push(el("div", "drawer-section", [
+      el("label", null, "Reading Width"),
+      widthSelect
+    ]));
+  }
+
+  var drawer = el("div", "reader-settings-drawer" + (ctx.ui.showSettingsDrawer ? " active" : ""), drawerContent);
+  return drawer;
+}
+
 function readerContent(ctx, story, chapter) {
-  var cn = "reader-content " + (ctx.ui.readerTheme === "dark" ? "dark" : "");
+  var themeClass = ctx.ui.readerTheme;
+  var fontClass = "font-" + (ctx.ui.readerFont || "sans");
+  var cn = "reader-content " + themeClass + " " + fontClass;
+  
   var container = el("article", cn);
   container.style.setProperty("--reader-size", ctx.ui.readerSize + "px");
+  container.style.setProperty("--reader-line-height", ctx.ui.readerLineHeight || "1.6");
+  container.style.setProperty("--reader-width", ctx.ui.readerWidth || "800px");
+
   if (story.type === "Chitrānk" && chapter.pages) {
     if (ctx.ui.readerMode === "pages") return comicFlipContent(ctx, chapter);
     container.appendChild(el("div", "comic-pages", chapter.pages.map(function (p) {
@@ -146,51 +237,53 @@ export function renderReader(ctx) {
   var story = ctx.getCurrentStory();
   var chapter = ctx.getCurrentChapter(story);
   var isComic = story.type === "Chitrānk";
-  var controls = [
-    el("div", "segmented", [
-      segmentButton("Scroll", "scroll", ctx.ui.readerMode, "readerMode"),
-      segmentButton(isComic ? "Page flip" : "Pages", "pages", ctx.ui.readerMode, "readerMode")
-    ])
-  ];
+  var controls = [];
+  
   if (isComic && ctx.ui.readerMode === "pages") controls.push(comicPager(ctx, chapter));
   if (!isComic && ctx.ui.readerMode === "pages" && chapter.content) {
     var textPages = ctx.paginateText(chapter.content);
     ctx.clampTextPage(textPages);
     controls.push(textPager(ctx, textPages));
   }
-  if (!isComic) {
-    controls.push(el("label", "mini-meta", [
-      "Text size",
-      input("range", ctx.ui.readerSize, { min: "16", max: "26", action: "fontSize" })
-    ]));
-  }
-  controls.push(progress(ctx.calculateActiveReaderProgress(story)));
   
-  ctx.view.appendChild(el("div", "reader-frame", [
-    el("div", "reader-toolbar", [
-      el("div", null, [
-        el("h2", null, story.title),
-        el("div", "mini-meta", [
-          (function () {
-            var a = el("a", "story-author-link", story.author);
-            a.href = "#profile?username=" + encodeURIComponent(story.author);
-            return a;
-          })(),
-          " / " + chapter.title + " / " + chapter.access,
-          chapter.status === "scheduled" ? " Scheduled " + formatDate(chapter.scheduledAt) : ""
-        ])
-      ]),
-      el("div", "button-row", [
-        button("Prev", "btn", { action: "chapter", step: "-1" }),
-        button("Next", "btn", { action: "chapter", step: "1" }),
-        button(ctx.ui.readerTheme === "dark" ? "Light" : "Dark", "btn", { action: "theme" }),
-        button(document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen", "btn", { action: "toggleFullscreen" }),
-        ctx.state.user ? button("Report Content", "btn danger", { action: "reportContent", storyId: story.id, chapterId: chapter.id }) : null
-      ].filter(Boolean))
+  var progressVal = ctx.calculateActiveReaderProgress(story);
+  var progressLine = el("div", "reader-progress-line");
+  progressLine.style.width = progressVal + "%";
+  
+  var primaryToolbar = el("div", "reader-toolbar sticky-header", [
+    el("div", null, [
+      el("h2", null, story.title),
+      el("div", "mini-meta", [
+        (function () {
+          var a = el("a", "story-author-link", story.author);
+          a.href = "#profile?username=" + encodeURIComponent(story.author);
+          return a;
+        })(),
+        " / " + chapter.title + " / " + chapter.access,
+        chapter.status === "scheduled" ? " Scheduled " + formatDate(chapter.scheduledAt) : ""
+      ])
     ]),
-    el("div", "reader-toolbar", controls),
-    readerContent(ctx, story, chapter)
-  ]));
+    el("div", "button-row", [
+      button("Prev", "btn", { action: "chapter", step: "-1" }),
+      button("Next", "btn", { action: "chapter", step: "1" }),
+      button(ctx.ui.readerTheme === "dark" ? "Light" : "Dark", "btn", { action: "theme" }),
+      button("Comfort ⚙️", "btn", { action: "toggleSettingsDrawer" }),
+      button(document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen", "btn", { action: "toggleFullscreen" }),
+      ctx.state.user ? button("Report Content", "btn danger", { action: "reportContent", storyId: story.id, chapterId: chapter.id }) : null
+    ].filter(Boolean)),
+    progressLine
+  ]);
+
+  var secondaryToolbar = controls.length ? el("div", "reader-toolbar paging-toolbar", controls) : null;
+  
+  var frame = el("div", "reader-frame " + ctx.ui.readerTheme, [
+    primaryToolbar,
+    secondaryToolbar,
+    readerContent(ctx, story, chapter),
+    settingsDrawer(ctx)
+  ].filter(Boolean));
+
+  ctx.view.appendChild(frame);
 
   ctx.view.appendChild(el("div", "layout-two", [
     el("section", "panel", [

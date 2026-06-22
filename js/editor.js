@@ -1,13 +1,35 @@
 import { renderComicEditor, saveComicChapter } from "./editor/comicEditor.js?v=profile-redirect-20260619-v30";
 import { renderTextEditor, saveTextChapter } from "./editor/textEditor.js?v=profile-redirect-20260619-v30";
 
+function setEditorFeedback(message, type) {
+  const panel = document.querySelector(".editor-panel");
+  if (!panel) return;
+  const existing = panel.querySelectorAll(".form-feedback");
+  existing.forEach(function (e) { e.remove(); });
+  
+  if (!message) return;
+  
+  const feedback = document.createElement("p");
+  feedback.className = "form-feedback " + (type || "info");
+  feedback.textContent = message;
+  
+  const actionsRow = panel.querySelector(".editor-actions-row");
+  if (actionsRow) {
+    actionsRow.parentNode.insertBefore(feedback, actionsRow);
+  } else {
+    panel.appendChild(feedback);
+  }
+}
+
 export function saveChapterFromEditor(ctx, status) {
   const titleEl = document.querySelector(".editor-title-input");
   if (!titleEl) return;
 
+  setEditorFeedback("", "");
+
   const newTitle = titleEl.value.trim();
   if (!newTitle) {
-    ctx.notify("Chapter title cannot be empty.");
+    setEditorFeedback("Chapter title cannot be empty. Please check your input and try again.", "error");
     return;
   }
 

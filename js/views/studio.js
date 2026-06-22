@@ -227,6 +227,10 @@ export function renderStudio(ctx) {
     var defs = svgEl("defs", null, [gradient]);
     
     var activeMetric = ctx.ui.activeChartMetric || "reads";
+    var metricLabel = "reads";
+    if (activeMetric === "likes") metricLabel = "likes";
+    else if (activeMetric === "words") metricLabel = "words";
+
     var ptsData = generateChartData(active, activeMetric);
     var lineD = ptsData.length ? "M " + ptsData.map(function(p) { return p.x + " " + p.y; }).join(" L ") : "M 0 85";
     var areaD = lineD + " L 300 100 L 0 100 Z";
@@ -258,12 +262,20 @@ export function renderStudio(ctx) {
         fill: "#111",
         stroke: "#f36b15",
         "stroke-width": "2",
-        style: "cursor: pointer; transition: all 0.2s ease;"
+        tabindex: "0",
+        role: "button",
+        "aria-label": pt.label + ": " + formatNumber(pt.value) + " " + metricLabel,
+        style: "cursor: pointer; transition: all 0.2s ease; outline: none;"
       });
 
-      circle.addEventListener("mouseenter", function () {
+      function showTooltip(isFocus) {
         circle.setAttribute("r", "6");
         circle.setAttribute("fill", "#f36b15");
+        if (isFocus) {
+          circle.setAttribute("stroke", "#fff");
+        } else {
+          circle.setAttribute("stroke", "#f36b15");
+        }
         
         var tooltip = document.getElementById("chart-tooltip");
         if (!tooltip) {
@@ -271,12 +283,9 @@ export function renderStudio(ctx) {
           document.body.appendChild(tooltip);
         }
         
-        var metricLabel = "reads";
-        if (activeMetric === "likes") metricLabel = "likes";
-        else if (activeMetric === "words") metricLabel = "words";
-        
-        tooltip.innerHTML = '<div class="tooltip-title">' + pt.label + '</div>' +
-                            '<div class="tooltip-value">' + formatNumber(pt.value) + ' ' + metricLabel + '</div>';
+        tooltip.innerHTML = "";
+        tooltip.appendChild(el("div", "tooltip-title", pt.label));
+        tooltip.appendChild(el("div", "tooltip-value", formatNumber(pt.value) + " " + metricLabel));
         
         tooltip.style.opacity = "1";
         tooltip.style.transform = "translate(-50%, -100%) scale(1)";
@@ -284,16 +293,33 @@ export function renderStudio(ctx) {
         var rect = circle.getBoundingClientRect();
         tooltip.style.left = (window.scrollX + rect.left + rect.width / 2) + "px";
         tooltip.style.top = (window.scrollY + rect.top - 8) + "px";
-      });
+      }
 
-      circle.addEventListener("mouseleave", function () {
+      function hideTooltip() {
         circle.setAttribute("r", "4");
         circle.setAttribute("fill", "#111");
+        circle.setAttribute("stroke", "#f36b15");
         
         var tooltip = document.getElementById("chart-tooltip");
         if (tooltip) {
           tooltip.style.opacity = "0";
           tooltip.style.transform = "translate(-50%, -100%) scale(0.9)";
+        }
+      }
+
+      circle.addEventListener("mouseenter", function () { showTooltip(false); });
+      circle.addEventListener("mouseleave", hideTooltip);
+      circle.addEventListener("focus", function () { showTooltip(true); });
+      circle.addEventListener("blur", hideTooltip);
+      circle.addEventListener("click", function (e) {
+        e.preventDefault();
+        circle.focus();
+        showTooltip(true);
+      });
+      circle.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          showTooltip(true);
         }
       });
 
@@ -306,6 +332,26 @@ export function renderStudio(ctx) {
     }, [defs, grid1, grid2, grid3, areaPath, linePath].concat(pts));
 
     var chartContainer = el("div", "svg-chart-container", [chartSvg]);
+
+    // Build compact data table summary
+    var tableRows = ptsData.map(function (pt) {
+      return el("tr", null, [
+        el("td", { class: "studio-table-chapter" }, pt.label),
+        el("td", { class: "studio-table-value" }, formatNumber(pt.value))
+      ]);
+    });
+
+    var dataTable = el("div", "studio-chart-table-container", [
+      el("table", "studio-chart-table", [
+        el("thead", null, [
+          el("tr", null, [
+            el("th", null, "Chapter"),
+            el("th", { style: "text-align: right;" }, metricLabel.charAt(0).toUpperCase() + metricLabel.slice(1))
+          ])
+        ]),
+        el("tbody", null, tableRows)
+      ])
+    ]);
 
     // Dynamic Trends calculation based on story stats
     var viewsTrend = active.views > 0 ? "+" + (active.views % 13 + 2.5).toFixed(1) + "%" : "0.0%";
@@ -393,7 +439,8 @@ export function renderStudio(ctx) {
         engagementBox
       ]),
       
-      chartContainer
+      chartContainer,
+      dataTable
     ]);
     rightColumnChildren.push(analyticsPanel);
   }

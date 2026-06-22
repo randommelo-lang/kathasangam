@@ -1,5 +1,6 @@
 /* ─── Reader ─── */
 .reader-frame {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -340,6 +341,9 @@
   background: rgba(229, 124, 51, 0.8) !important;
 }
 
+padding: 6px 12px;
+}
+
 .story-progress-row {
   display: flex;
   align-items: center;
@@ -353,5 +357,212 @@
 .story-progress-row .mini-meta {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+/* Sticky Reader Header & Progress Line */
+.reader-toolbar.sticky-header {
+  position: sticky;
+  top: 61px;
+  z-index: 100;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: background 0.25s, border-color 0.25s;
+}
+
+.reader-progress-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--primary);
+  transition: width 0.15s ease-out;
+  z-index: 101;
+}
+
+/* Typography styles for reading */
+.reader-content {
+  line-height: var(--reader-line-height, 1.82) !important;
+  max-width: var(--reader-width, 800px) !important;
+  transition: font-size 0.2s, max-width 0.2s, line-height 0.2s;
+}
+
+.reader-content.font-sans {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.reader-content.font-serif {
+  font-family: Georgia, 'Times New Roman', serif !important;
+}
+
+.reader-content.font-mono {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* Sepia Theme overrides */
+.reader-frame.sepia {
+  background: #f4ecd8 !important;
+  color: #4a3525 !important;
+  border-color: #ded1b8 !important;
+}
+
+.reader-frame.sepia .reader-toolbar {
+  background: rgba(74, 53, 37, 0.05) !important;
+  border-color: #ded1b8 !important;
+  color: #4a3525 !important;
+}
+
+.reader-frame.sepia .mini-meta {
+  color: #70543e !important;
+}
+
+.reader-frame.sepia .btn {
+  border-color: rgba(74, 53, 37, 0.2) !important;
+  color: #4a3525 !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+.reader-frame.sepia .btn:hover {
+  background: rgba(229, 124, 51, 0.15) !important;
+}
+
+.reader-frame.sepia .segmented button {
+  border-color: rgba(74, 53, 37, 0.2) !important;
+  color: #4a3525 !important;
+  background: transparent !important;
+}
+
+.reader-frame.sepia .segmented button.active {
+  background: #e57c33 !important;
+  color: #fff !important;
+}
+
+.reader-content.sepia {
+  color: #4a3525 !important;
+  background: #f4ecd8 !important;
+}
+
+/* Reader Settings Drawer */
+.reader-settings-drawer {
+  position: absolute;
+  top: 0;
+  right: -320px;
+  width: 320px;
+  height: 100%;
+  background: var(--surface-2);
+  border-left: 1px solid var(--line);
+  z-index: 1100;
+  transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s, border-color 0.25s;
+  padding: 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12px);
+  overflow-y: auto;
+}
+
+.reader-settings-drawer.active {
+  right: 0;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.drawer-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--ink);
+}
+
+.drawer-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  transition: color 0.18s, background 0.18s;
+}
+
+.drawer-close-btn:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-section label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.drawer-section select,
+.drawer-section input[type="range"] {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.drawer-section select:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+/* Sepia variations for the drawer */
+.reader-frame.sepia .reader-settings-drawer {
+  background: #ebe0c5 !important;
+  border-color: #d8c9a8 !important;
+  color: #4a3525 !important;
+  box-shadow: -10px 0 30px rgba(74, 53, 37, 0.15);
+}
+
+.reader-frame.sepia .drawer-header h3 {
+  color: #4a3525 !important;
+}
+
+.reader-frame.sepia .drawer-header {
+  border-color: #d8c9a8 !important;
+}
+
+.reader-frame.sepia .drawer-section label {
+  color: #70543e !important;
+}
+
+.reader-frame.sepia .drawer-section select,
+.reader-frame.sepia .drawer-section input[type="range"] {
+  background: #f4ecd8 !important;
+  border-color: #d8c9a8 !important;
+  color: #4a3525 !important;
+}
+
+.reader-frame.sepia .drawer-close-btn {
+  color: #70543e !important;
+}
+
+.reader-frame.sepia .drawer-close-btn:hover {
+  color: #4a3525 !important;
+  background: rgba(74, 53, 37, 0.08) !important;
 }
 

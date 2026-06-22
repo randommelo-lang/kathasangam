@@ -408,5 +408,32 @@ a:focus-visible {
   text-align: right;
 }
 
+/* Standardized Form Validation Feedback */
+.form-feedback {
+  font-size: 0.8rem;
+  margin: 8px 0;
+  padding: 0;
+  display: block;
+  font-weight: 600;
+  line-height: 1.4;
+  animation: fadeInFeedback 0.2s ease-in-out;
+}
+.form-feedback.success {
+  color: var(--success);
+}
+.form-feedback.error {
+  color: var(--danger);
+  border-left: 2px solid var(--danger);
+  padding-left: 8px;
+}
+.form-feedback.info {
+  color: var(--muted);
+}
+
+@keyframes fadeInFeedback {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 
 

@@ -33,6 +33,9 @@ tower = "0.4"
 # UUID
 uuid = { version = "1", features = ["v4", "serde"] }
 
+# Bytes library
+bytes = "1"
+
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 

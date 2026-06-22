@@ -287,49 +287,124 @@ export function handleStudioClick(ctx, action, target, e) {
   return false;
 }
 
+function setFormFeedback(form, message, type) {
+  if (!form) return;
+  var existing = form.querySelectorAll(".form-feedback");
+  existing.forEach(function (e) { e.remove(); });
+  
+  if (!message) return;
+  
+  var feedback = document.createElement("p");
+  feedback.className = "form-feedback " + (type || "info");
+  feedback.textContent = message;
+  
+  var submitBtn = form.querySelector("button[type='submit']");
+  if (submitBtn) {
+    submitBtn.parentNode.insertBefore(feedback, submitBtn);
+  } else {
+    form.appendChild(feedback);
+  }
+}
+
+function setButtonLoading(btn, isLoading, originalText) {
+  if (!btn) return;
+  if (isLoading) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.textContent;
+    btn.textContent = originalText || "Saving...";
+  } else {
+    btn.disabled = false;
+    if (btn.dataset.originalText) {
+      btn.textContent = btn.dataset.originalText;
+    }
+  }
+}
+
 export function handleStudioSubmit(ctx, formName, target, e) {
   if (formName === "storyForm") {
     var fd = new FormData(target);
+    var title = fd.get("title").trim();
+    var genre = fd.get("genre").trim();
+    var description = fd.get("description").trim();
+    var type = fd.get("type");
+    
+    setFormFeedback(target, "", "");
+
+    if (!title || !genre) {
+      setFormFeedback(target, "Title and Genre are required. Please check your inputs and try again.", "error");
+      return true;
+    }
+    
+    var submitBtn = target.querySelector("button[type='submit']");
+    setButtonLoading(submitBtn, true, "Creating...");
+    
     ctx.apiPost("/stories", {
-      title: fd.get("title"),
-      type: fd.get("type"),
-      genre: fd.get("genre"),
-      description: fd.get("description")
+      title: title,
+      type: type,
+      genre: genre,
+      description: description
     }).then(function (resp) {
+      setButtonLoading(submitBtn, false);
+      setFormFeedback(target, "Story created successfully!", "success");
       ctx.ui.currentStoryId = resp.id;
       ctx.ui.currentChapterIndex = 0;
       return ctx.api("/stories");
     }).then(function (s) {
       ctx.state.stories = s;
       ctx.hydrateGenres();
-      ctx.notify("Story created.");
-      ctx.closeStoryModal();
-      ctx.render();
+      setTimeout(function () {
+        ctx.closeStoryModal();
+        ctx.render();
+      }, 1000);
+    }).catch(function (err) {
+      setButtonLoading(submitBtn, false);
+      console.error(err);
+      setFormFeedback(target, (err.message || "Failed to create story.") + " Please check your inputs and try again.", "error");
     });
     return true;
   }
   if (formName === "storySettingsForm") {
     var fd = new FormData(target);
     var storyId = fd.get("id");
+    var title = fd.get("title").trim();
+    var genre = fd.get("genre").trim();
+    var description = fd.get("description").trim();
+    var status = fd.get("status");
+    var language = fd.get("language").trim();
+    var license = fd.get("license");
+    
+    setFormFeedback(target, "", "");
+
+    if (!title || !genre || !language) {
+      setFormFeedback(target, "Title, Genre, and Language are required. Please check your inputs and try again.", "error");
+      return true;
+    }
+    
+    var submitBtn = target.querySelector("button[type='submit']");
+    setButtonLoading(submitBtn, true, "Saving...");
 
     ctx.apiPut("/stories/" + storyId, {
-      title: fd.get("title"),
-      genre: fd.get("genre"),
-      description: fd.get("description"),
-      status: fd.get("status"),
-      language: fd.get("language"),
-      license: fd.get("license")
+      title: title,
+      genre: genre,
+      description: description,
+      status: status,
+      language: language,
+      license: license
     }).then(function (resp) {
-      ctx.notify("Story metadata updated.");
-      ctx.closeStoryModal();
+      setButtonLoading(submitBtn, false);
+      setFormFeedback(target, "Story settings saved successfully!", "success");
       return ctx.api("/stories");
     }).then(function (s) {
       ctx.state.stories = s;
       ctx.hydrateGenres();
-      ctx.render();
+      setTimeout(function () {
+        ctx.closeStoryModal();
+        ctx.render();
+      }, 1000);
     }).catch(function (err) {
+      setButtonLoading(submitBtn, false);
       console.error(err);
-      ctx.notify(err.message || "Failed to update story metadata.");
+      setFormFeedback(target, (err.message || "Failed to update story metadata.") + " Please check your inputs and try again.", "error");
     });
     return true;
   }

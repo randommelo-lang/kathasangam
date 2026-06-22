@@ -162,7 +162,11 @@ export function startNotificationPolling() {
           state.notifications = notifs;
           updateHeroNotificationUI();
           if (ui.currentView === "library" && ctx) {
-            ctx.render();
+            if (typeof ctx.renderLibraryNotifications === "function") {
+              ctx.renderLibraryNotifications();
+            } else {
+              ctx.render();
+            }
           }
         }
       }).catch(function (err) {

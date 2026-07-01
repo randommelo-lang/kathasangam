@@ -10,6 +10,26 @@ export function handleModerationClick(ctx, action, target, e) {
     });
     return true;
   }
+  if (action === "setReportFilter") {
+    ctx.ui.reportFilter = target.dataset.value;
+    ctx.render();
+    return true;
+  }
+  if (action === "setModerationTab") {
+    ctx.ui.activeModerationTab = target.dataset.value;
+    if (ctx.ui.activeModerationTab === "logs") {
+      ctx.api("/reports/logs").then(function (logs) {
+        ctx.state.auditLogs = logs;
+        ctx.render();
+      }).catch(function (err) {
+        console.error("Failed to load audit logs:", err);
+        ctx.notify(err.message || "Failed to load audit logs");
+      });
+    } else {
+      ctx.render();
+    }
+    return true;
+  }
   if (action === "scan") {
     ctx.notify("Text scan completed. No blocked terms found.");
     return true;

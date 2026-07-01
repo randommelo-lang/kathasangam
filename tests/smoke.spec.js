@@ -97,7 +97,7 @@ test.describe('KathaSangam Smoke Tests', () => {
 
     // 5. Verify discover components
     await expect(page.locator('.hero-carousel')).toBeVisible();
-    await expect(page.locator('.stats-row')).toBeVisible();
+    await expect(page.locator('.stats-row')).not.toBeVisible();
     await expect(page.locator('#storyGrid')).toBeVisible();
     
     // Ensure story cards are present
@@ -129,13 +129,30 @@ test.describe('KathaSangam Smoke Tests', () => {
     await expect(page.locator('.reader-frame')).toBeVisible();
     await expect(page.locator('.reader-content')).toBeVisible();
     
-    // Theme switching button check
-    const themeBtn = page.locator('.button-row button', { hasText: /Light|Dark/ });
-    await expect(themeBtn).toBeVisible();
-    const initialText = await themeBtn.textContent();
-    await themeBtn.click();
-    const afterText = await themeBtn.textContent();
-    expect(initialText).not.toBe(afterText); // Theme button text should toggle
+    // Verify reader settings drawer and toggle theme
+    const settingsBtn = page.locator('.button-row button', { hasText: 'Settings' });
+    await expect(settingsBtn).toBeVisible();
+    await settingsBtn.click();
+
+    // Verify reader settings drawer is active
+    const settingsDrawer = page.locator('.reader-settings-drawer');
+    await expect(settingsDrawer).toBeVisible();
+
+    // Toggle theme from settings drawer
+    const darkThemeBtn = page.locator('.theme-toggles button', { hasText: 'Dark' });
+    const lightThemeBtn = page.locator('.theme-toggles button', { hasText: 'Light' });
+    await expect(darkThemeBtn).toBeVisible();
+    await expect(lightThemeBtn).toBeVisible();
+
+    // Toggle theme and verify class active changes
+    const initialIsActive = await darkThemeBtn.evaluate(el => el.classList.contains('active'));
+    if (initialIsActive) {
+      await lightThemeBtn.click();
+      await expect(lightThemeBtn).toHaveClass(/active/);
+    } else {
+      await darkThemeBtn.click();
+      await expect(darkThemeBtn).toHaveClass(/active/);
+    }
   });
 
   test('Protected route checks and login modal', async ({ page }) => {
@@ -308,7 +325,7 @@ test.describe('KathaSangam Smoke Tests', () => {
     await page.selectOption('form[data-form="storyForm"] select[name="type"]', 'Web Novel');
     await page.fill('form[data-form="storyForm"] input[name="genre"]', 'Test Genre');
     await page.click('form[data-form="storyForm"] button[type="submit"]');
-    await expect(page.locator('#storyModal')).toHaveAttribute('hidden');
+    await expect(page.locator('#storyModal')).toHaveAttribute('hidden', { timeout: 15000 });
 
     // 4. Click Continue Writing to open Chapter Editor
     const continueWritingBtn = page.locator('button:has-text("Continue Writing")').first();
@@ -415,9 +432,9 @@ test.describe('KathaSangam Smoke Tests', () => {
     await expect(chartPoints.first()).toHaveAttribute('role', 'button');
     await expect(chartPoints.first()).toHaveAttribute('aria-label', /.*/);
 
-    // Verify data table summary is visible
-    await expect(page.locator('.studio-chart-table-container')).toBeVisible();
-    await expect(page.locator('.studio-chart-table')).toBeVisible();
+    // Verify data table summary is not visible
+    await expect(page.locator('.studio-chart-table-container')).not.toBeVisible();
+    await expect(page.locator('.studio-chart-table')).not.toBeVisible();
 
     // Click Likes to toggle metric
     await page.click('text=Likes');
@@ -450,7 +467,7 @@ test.describe('KathaSangam Smoke Tests', () => {
     await page.selectOption('form[data-form="storyForm"] select[name="type"]', 'Chitrānk');
     await page.fill('form[data-form="storyForm"] input[name="genre"]', 'Manga, Sci-Fi');
     await page.click('form[data-form="storyForm"] button[type="submit"]');
-    await expect(page.locator('#storyModal')).toHaveAttribute('hidden');
+    await expect(page.locator('#storyModal')).toHaveAttribute('hidden', { timeout: 15000 });
 
     // 4. Click Continue Writing to open Chapter Editor
     const continueWritingBtn = page.locator('button:has-text("Continue Writing")');

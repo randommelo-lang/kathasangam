@@ -36,7 +36,14 @@ pub async fn list_conversations(
             other.username as other_username, \
             other.avatar_url as other_avatar_url, \
             lm.content as last_message, \
-            lm.created_at as last_message_at \
+            lm.created_at as last_message_at, \
+            COALESCE(( \
+                SELECT COUNT(*) \
+                FROM public.direct_messages dm2 \
+                WHERE dm2.sender_id = other.id \
+                  AND dm2.receiver_id = $1 \
+                  AND dm2.is_read = false \
+            ), 0) as unread_count \
         FROM latest_messages lm \
         JOIN public.profiles other ON other.id = (CASE WHEN lm.sender_id = $1 THEN lm.receiver_id ELSE lm.sender_id END) \
         ORDER BY lm.created_at DESC"
@@ -54,6 +61,15 @@ pub async fn get_message_history(
     State(pool): State<PgPool>,
     Path(other_id): Path<Uuid>,
 ) -> Result<Json<Vec<DirectMessageRow>>, AppError> {
+    // Mark received messages from this user as read
+    sqlx::query(
+        "UPDATE public.direct_messages SET is_read = true WHERE receiver_id = $1 AND sender_id = $2 AND is_read = false"
+    )
+    .bind(auth.user_id)
+    .bind(other_id)
+    .execute(&pool)
+    .await?;
+
     let rows = sqlx::query_as::<_, DirectMessageRow>(
         "SELECT \
             dm.id, \
@@ -62,7 +78,8 @@ pub async fn get_message_history(
             dm.receiver_id, \
             r.username AS receiver_name, \
             dm.content, \
-            dm.created_at \
+            dm.created_at, \
+            dm.is_read \
         FROM public.direct_messages dm \
         JOIN public.profiles s ON dm.sender_id = s.id \
         JOIN public.profiles r ON dm.receiver_id = r.id \
@@ -106,7 +123,7 @@ pub async fn send_message(
         "WITH inserted AS ( \
             INSERT INTO public.direct_messages (sender_id, receiver_id, content) \
             VALUES ($1, $2, $3) \
-            RETURNING id, sender_id, receiver_id, content, created_at \
+            RETURNING id, sender_id, receiver_id, content, created_at, is_read \
         ) \
         SELECT \
             i.id, \
@@ -115,7 +132,8 @@ pub async fn send_message(
             i.receiver_id, \
             r.username as receiver_name, \
             i.content, \
-            i.created_at \
+            i.created_at, \
+            i.is_read \
         FROM inserted i \
         JOIN public.profiles s ON i.sender_id = s.id \
         JOIN public.profiles r ON i.receiver_id = r.id"

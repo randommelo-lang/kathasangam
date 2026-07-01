@@ -83,6 +83,12 @@ export function handleReaderClick(ctx, action, target, e) {
     ctx.autoSaveReaderPreferences();
     return true;
   }
+  if (action === "readerThemeSelect") {
+    ctx.ui.readerTheme = target.dataset.value;
+    ctx.render();
+    ctx.autoSaveReaderPreferences();
+    return true;
+  }
   if (action === "openChapter") {
     ctx.ui.currentChapterIndex = Number(target.dataset.index);
     ctx.ui.currentComicPageIndex = 0;

@@ -1,5 +1,5 @@
-import { el, list, progress, formatDate } from "../components.js?v=profile-redirect-20260619-v30";
-import { storyGrid, storyCardSkeleton, readingListCardSkeleton, emptyState } from "./shared.js?v=profile-redirect-20260619-v30";
+import { el, list, progress, formatDate } from "../components.js";
+import { storyGrid, storyCardSkeleton, readingListCardSkeleton, emptyState } from "./shared.js";
 
 export function renderLibrary(ctx) {
   ctx = ctx || this;
@@ -246,14 +246,22 @@ export function renderLibrary(ctx) {
       notificationsPanel,
       el("section", "panel", [
         el("h2", null, "Progress"),
-        list(ctx.state.bookmarks || [], "activity-list", function (s) {
-          var progPercent = ctx.calculateStoryProgressPercent(s);
-          return el("li", "activity-item", [
-            el("strong", null, s.title),
-            progress(progPercent),
-            el("span", "mini-meta", progPercent + "% read")
-          ]);
-        })
+        (function () {
+          var progressStories = (ctx.state.bookmarks || []).filter(function (s) {
+            return ctx.calculateStoryProgressPercent(s) > 0;
+          });
+          if (progressStories.length === 0) {
+            return el("div", "empty-sidebar-state", "No reading progress tracked yet");
+          }
+          return list(progressStories, "activity-list", function (s) {
+            var progPercent = ctx.calculateStoryProgressPercent(s);
+            return el("li", "activity-item", [
+              el("strong", null, s.title),
+              progress(progPercent),
+              el("span", "mini-meta", progPercent + "% read")
+            ]);
+          });
+        })()
       ])
     ])
   ]));
@@ -292,35 +300,40 @@ export function renderLibraryNotifications(ctx) {
 
   container.appendChild(header);
 
-  var listEl = list(ctx.state.notifications, "activity-list", function (n) {
-    var itemContent = [
-      el("div", { style: "display: flex; align-items: start; gap: 10px;" }, [
-        el("span", { class: "icon icon-bell", style: "color: var(--accent); flex-shrink: 0; margin-top: 2px;" }),
-        el("span", null, n.message || "")
-      ])
-    ];
+  if (!ctx.state.notifications || ctx.state.notifications.length === 0) {
+    container.appendChild(el("div", "empty-sidebar-state", "No new notifications"));
+  } else {
+    var listEl = list(ctx.state.notifications, "activity-list", function (n) {
+      var itemContent = [
+        el("div", { style: "display: flex; align-items: start; gap: 10px;" }, [
+          el("span", { class: "icon icon-bell", style: "color: var(--accent); flex-shrink: 0; margin-top: 2px;" }),
+          el("span", null, n.message || "")
+        ])
+      ];
 
-    var liAttrs = { class: "activity-item" };
-    if (n.story_id && n.chapter_sort_order !== null && n.chapter_sort_order !== undefined) {
-      liAttrs["style"] = "cursor: pointer;";
-      liAttrs["data-action"] = "openNotificationChapterFromLibrary";
-      liAttrs["data-story-id"] = n.story_id;
-      liAttrs["data-sort-order"] = n.chapter_sort_order;
-      liAttrs["data-notif-id"] = n.id;
-    } else {
-      liAttrs["style"] = "cursor: pointer;";
-      liAttrs["data-action"] = "clearGeneralNotificationFromLibrary";
-      liAttrs["data-notif-id"] = n.id;
-    }
+      var liAttrs = { class: "activity-item" };
+      if (n.story_id && n.chapter_sort_order !== null && n.chapter_sort_order !== undefined) {
+        liAttrs["style"] = "cursor: pointer;";
+        liAttrs["data-action"] = "openNotificationChapterFromLibrary";
+        liAttrs["data-story-id"] = n.story_id;
+        liAttrs["data-sort-order"] = n.chapter_sort_order;
+        liAttrs["data-notif-id"] = n.id;
+      } else {
+        liAttrs["style"] = "cursor: pointer;";
+        liAttrs["data-action"] = "clearGeneralNotificationFromLibrary";
+        liAttrs["data-notif-id"] = n.id;
+      }
 
-    return el("li", liAttrs, itemContent);
-  });
+      return el("li", liAttrs, itemContent);
+    });
 
-  container.appendChild(listEl);
+    container.appendChild(listEl);
+  }
 }
 
 export function populateBookmarks(ctx, container) {
   container.innerHTML = "";
+  container.className = "";
   if (ctx.state.bookmarks && ctx.state.bookmarks.length) {
     container.appendChild(storyGrid(ctx, ctx.state.bookmarks));
   } else {

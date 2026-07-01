@@ -1,5 +1,5 @@
-import { state, ui } from "./state.js?v=profile-redirect-20260619-v30";
-import { apiPost } from "./api.js?v=profile-redirect-20260619-v30";
+import { state, ui } from "./state.js";
+import { apiPost } from "./api.js";
 
 let ctx = null;
 

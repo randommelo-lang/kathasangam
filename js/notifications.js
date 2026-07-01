@@ -1,6 +1,6 @@
-import { state, ui } from "./state.js?v=profile-redirect-20260619-v30";
-import { api, apiDelete } from "./api.js?v=profile-redirect-20260619-v30";
-import { el } from "./components.js?v=profile-redirect-20260619-v30";
+import { state, ui } from "./state.js";
+import { api, apiDelete } from "./api.js";
+import { el } from "./components.js";
 
 let ctx = null;
 
@@ -142,8 +142,13 @@ export function closeNotificationMenu() {
   if (dropdown) dropdown.hidden = true;
 }
 
+let _pollingIntervalId = null;
+
 export function startNotificationPolling() {
-  setInterval(function () {
+  // Guard: don't start a second polling loop if one is already active
+  if (_pollingIntervalId !== null) return;
+
+  _pollingIntervalId = setInterval(function () {
     if (state.user || state.accessToken) {
       api("/notifications").then(function (notifs) {
         var hasChanges = false;
@@ -174,6 +179,13 @@ export function startNotificationPolling() {
       });
     }
   }, 15000);
+}
+
+export function stopNotificationPolling() {
+  if (_pollingIntervalId !== null) {
+    clearInterval(_pollingIntervalId);
+    _pollingIntervalId = null;
+  }
 }
 
 export function initNotificationsModule(context) {

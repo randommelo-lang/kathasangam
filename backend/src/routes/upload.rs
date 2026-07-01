@@ -148,7 +148,7 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
                     let needed = 12 - magic_buffer.len();
                     let to_copy = std::cmp::min(needed, chunk.len());
                     magic_buffer.extend_from_slice(&chunk[..to_copy]);
-                    if magic_buffer.len() >= 12 || (chunk.len() == to_copy && to_copy > 0) {
+                    if magic_buffer.len() >= 12 {
                         if !validate_image_magic_bytes(&magic_buffer) {
                             drop(file);
                             let _ = tokio::fs::remove_file(&raw_temp_path).await;

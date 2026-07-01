@@ -1,6 +1,6 @@
-import { button, el, formatNumber } from "../components.js?v=profile-redirect-20260619-v30";
-import { getDraftKey, loadDraft, setupAutosave, showRecoveryBanner } from "./autosave.js?v=profile-redirect-20260619-v30";
-import { importTextFile } from "./importers.js?v=profile-redirect-20260619-v30";
+import { button, el, formatNumber } from "../components.js";
+import { getDraftKey, loadDraft, setupAutosave, showRecoveryBanner } from "./autosave.js";
+import { importTextFile } from "./importers.js";
 
 function setFormFeedback(message, type) {
   const panel = document.querySelector(".editor-panel");

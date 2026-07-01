@@ -1,7 +1,8 @@
-import { state, ui } from "./state.js?v=profile-redirect-20260619-v30";
-import { log } from "./logger.js?v=profile-redirect-20260619-v30";
-import { api, apiPatch, apiPut, adminEmail, moderatorEmails, getSupabaseClient } from "./api.js?v=profile-redirect-20260619-v30";
-import { el } from "./components.js?v=profile-redirect-20260619-v30";
+import { state, ui } from "./state.js";
+import { log } from "./logger.js";
+import { api, apiPatch, apiPut, adminEmail, moderatorEmails, getSupabaseClient } from "./api.js";
+import { el } from "./components.js";
+import { stopNotificationPolling } from "./notifications.js";
 
 let ctx = null;
 
@@ -338,6 +339,7 @@ export function onAuthStateChange(event, session) {
     state.library = [];
     state.reports = [];
     state.notifications = [];
+    stopNotificationPolling();
     state.progress = [];
     state.bookmarks = null;
     state.bookmarkIds = null;

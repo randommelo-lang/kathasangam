@@ -1,5 +1,5 @@
-import { el, formatDate } from "../components.js?v=profile-redirect-20260619-v30";
-import { conversationItemSkeleton, chatHistorySkeleton, emptyState } from "./shared.js?v=profile-redirect-20260619-v30";
+import { el, formatDate } from "../components.js";
+import { conversationItemSkeleton, chatHistorySkeleton, emptyState } from "./shared.js";
 
 export function renderMessages(ctx) {
   ctx = ctx || this;
@@ -99,13 +99,14 @@ export function renderMessages(ctx) {
     if (ctx.ui.activeConversationUserId) {
       const exists = listToRender.some(c => c.other_user_id === ctx.ui.activeConversationUserId);
       if (!exists && ctx.ui.activeConversationUser) {
-        // Insert a temporary conversation details
+        // Insert temporary conversation details
         listToRender.unshift({
           other_user_id: ctx.ui.activeConversationUserId,
           other_username: ctx.ui.activeConversationUser.username,
           other_avatar_url: ctx.ui.activeConversationUser.avatar_url || "",
           last_message: "New conversation...",
-          last_message_at: new Date().toISOString()
+          last_message_at: new Date().toISOString(),
+          unread_count: 0
         });
       }
     }
@@ -128,6 +129,8 @@ export function renderMessages(ctx) {
         avatarEl.textContent = initial;
       }
 
+      const badge = convo.unread_count > 0 ? el("span", "messages-convo-unread-badge", convo.unread_count.toString()) : null;
+
       const item = el("li", {
         class: `messages-convo-item${isSelected ? " active" : ""}`,
         onclick: function() {
@@ -149,11 +152,38 @@ export function renderMessages(ctx) {
             el("span", "messages-convo-name", convo.other_username),
             el("span", "messages-convo-time", convo.last_message_at ? formatDate(convo.last_message_at) : "")
           ]),
-          el("span", "messages-convo-last", convo.last_message || "")
+          el("div", { style: "display: flex; justify-content: space-between; align-items: center;" }, [
+            el("span", "messages-convo-last", convo.last_message || ""),
+            badge
+          ].filter(Boolean))
         ])
       ]);
 
       convoListContainer.appendChild(item);
+    });
+  }
+
+  function retryMessage(tempMsg) {
+    if (!ctx.ui.activeConversationUserId) return;
+    tempMsg.status = "pending";
+    updateChatPane(ctx.ui.activeChatMessages, ctx.ui.activeConversationUser, false);
+
+    ctx.apiPost("/messages", {
+      receiver_id: ctx.ui.activeConversationUserId,
+      content: tempMsg.content
+    }).then(savedMsg => {
+      const idx = ctx.ui.activeChatMessages.findIndex(m => m.id === tempMsg.id);
+      if (idx !== -1) {
+        ctx.ui.activeChatMessages[idx] = savedMsg;
+      }
+      updateChatPane(ctx.ui.activeChatMessages, ctx.ui.activeConversationUser, true);
+
+      // Refresh list
+      ctx.api("/messages").then(updateConvoList).catch(console.error);
+    }).catch(err => {
+      console.error("Retry failed:", err);
+      tempMsg.status = "error";
+      updateChatPane(ctx.ui.activeChatMessages, ctx.ui.activeConversationUser, false);
     });
   }
 
@@ -194,10 +224,32 @@ export function renderMessages(ctx) {
         } else {
           messages.forEach(msg => {
             const isMe = msg.sender_id === ctx.state.user.id;
-            const bubbleWrapper = el("div", `messages-bubble-wrapper ${isMe ? "sent" : "received"}`, [
+            let statusClass = "";
+            if (msg.status === "pending") {
+              statusClass = " pending";
+            } else if (msg.status === "error") {
+              statusClass = " error";
+            }
+
+            const timeStr = formatDate(msg.created_at);
+            const children = [
               el("div", "messages-chat-bubble", msg.content),
-              el("div", "messages-chat-time", formatDate(msg.created_at))
-            ]);
+            ];
+
+            if (msg.status === "error") {
+              const retryBtn = el("button", {
+                class: "messages-retry-btn",
+                onclick: function() { retryMessage(msg); }
+              }, "Retry ↻");
+              children.push(el("div", "messages-chat-time error-time", [
+                el("span", null, "Failed to send. "),
+                retryBtn
+              ]));
+            } else {
+              children.push(el("div", "messages-chat-time", timeStr + (msg.status === "pending" ? " • Sending..." : "")));
+            }
+
+            const bubbleWrapper = el("div", `messages-bubble-wrapper ${isMe ? "sent" : "received"}${statusClass}`, children);
             history.appendChild(bubbleWrapper);
           });
         }
@@ -252,10 +304,32 @@ export function renderMessages(ctx) {
     } else {
       messages.forEach(msg => {
         const isMe = msg.sender_id === ctx.state.user.id;
-        const bubbleWrapper = el("div", `messages-bubble-wrapper ${isMe ? "sent" : "received"}`, [
+        let statusClass = "";
+        if (msg.status === "pending") {
+          statusClass = " pending";
+        } else if (msg.status === "error") {
+          statusClass = " error";
+        }
+
+        const timeStr = formatDate(msg.created_at);
+        const children = [
           el("div", "messages-chat-bubble", msg.content),
-          el("div", "messages-chat-time", formatDate(msg.created_at))
-        ]);
+        ];
+
+        if (msg.status === "error") {
+          const retryBtn = el("button", {
+            class: "messages-retry-btn",
+            onclick: function() { retryMessage(msg); }
+          }, "Retry ↻");
+          children.push(el("div", "messages-chat-time error-time", [
+            el("span", null, "Failed to send. "),
+            retryBtn
+          ]));
+        } else {
+          children.push(el("div", "messages-chat-time", timeStr + (msg.status === "pending" ? " • Sending..." : "")));
+        }
+
+        const bubbleWrapper = el("div", `messages-bubble-wrapper ${isMe ? "sent" : "received"}${statusClass}`, children);
         history.appendChild(bubbleWrapper);
       });
     }
@@ -282,31 +356,44 @@ export function renderMessages(ctx) {
           chatPane.insertBefore(errorMsg, sendForm);
           return;
         }
-        
-        const sendBtn = sendForm.querySelector("button[type='submit']");
-        if (sendBtn) {
-          sendBtn.disabled = true;
-          sendBtn.textContent = "Sending...";
+
+        const tempId = "temp-" + Date.now();
+        const tempMsg = {
+          id: tempId,
+          sender_id: ctx.state.user.id,
+          content: content,
+          created_at: new Date().toISOString(),
+          status: "pending"
+        };
+
+        if (!ctx.ui.activeChatMessages) {
+          ctx.ui.activeChatMessages = [];
         }
+        ctx.ui.activeChatMessages.push(tempMsg);
+        inputField.value = "";
+        
+        updateChatPane(ctx.ui.activeChatMessages, otherUser, true);
         
         ctx.apiPost("/messages", {
           receiver_id: otherUser.id,
           content: content
-        }).then(() => {
-          if (sendBtn) {
-            sendBtn.disabled = false;
-            sendBtn.textContent = "Send";
+        }).then(savedMsg => {
+          const idx = ctx.ui.activeChatMessages.findIndex(m => m.id === tempId);
+          if (idx !== -1) {
+            ctx.ui.activeChatMessages[idx] = savedMsg;
           }
-          inputField.value = "";
-          loadActiveChat(true); // immediately reload chat history & convo list, scroll to bottom
+          updateChatPane(ctx.ui.activeChatMessages, otherUser, true);
+          
+          ctx.api("/messages").then(conversations => {
+            updateConvoList(conversations);
+          }).catch(console.error);
         }).catch(err => {
-          if (sendBtn) {
-            sendBtn.disabled = false;
-            sendBtn.textContent = "Send";
-          }
           console.error("Failed to send message:", err);
-          const errorMsg = el("div", "form-feedback error messages-feedback", (err.message || "Failed to send message.") + " Please check your input and try again.");
-          chatPane.insertBefore(errorMsg, sendForm);
+          const idx = ctx.ui.activeChatMessages.findIndex(m => m.id === tempId);
+          if (idx !== -1) {
+            ctx.ui.activeChatMessages[idx].status = "error";
+          }
+          updateChatPane(ctx.ui.activeChatMessages, otherUser, false);
         });
       }
     }, [
@@ -329,6 +416,62 @@ export function renderMessages(ctx) {
     }, 50);
   }
 
+  function showConvoListError() {
+    convoListContainer.innerHTML = "";
+    convoListContainer.appendChild(
+      el("div", { class: "empty-convo-error", style: "padding: 20px; text-align: center;" }, [
+        el("p", { style: "color: var(--error); margin-bottom: 10px; font-size: 0.85rem;" }, "Failed to load inbox."),
+        el("button", {
+          class: "btn text-btn",
+          style: "font-size: 0.8rem; color: var(--accent);",
+          onclick: function() { loadActiveChat(true); }
+        }, "Try again ↻")
+      ])
+    );
+  }
+
+  function showChatHistoryError(otherUser) {
+    if (!otherUser) return;
+    const headerAvatar = el("div", "messages-convo-avatar");
+    const initial = otherUser.username.charAt(0).toUpperCase();
+    if (otherUser.avatar_url) {
+      headerAvatar.style.backgroundImage = `url('${otherUser.avatar_url}')`;
+    } else {
+      headerAvatar.textContent = initial;
+    }
+
+    const backBtn = el("button", {
+      class: "btn text-btn messages-back-btn",
+      onclick: function() {
+        ctx.ui.activeConversationUserId = null;
+        ctx.ui.activeConversationUser = null;
+        loadActiveChat(true);
+      }
+    }, "← Back");
+
+    const header = el("div", "messages-chat-header", [
+      backBtn,
+      headerAvatar,
+      el("div", "messages-chat-title", otherUser.username)
+    ]);
+
+    const history = el("div", "messages-history", [
+      emptyState(
+        "Failed to load chat history",
+        "There was an error loading the conversation. Please check your connection and try again.",
+        el("button", {
+          class: "btn primary",
+          onclick: function() { loadActiveChat(true); }
+        }, "Retry Loading"),
+        "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+      )
+    ]);
+
+    chatPane.innerHTML = "";
+    chatPane.appendChild(header);
+    chatPane.appendChild(history);
+  }
+
   // Load and refresh function
   function loadActiveChat(shouldScroll) {
     if (!ctx.state.user) return;
@@ -348,6 +491,7 @@ export function renderMessages(ctx) {
         if (ctx.ui.activeConversationUserId) {
           ctx.api(`/messages/${ctx.ui.activeConversationUserId}`)
             .then(messages => {
+              ctx.ui.activeChatMessages = messages;
               // Retrieve active user info from conversations list or cached public profile
               let activeUser = conversations.find(c => c.other_user_id === ctx.ui.activeConversationUserId);
               if (activeUser) {
@@ -364,8 +508,7 @@ export function renderMessages(ctx) {
             })
             .catch(err => {
               console.error("Failed to load message history:", err);
-              // Handle recipient user lookup if they don't have history
-              updateChatPane([], ctx.ui.activeConversationUser, shouldScroll);
+              showChatHistoryError(ctx.ui.activeConversationUser);
             });
         } else {
           updateChatPane([], null);
@@ -373,6 +516,7 @@ export function renderMessages(ctx) {
       })
       .catch(err => {
         console.error("Failed to load conversations:", err);
+        showConvoListError();
       });
   }
 

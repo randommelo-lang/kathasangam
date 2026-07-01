@@ -1,5 +1,5 @@
-import { button, el, formatNumber, metric, segmentButton, select } from "../components.js?v=profile-redirect-20260619-v30";
-import { storyCard, storyCardSkeleton, emptyState } from "./shared.js?v=profile-redirect-20260619-v30";
+import { button, el, formatNumber, metric, segmentButton, select } from "../components.js";
+import { storyCard, storyCardSkeleton, emptyState } from "./shared.js";
 
 var carouselIndex = 0;
 var carouselTimer = null;
@@ -58,12 +58,16 @@ export function renderDiscover(ctx) {
     ctx.view.appendChild(carousel);
     
     // 2. Stats Row skeleton
-    ctx.view.appendChild(el("div", "stats-row", [
-      el("div", "skeleton skeleton-metric"),
-      el("div", "skeleton skeleton-metric"),
-      el("div", "skeleton skeleton-metric"),
-      el("div", "skeleton skeleton-metric")
-    ]));
+    const isLoggedIn = !!ctx.state.user;
+    const role = ctx.state.role;
+    if (isLoggedIn && (role === "author" || role === "moderator" || role === "admin")) {
+      ctx.view.appendChild(el("div", "stats-row", [
+        el("div", "skeleton skeleton-metric"),
+        el("div", "skeleton skeleton-metric"),
+        el("div", "skeleton skeleton-metric"),
+        el("div", "skeleton skeleton-metric")
+      ]));
+    }
     
     // 3. Filter Toolbar placeholder
     ctx.view.appendChild(el("div", "toolbar", [
@@ -96,7 +100,7 @@ export function renderDiscover(ctx) {
       coverVal = "url('" + coverVal + "')";
     }
     var bg = el("div", "cover-bg");
-    bg.style.background = coverVal;
+    bg.style.backgroundImage = coverVal;
     slide.appendChild(bg);
     slide.appendChild(el("p", "carousel-eyebrow", story.genre + " · " + story.type));
     slide.appendChild(el("h2", "carousel-title", story.title));
@@ -146,13 +150,25 @@ export function renderDiscover(ctx) {
   startCarouselAuto();
 
   // Stats
-  var s = ctx.state.stats || {};
-  ctx.view.appendChild(el("div", "stats-row", [
-    metric("Published", s.published || countPublished(ctx)),
-    metric("Total reads", formatNumber(s.views || totalViews(ctx))),
-    metric("Followers", formatNumber(s.followers || totalFollowers(ctx))),
-    metric("Open reports", s.open_reports || countOpenReports(ctx))
-  ]));
+  const isLoggedIn = !!ctx.state.user;
+  const role = ctx.state.role;
+  const pubCount = countPublished(ctx);
+  const viewsCount = totalViews(ctx);
+  const followersCount = totalFollowers(ctx);
+  const openReportsCount = countOpenReports(ctx);
+  
+  const hasRole = role === "author" || role === "moderator" || role === "admin";
+  const hasMetrics = pubCount > 0 || viewsCount > 0 || followersCount > 0 || openReportsCount > 0;
+
+  if (isLoggedIn && (hasRole || hasMetrics)) {
+    var s = ctx.state.stats || {};
+    ctx.view.appendChild(el("div", "stats-row", [
+      metric("Published", s.published || pubCount),
+      metric("Total reads", formatNumber(s.views || viewsCount)),
+      metric("Followers", formatNumber(s.followers || followersCount)),
+      metric("Open reports", s.open_reports || openReportsCount)
+    ]));
+  }
 
   // Filter toolbar
   var filterBtn = el("button", "btn secondary filter-toggle-btn" + (ctx.ui.showFilterDrawer ? " active" : ""), ctx.ui.showFilterDrawer ? "Filters ▴" : "Filters ▾");

@@ -20,7 +20,7 @@ async function delay(ms) {
 export default async function globalSetup() {
   console.log('--> Running global setup: inserting test user...');
   try {
-    execSync('python scratch/insert_test_user.py', { stdio: 'inherit' });
+    execSync('python tests/helpers/insert_test_user.py', { stdio: 'inherit' });
     console.log('--> Global setup: waiting for backend server to be ready on http://127.0.0.1:3000 ...');
     
     let isReady = false;

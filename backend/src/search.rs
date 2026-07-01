@@ -1,8 +1,12 @@
 use uuid::Uuid;
 
 async fn send_to_meili(path: &str, body: serde_json::Value, method: &str) -> Result<serde_json::Value, String> {
-    let base_url = std::env::var("MEILISEARCH_URL").unwrap_or_else(|_| "http://localhost:7700".to_string());
-    let key = std::env::var("MEILISEARCH_KEY").ok();
+    let base_url = std::env::var("MEILI_URL")
+        .or_else(|_| std::env::var("MEILISEARCH_URL"))
+        .unwrap_or_else(|_| "http://localhost:7700".to_string());
+    let key = std::env::var("MEILI_MASTER_KEY")
+        .or_else(|_| std::env::var("MEILISEARCH_KEY"))
+        .ok();
 
     let client = reqwest::Client::new();
     let url = format!("{}{}", base_url, path);
@@ -167,8 +171,12 @@ pub async fn backfill_all_stories(pool: &sqlx::PgPool) -> Result<(), String> {
 }
 
 pub async fn check_health() -> Result<(), String> {
-    let base_url = std::env::var("MEILISEARCH_URL").unwrap_or_else(|_| "http://localhost:7700".to_string());
-    let key = std::env::var("MEILISEARCH_KEY").ok();
+    let base_url = std::env::var("MEILI_URL")
+        .or_else(|_| std::env::var("MEILISEARCH_URL"))
+        .unwrap_or_else(|_| "http://localhost:7700".to_string());
+    let key = std::env::var("MEILI_MASTER_KEY")
+        .or_else(|_| std::env::var("MEILISEARCH_KEY"))
+        .ok();
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(2))

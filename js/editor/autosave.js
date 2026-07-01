@@ -1,4 +1,4 @@
-import { button, el, formatDate } from "../components.js?v=profile-redirect-20260619-v30";
+import { button, el, formatDate } from "../components.js";
 
 export function getDraftKey(chapterId) {
   return "kathasangam_draft_" + chapterId;

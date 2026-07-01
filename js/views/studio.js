@@ -1,5 +1,5 @@
-import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js?v=profile-redirect-20260619-v30";
-import { storyGrid, storyCardSkeleton } from "./shared.js?v=profile-redirect-20260619-v30";
+import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js";
+import { storyGrid, storyCardSkeleton } from "./shared.js";
 
 export function renderStudio(ctx) {
   ctx = ctx || this;
@@ -333,25 +333,7 @@ export function renderStudio(ctx) {
 
     var chartContainer = el("div", "svg-chart-container", [chartSvg]);
 
-    // Build compact data table summary
-    var tableRows = ptsData.map(function (pt) {
-      return el("tr", null, [
-        el("td", { class: "studio-table-chapter" }, pt.label),
-        el("td", { class: "studio-table-value" }, formatNumber(pt.value))
-      ]);
-    });
 
-    var dataTable = el("div", "studio-chart-table-container", [
-      el("table", "studio-chart-table", [
-        el("thead", null, [
-          el("tr", null, [
-            el("th", null, "Chapter"),
-            el("th", { style: "text-align: right;" }, metricLabel.charAt(0).toUpperCase() + metricLabel.slice(1))
-          ])
-        ]),
-        el("tbody", null, tableRows)
-      ])
-    ]);
 
     // Dynamic Trends calculation based on story stats
     var viewsTrend = active.views > 0 ? "+" + (active.views % 13 + 2.5).toFixed(1) + "%" : "0.0%";
@@ -439,8 +421,7 @@ export function renderStudio(ctx) {
         engagementBox
       ]),
       
-      chartContainer,
-      dataTable
+      chartContainer
     ]);
     rightColumnChildren.push(analyticsPanel);
   }

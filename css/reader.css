@@ -341,8 +341,6 @@
   background: rgba(229, 124, 51, 0.8) !important;
 }
 
-padding: 6px 12px;
-}
 
 .story-progress-row {
   display: flex;
@@ -565,4 +563,597 @@ padding: 6px 12px;
   color: #4a3525 !important;
   background: rgba(74, 53, 37, 0.08) !important;
 }
+
+/* ─── Reader UI Redesign Updates ─── */
+
+/* 1. Reader View Theme variables cascading wrapper */
+.reader-view-wrapper {
+  transition: background 0.3s, color 0.3s;
+}
+
+.reader-view-wrapper > .layout-two {
+  margin-top: 24px;
+}
+
+.reader-view-wrapper.light {
+  --bg: #F7F5F0;
+  --surface: #FFFFFF;
+  --surface-2: #F2EFE8;
+  --surface-3: #E8E5DD;
+  --ink: #2C221E;
+  --text: #2C221E;
+  --muted: #8C7C71;
+  --text-muted: #8C7C71;
+  --line: rgba(44, 34, 30, 0.12);
+  color-scheme: light;
+}
+
+.reader-view-wrapper.sepia {
+  --bg: #F4ECD8;
+  --surface: #F4ECD8;
+  --surface-2: #EBE0C5;
+  --surface-3: #E2D4B8;
+  --ink: #4A3525;
+  --text: #4A3525;
+  --muted: #70543E;
+  --text-muted: #70543E;
+  --line: rgba(74, 53, 37, 0.16);
+  color-scheme: light;
+}
+
+.reader-view-wrapper.dark {
+  --bg: #1A1614;
+  --surface: #241E1A;
+  --surface-2: #332A24;
+  --surface-3: #42372E;
+  --ink: #FFFDFA;
+  --text: #FFFDFA;
+  --muted: #A68A7C;
+  --text-muted: #A68A7C;
+  --line: rgba(229, 124, 51, 0.18);
+  color-scheme: dark;
+}
+
+/* Ensure body or wrapper background matches theme */
+.reader-view-wrapper {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+/* Apply variables to panels and nested items */
+.reader-view-wrapper .panel {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+
+.reader-view-wrapper .panel h2 {
+  color: var(--ink) !important;
+}
+
+.reader-view-wrapper .btn {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--text) !important;
+}
+
+.reader-view-wrapper .btn:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--primary) !important;
+}
+
+.reader-view-wrapper .btn.active {
+  background: var(--primary) !important;
+  color: #fff !important;
+}
+
+/* Specific button styling in light/sepia wrapper */
+.reader-view-wrapper.light .btn:not(.active),
+.reader-view-wrapper.sepia .btn:not(.active) {
+  color: var(--text) !important;
+  border-color: var(--line) !important;
+}
+
+.reader-view-wrapper.light .btn.primary,
+.reader-view-wrapper.sepia .btn.primary {
+  background: var(--primary) !important;
+  color: #fff !important;
+}
+
+/* Textarea comments styles theme override */
+.reader-view-wrapper.light textarea,
+.reader-view-wrapper.light input {
+  background: #ffffff !important;
+  color: #2c221e !important;
+  border: 1px solid var(--line) !important;
+}
+
+.reader-view-wrapper.sepia textarea,
+.reader-view-wrapper.sepia input {
+  background: #ebe0c5 !important;
+  color: #4a3525 !important;
+  border: 1px solid var(--line) !important;
+}
+
+/* 2. Redesigned Toolbar 3-Column Grid */
+.reader-toolbar {
+  display: grid !important;
+  grid-template-columns: 1.2fr 1.6fr 1.2fr !important;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.reader-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.back-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--primary);
+  font-size: 0.95rem;
+  transition: color 0.2s, transform 0.2s;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.back-breadcrumb:hover {
+  color: var(--accent-soft);
+  transform: translateX(-2px);
+}
+
+.reader-header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: var(--text);
+  text-align: center;
+  flex-wrap: wrap;
+}
+
+.story-author-link {
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.18s;
+}
+
+.story-author-link:hover {
+  text-decoration: underline;
+  color: var(--accent-soft);
+}
+
+.chapter-meta-title {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.meta-dot {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.chapter-meta-access.badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.chapter-meta-access.badge.free {
+  background: rgba(45, 154, 88, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(45, 154, 88, 0.24);
+}
+
+.chapter-meta-access.badge.vip {
+  background: rgba(229, 124, 51, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(229, 124, 51, 0.24);
+}
+
+.reader-header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Remove stark orange dividers from toolbar */
+.reader-toolbar.sticky-header {
+  border-bottom: 1px solid var(--line) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+.reader-frame {
+  border-color: var(--line) !important;
+}
+
+.reader-view-wrapper.light .reader-toolbar.sticky-header,
+.reader-view-wrapper.light .reader-frame {
+  border-color: rgba(44, 34, 30, 0.08) !important;
+}
+
+.reader-view-wrapper.sepia .reader-toolbar.sticky-header,
+.reader-view-wrapper.sepia .reader-frame {
+  border-color: rgba(74, 53, 37, 0.08) !important;
+}
+
+.reader-view-wrapper.dark .reader-toolbar.sticky-header,
+.reader-view-wrapper.dark .reader-frame {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 3. Settings Drawer Toggles Segmented Pills */
+.segmented-controls {
+  display: flex;
+  border-radius: var(--radius);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  padding: 3px;
+  gap: 4px;
+}
+
+.segmented-controls .btn {
+  flex: 1;
+  padding: 6px 12px;
+  border: none !important;
+  background: transparent !important;
+  border-radius: calc(var(--radius) - 2px) !important;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  color: var(--text-muted) !important;
+}
+
+.segmented-controls .btn:hover {
+  color: var(--ink) !important;
+}
+
+.segmented-controls .btn.active {
+  background: var(--primary) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.reader-view-wrapper.light .segmented-controls {
+  background: #ebe6df !important;
+}
+
+.reader-view-wrapper.sepia .segmented-controls {
+  background: #ebe0c5 !important;
+}
+
+/* 4. Table of Contents Chapters Panel */
+.chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-item {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chapter-item:hover {
+  transform: translateY(-1px);
+  background: var(--surface-3);
+  border-color: var(--accent-soft);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.chapter-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-right: 16px;
+  opacity: 0.85;
+}
+
+.chapter-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chapter-title {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.chapter-scheduled {
+  font-size: 0.75rem;
+  color: var(--warn);
+}
+
+.chapter-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chapter-access-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.chapter-access-badge.free {
+  background: rgba(45, 154, 88, 0.1);
+  color: var(--success);
+  border: 1px solid rgba(45, 154, 88, 0.18);
+}
+
+.chapter-access-badge.vip {
+  background: rgba(229, 124, 51, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(229, 124, 51, 0.18);
+}
+
+.active-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.chapter-item.active {
+  background: rgba(229, 124, 51, 0.06);
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 12px rgba(229, 124, 51, 0.12);
+}
+
+.reader-view-wrapper.light .chapter-item.active {
+  background: rgba(229, 124, 51, 0.05);
+}
+
+.reader-view-wrapper.sepia .chapter-item.active {
+  background: rgba(74, 53, 37, 0.04);
+}
+
+/* 5. Enhanced Comments Feed UX */
+.comment-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.comment-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.comment-item:last-child {
+  border-bottom: none;
+}
+
+.comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--warm-gradient);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(229, 124, 51, 0.2);
+}
+
+.comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.comment-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.commenter-name {
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.92rem;
+  transition: color 0.18s;
+}
+
+.commenter-name:hover {
+  color: var(--primary);
+}
+
+.comment-author-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--primary);
+  background: rgba(229, 124, 51, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(229, 124, 51, 0.22);
+  letter-spacing: 0.5px;
+}
+
+.comment-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text);
+  margin-top: 4px;
+  display: block;
+  word-break: break-word;
+}
+
+/* 6. Responsive Toolbar layout wrap at medium screen sizes */
+@media (max-width: 768px) {
+  .reader-toolbar {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+    text-align: center;
+  }
+  
+  .reader-header-left {
+    justify-content: center;
+  }
+  
+  .reader-header-center {
+    justify-content: center;
+  }
+  
+  .reader-header-right {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+/* 7. Bottom Navigation & Settings Actions styling */
+.reader-bottom-nav {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 20px !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 24px clamp(24px, 5vw, 72px) !important;
+  border-top: 1px solid var(--line) !important;
+  box-sizing: border-box !important;
+}
+
+.reader-bottom-nav .btn {
+  flex: 1 !important;
+  width: 100% !important;
+  padding: 12px 24px !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  border-radius: var(--radius) !important;
+  border: 1px solid var(--line) !important;
+  background: var(--surface-2) !important;
+  color: var(--ink) !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  text-align: center !important;
+}
+
+.reader-bottom-nav .btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(229, 124, 51, 0.05);
+  transform: translateY(-1px);
+}
+
+.reader-bottom-nav .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Theme variations for the bottom nav */
+.reader-view-wrapper.light .reader-bottom-nav {
+  border-top-color: #ebe6df !important;
+}
+
+.reader-view-wrapper.light .reader-bottom-nav .btn:hover:not(:disabled) {
+  background: rgba(229, 124, 51, 0.08) !important;
+}
+
+.reader-view-wrapper.sepia .reader-bottom-nav {
+  border-top-color: #d8c9a8 !important;
+}
+
+.reader-view-wrapper.sepia .reader-bottom-nav .btn:hover:not(:disabled) {
+  background: rgba(229, 124, 51, 0.08) !important;
+}
+
+.drawer-actions-row {
+  display: flex;
+  gap: 10px;
+}
+
+.drawer-actions-row .btn {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-3);
+  color: var(--ink);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.drawer-actions-row .btn:hover {
+  background: var(--surface-2);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.drawer-actions-row .btn.danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.drawer-actions-row .btn.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.reader-frame.sepia .drawer-actions-row .btn {
+  background: #f4ecd8 !important;
+  border-color: #d8c9a8 !important;
+  color: #4a3525 !important;
+}
+
+.reader-frame.sepia .drawer-actions-row .btn.danger {
+  color: #c23b3b !important;
+  border-color: rgba(194, 59, 59, 0.25) !important;
+  background: rgba(194, 59, 59, 0.05) !important;
+}
+
+.reader-frame.sepia .drawer-actions-row .btn:hover:not(.danger) {
+  background: #ebe0c5 !important;
+}
+
 

@@ -1,4 +1,4 @@
-import { goToSlide, moveCarousel, startCarouselAuto } from "../views/discover.js?v=profile-redirect-20260619-v30";
+import { goToSlide, moveCarousel, startCarouselAuto } from "../views/discover.js";
 
 export function handleDiscoverClick(ctx, action, target, e) {
   if (action === "toggleFilterDrawer") {

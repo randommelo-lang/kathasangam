@@ -1,28 +1,28 @@
-import { state, ui } from "./state.js?v=profile-redirect-20260619-v30";
-import { log } from "./logger.js?v=profile-redirect-20260619-v30";
-import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js?v=profile-redirect-20260619-v30";
-import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js?v=profile-redirect-20260619-v30";
-import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js?v=profile-redirect-20260619-v30";
-import { el, button, select, input, textarea, showConfirm, calculateStars } from "./components.js?v=profile-redirect-20260619-v30";
+import { state, ui } from "./state.js";
+import { log } from "./logger.js";
+import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js";
+import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js";
+import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js";
+import { el, button, select, input, textarea, showConfirm, calculateStars } from "./components.js";
 
 // Import view modules
-import { renderDiscover } from "./views/discover.js?v=profile-redirect-20260619-v30";
-import { renderLibrary, renderLibraryNotifications } from "./views/library.js?v=profile-redirect-20260619-v30";
-import { renderReader } from "./views/reader.js?v=profile-redirect-20260619-v30";
-import { renderStudio } from "./views/studio.js?v=profile-redirect-20260619-v30";
-import { renderModeration } from "./views/moderation.js?v=profile-redirect-20260619-v30";
-import { renderStoryDetails } from "./views/story.js?v=profile-redirect-20260619-v30";
-import { renderMessages } from "./views/messages.js?v=profile-redirect-20260619-v30";
-import { canDeleteStory, storyCard } from "./views/shared.js?v=profile-redirect-20260619-v30";
+import { renderDiscover } from "./views/discover.js";
+import { renderLibrary, renderLibraryNotifications } from "./views/library.js";
+import { renderReader } from "./views/reader.js";
+import { renderStudio } from "./views/studio.js";
+import { renderModeration } from "./views/moderation.js";
+import { renderStoryDetails } from "./views/story.js";
+import { renderMessages } from "./views/messages.js";
+import { canDeleteStory, storyCard } from "./views/shared.js";
 
 // Import controller modules
-import { handleDiscoverClick } from "./controllers/discoverController.js?v=profile-redirect-20260619-v30";
-import { handleLibraryClick } from "./controllers/libraryController.js?v=profile-redirect-20260619-v30";
-import { handleReaderClick, handleReaderInput, handleReaderSubmit } from "./controllers/readerController.js?v=profile-redirect-20260619-v30";
-import { handleStudioClick, handleStudioSubmit } from "./controllers/studioController.js?v=profile-redirect-20260619-v30";
-import { handleModerationClick } from "./controllers/moderationController.js?v=profile-redirect-20260619-v30";
-import { handleProfileClick } from "./controllers/profileController.js?v=profile-redirect-20260619-v30";
-import { handleCommunityClick, handleCommunitySubmit } from "./controllers/communityController.js?v=profile-redirect-20260619-v30";
+import { handleDiscoverClick } from "./controllers/discoverController.js";
+import { handleLibraryClick } from "./controllers/libraryController.js";
+import { handleReaderClick, handleReaderInput, handleReaderSubmit } from "./controllers/readerController.js";
+import { handleStudioClick, handleStudioSubmit } from "./controllers/studioController.js";
+import { handleModerationClick } from "./controllers/moderationController.js";
+import { handleProfileClick } from "./controllers/profileController.js";
+import { handleCommunityClick, handleCommunitySubmit } from "./controllers/communityController.js";
 
 // Split Cleanups
 import {
@@ -40,25 +40,25 @@ import {
   toggleAccountMenu,
   updateAuthUI,
   switchAuthTab
-} from "./auth.js?v=profile-redirect-20260619-v30";
+} from "./auth.js";
 
 import {
   updateHeroNotificationUI,
   closeNotificationMenu,
   startNotificationPolling,
   initNotificationsModule
-} from "./notifications.js?v=profile-redirect-20260619-v30";
+} from "./notifications.js";
 
 import {
   renderProfileSettings
-} from "./views/profile.js?v=profile-redirect-20260619-v30";
+} from "./views/profile.js";
 
 import {
   openStoryModal,
   openStorySettingsModal,
   closeStoryModal,
   initStoryController
-} from "./controllers/storyController.js?v=profile-redirect-20260619-v30";
+} from "./controllers/storyController.js";
 
 import {
   getStoryReadingProgress,
@@ -67,7 +67,7 @@ import {
   calculateStoryProgressPercent,
   calculateActiveReaderProgress,
   initReadingProgress
-} from "./readingProgress.js?v=profile-redirect-20260619-v30";
+} from "./readingProgress.js";
 
 var view = document.getElementById("view");
 var pageTitle = document.getElementById("pageTitle");

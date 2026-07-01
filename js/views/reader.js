@@ -1,4 +1,5 @@
-import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea } from "../components.js?v=profile-redirect-20260619-v30";
+import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea } from "../components.js";
+import { emptyState } from "./shared.js";
 
 function extractRawUrl(bg) {
   if (!bg) return "";
@@ -105,27 +106,25 @@ function settingsDrawer(ctx) {
     ])
   ];
 
-  var modeSelect = select("readerMode", [
-    ["scroll", "Continuous Scroll"],
-    ["pages", "Paginated Pages"]
-  ], ctx.ui.readerMode);
-  modeSelect.dataset.action = "readerModeSelect";
+  var modeControls = el("div", "segmented-controls", [
+    button("📜 Scroll", ctx.ui.readerMode === "scroll" ? "btn active" : "btn", { action: "readerMode", value: "scroll" }),
+    button("📖 Pages", ctx.ui.readerMode === "pages" ? "btn active" : "btn", { action: "readerMode", value: "pages" })
+  ]);
   
   drawerContent.push(el("div", "drawer-section", [
     el("label", null, "Reading Mode"),
-    modeSelect
+    modeControls
   ]));
 
-  var themeSelect = select("readerTheme", [
-    ["light", "Light Theme"],
-    ["dark", "Dark Theme"],
-    ["sepia", "Sepia Theme"]
-  ], ctx.ui.readerTheme);
-  themeSelect.dataset.action = "readerThemeSelect";
+  var themeControls = el("div", "segmented-controls theme-toggles", [
+    button("☀️ Light", ctx.ui.readerTheme === "light" ? "btn active" : "btn", { action: "readerThemeSelect", value: "light" }),
+    button("🌙 Dark", ctx.ui.readerTheme === "dark" ? "btn active" : "btn", { action: "readerThemeSelect", value: "dark" }),
+    button("📜 Sepia", ctx.ui.readerTheme === "sepia" ? "btn active" : "btn", { action: "readerThemeSelect", value: "sepia" })
+  ]);
 
   drawerContent.push(el("div", "drawer-section", [
     el("label", null, "Color Theme"),
-    themeSelect
+    themeControls
   ]));
 
   if (!isComic) {
@@ -173,6 +172,19 @@ function settingsDrawer(ctx) {
       widthSelect
     ]));
   }
+
+  var story = ctx.getCurrentStory();
+  var chapter = ctx.getCurrentChapter(story);
+
+  var actionsRow = el("div", "drawer-actions-row", [
+    button(document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen", "btn", { action: "toggleFullscreen" }),
+    ctx.state.user ? button("⚠️ Report", "btn danger", { action: "reportContent", storyId: story.id, chapterId: chapter.id }) : null
+  ].filter(Boolean));
+
+  drawerContent.push(el("div", "drawer-section", [
+    el("label", null, "Actions"),
+    actionsRow
+  ]));
 
   var drawer = el("div", "reader-settings-drawer" + (ctx.ui.showSettingsDrawer ? " active" : ""), drawerContent);
   return drawer;
@@ -251,73 +263,108 @@ export function renderReader(ctx) {
   progressLine.style.width = progressVal + "%";
   
   var primaryToolbar = el("div", "reader-toolbar sticky-header", [
-    el("div", null, [
-      el("h2", null, story.title),
-      el("div", "mini-meta", [
-        (function () {
-          var a = el("a", "story-author-link", story.author);
-          a.href = "#profile?username=" + encodeURIComponent(story.author);
-          return a;
-        })(),
-        " / " + chapter.title + " / " + chapter.access,
-        chapter.status === "scheduled" ? " Scheduled " + formatDate(chapter.scheduledAt) : ""
-      ])
+    el("div", "reader-header-left", [
+      el("a", { class: "back-breadcrumb", href: "#story?id=" + story.id }, "← " + story.title)
     ]),
-    el("div", "button-row", [
-      button("Prev", "btn", { action: "chapter", step: "-1" }),
-      button("Next", "btn", { action: "chapter", step: "1" }),
-      button(ctx.ui.readerTheme === "dark" ? "Light" : "Dark", "btn", { action: "theme" }),
-      button("Comfort ⚙️", "btn", { action: "toggleSettingsDrawer" }),
-      button(document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen", "btn", { action: "toggleFullscreen" }),
-      ctx.state.user ? button("Report Content", "btn danger", { action: "reportContent", storyId: story.id, chapterId: chapter.id }) : null
+    el("div", "reader-header-center", [
+      (function () {
+        var a = el("a", "story-author-link", story.author);
+        a.href = "#profile?username=" + encodeURIComponent(story.author);
+        return a;
+      })(),
+      el("span", "meta-dot", " · "),
+      el("span", "chapter-meta-title", chapter.title),
+      el("span", "meta-dot", " · "),
+      el("span", "chapter-meta-access badge " + String(chapter.access || "free").toLowerCase(), chapter.access),
+      chapter.status === "scheduled" ? el("span", "chapter-meta-scheduled", " · Scheduled " + formatDate(chapter.scheduledAt)) : null
+    ].filter(Boolean)),
+    el("div", "reader-header-right button-row", [
+      button("⚙️ Settings", "btn", { action: "toggleSettingsDrawer" })
     ].filter(Boolean)),
     progressLine
   ]);
 
   var secondaryToolbar = controls.length ? el("div", "reader-toolbar paging-toolbar", controls) : null;
+
+  var bottomNav = (story.chapters && story.chapters.length) ? el("div", "reader-bottom-nav", [
+    button("← Previous Chapter", "btn", { action: "chapter", step: "-1" }, ctx.ui.currentChapterIndex === 0),
+    button("Next Chapter →", "btn", { action: "chapter", step: "1" }, ctx.ui.currentChapterIndex === story.chapters.length - 1)
+  ]) : null;
   
-  var frame = el("div", "reader-frame " + ctx.ui.readerTheme, [
+  var frame = el("div", "reader-frame", [
     primaryToolbar,
     secondaryToolbar,
     readerContent(ctx, story, chapter),
+    bottomNav,
     settingsDrawer(ctx)
   ].filter(Boolean));
 
-  ctx.view.appendChild(frame);
-
-  ctx.view.appendChild(el("div", "layout-two", [
+  var layoutTwo = el("div", "layout-two", [
     el("section", "panel", [
       el("h2", null, "Chapters"),
       list(story.chapters, "chapter-list", function (item, i) {
-        return el("li", "chapter-item", [
-          el("strong", null, item.title),
-          el("span", "mini-meta", (i + 1) + " / " + item.status + " / " + item.access),
-          button("Open", "btn", { action: "openChapter", index: String(i) })
+        var isActive = ctx.ui.currentChapterIndex === i;
+        var liClasses = "chapter-item" + (isActive ? " active" : "");
+        var chNum = String(i + 1).padStart(2, "0");
+        return el("li", {
+          class: liClasses,
+          "data-action": "openChapter",
+          "data-index": String(i)
+        }, [
+          el("div", "chapter-num", chNum),
+          el("div", "chapter-info", [
+            el("span", "chapter-title", item.title),
+            item.status === "scheduled" ? el("span", "chapter-scheduled", "Scheduled " + formatDate(item.scheduledAt)) : null
+          ].filter(Boolean)),
+          el("div", "chapter-meta", [
+            el("span", "chapter-access-badge " + String(item.access || "free").toLowerCase(), item.access),
+            isActive ? el("span", "active-badge", "Reading") : null
+          ].filter(Boolean))
         ]);
       })
     ]),
     el("aside", "panel", [
       el("h2", null, "Comments"),
-      chapter.comments.length ? list(chapter.comments, "activity-list", function (c) {
+      chapter.comments.length ? list(chapter.comments, "activity-list comment-feed-list", function (c) {
         var canDelete = (ctx.state.user && c.user_id === ctx.state.user.id) || ["moderator", "admin"].indexOf(ctx.state.role) !== -1;
         var canReport = ctx.state.user && c.user_id !== ctx.state.user.id;
-        return el("li", "activity-item", [
-          el("div", "comment-header", [
-            (function () {
-              var a = el("a", "story-author-link", c.user);
-              a.style.fontWeight = "bold";
-              a.href = "#profile?username=" + encodeURIComponent(c.user);
-              return a;
-            })(),
-            el("div", "button-row", [
-              canReport ? button("Report", "btn text-btn btn-sm", { action: "reportComment", id: c.id }) : null,
-              canDelete ? button("Delete", "btn danger btn-sm", { action: "deleteComment", id: c.id }) : null
-            ].filter(Boolean))
-          ]),
-          el("span", null, c.text)
+        var initials = (c.user || "U").substring(0, 2).toUpperCase();
+        var isStoryCreator = c.user === story.author || c.user_id === story.author_id;
+        
+        return el("li", "activity-item comment-item", [
+          el("div", "comment-avatar", initials),
+          el("div", "comment-body", [
+            el("div", "comment-header", [
+              el("div", "comment-meta", [
+                (function () {
+                  var a = el("a", "commenter-name", c.user);
+                  a.href = "#profile?username=" + encodeURIComponent(c.user);
+                  return a;
+                })(),
+                isStoryCreator ? el("span", "comment-author-badge", "Author") : null
+              ].filter(Boolean)),
+              el("div", "comment-actions button-row", [
+                canReport ? button("Report", "btn text-btn btn-sm", { action: "reportComment", id: c.id }) : null,
+                canDelete ? button("Delete", "btn danger btn-sm", { action: "deleteComment", id: c.id }) : null
+              ].filter(Boolean))
+            ]),
+            el("span", "comment-text", c.text)
+          ])
         ]);
-      }) : el("div", "empty", "No comments yet."),
+      }) : emptyState(
+        "No comments yet",
+        "Be the first to share your thoughts, theories, or words of encouragement!",
+        null,
+        "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm0 4h8v2H6v-2zm0-8h12v2H6V5z"
+      ),
       commentForm(ctx)
     ])
-  ]));
+  ]);
+
+  var wrapper = el("div", "reader-view-wrapper " + ctx.ui.readerTheme, [
+    frame,
+    layoutTwo
+  ]);
+
+  ctx.view.appendChild(wrapper);
 }

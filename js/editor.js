@@ -1,5 +1,5 @@
-import { renderComicEditor, saveComicChapter } from "./editor/comicEditor.js?v=profile-redirect-20260619-v30";
-import { renderTextEditor, saveTextChapter } from "./editor/textEditor.js?v=profile-redirect-20260619-v30";
+import { renderComicEditor, saveComicChapter } from "./editor/comicEditor.js";
+import { renderTextEditor, saveTextChapter } from "./editor/textEditor.js";
 
 function setEditorFeedback(message, type) {
   const panel = document.querySelector(".editor-panel");

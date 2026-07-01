@@ -1,9 +1,43 @@
-import { state, ui } from "../state.js?v=profile-redirect-20260619-v30";
-import { api, apiPost, apiPut } from "../api.js?v=profile-redirect-20260619-v30";
-import { el, button, input, textarea, select, formatNumber } from "../components.js?v=profile-redirect-20260619-v30";
-import { storyCard } from "./shared.js?v=profile-redirect-20260619-v30";
+import { state, ui } from "../state.js";
+import { api, apiPost, apiPut } from "../api.js";
+import { el, button, input, textarea, select, formatNumber, svgEl } from "../components.js";
+import { storyCard, emptyState } from "./shared.js";
 
 let ctx = null;
+
+function makeBookIcon() {
+  return svgEl("svg", {
+    width: "24",
+    height: "24",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: "stat-icon"
+  }, [
+    svgEl("path", { d: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20" }),
+    svgEl("path", { d: "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" })
+  ]);
+}
+
+function makeEyeIcon() {
+  return svgEl("svg", {
+    width: "24",
+    height: "24",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: "stat-icon"
+  }, [
+    svgEl("path", { d: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" }),
+    svgEl("circle", { cx: "12", cy: "12", r: "3" })
+  ]);
+}
 
 function storyForm() {
   return el("form", { "data-form": "storyForm", class: "form-grid" }, [
@@ -194,18 +228,52 @@ export function renderProfileSettings(context) {
     });
 
     var statsRow = el("div", "profile-stats-row", [
-      el("div", "profile-stat", [el("strong", null, String(authorStories.length)), el("span", null, "Stories")]),
-      el("div", "profile-stat", [el("strong", null, formatNumber(authorStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))), el("span", null, "Total Reads")])
+      el("div", "profile-stat", [
+        makeBookIcon(),
+        el("div", "profile-stat-details", [
+          el("strong", null, String(authorStories.length)),
+          el("span", null, "Stories")
+        ])
+      ]),
+      el("div", "profile-stat", [
+        makeEyeIcon(),
+        el("div", "profile-stat-details", [
+          el("strong", null, formatNumber(authorStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))),
+          el("span", null, "Total Reads")
+        ])
+      ])
     ]);
     view.appendChild(statsRow);
 
+    view.appendChild(el("div", "profile-section-header", [
+      el("h3", "profile-section-title", "Stories by " + username),
+      el("span", "story-count-pill", String(authorStories.length))
+    ]));
     if (authorStories.length) {
-      view.appendChild(el("h3", "profile-section-title", "Stories by " + username));
       var grid = el("section", "story-grid");
       authorStories.forEach(function (story) {
         grid.appendChild(storyCard(ctx, story, { manage: false }));
       });
       view.appendChild(grid);
+    } else {
+      var isMe = state.user && cached.id === state.user.id;
+      view.appendChild(
+        emptyState(
+          isMe ? "You haven't published any stories yet" : "No stories published yet",
+          isMe ? "Start sharing your serialized novels or comics with the community." : "Check back later or browse other stories in the discovery feed.",
+          el("button", {
+            class: "btn primary",
+            onclick: function() {
+              if (isMe) {
+                window.location.hash = "studio";
+              } else {
+                window.location.hash = "discover";
+              }
+            }
+          }, isMe ? "Go to Author Studio" : "Browse Stories"),
+          "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+        )
+      );
     }
     return;
   }
@@ -256,13 +324,28 @@ export function renderProfileSettings(context) {
     });
 
     var statsRow = el("div", "profile-stats-row", [
-      el("div", "profile-stat", [el("strong", null, String(userStories.length)), el("span", null, "Stories")]),
-      el("div", "profile-stat", [el("strong", null, formatNumber(userStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))), el("span", null, "Total Reads")])
+      el("div", "profile-stat", [
+        makeBookIcon(),
+        el("div", "profile-stat-details", [
+          el("strong", null, String(userStories.length)),
+          el("span", null, "Stories")
+        ])
+      ]),
+      el("div", "profile-stat", [
+        makeEyeIcon(),
+        el("div", "profile-stat-details", [
+          el("strong", null, formatNumber(userStories.reduce(function (sum, s) { return sum + (s.views || 0); }, 0))),
+          el("span", null, "Total Reads")
+        ])
+      ])
     ]);
     view.appendChild(statsRow);
 
     if (userStories.length) {
-      view.appendChild(el("h3", "profile-section-title", "Your Stories"));
+      view.appendChild(el("div", "profile-section-header", [
+        el("h3", "profile-section-title", "Your Stories"),
+        el("span", "story-count-pill", String(userStories.length))
+      ]));
       var grid = el("section", "story-grid");
       userStories.forEach(function (story) {
         grid.appendChild(storyCard(ctx, story, { manage: true }));

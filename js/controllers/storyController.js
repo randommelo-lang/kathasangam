@@ -1,5 +1,5 @@
-import { state } from "../state.js?v=profile-redirect-20260619-v30";
-import { storyForm, storySettingsForm } from "../views/profile.js?v=profile-redirect-20260619-v30";
+import { state } from "../state.js";
+import { storyForm, storySettingsForm } from "../views/profile.js";
 
 let ctx = null;
 

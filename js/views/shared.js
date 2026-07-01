@@ -1,4 +1,4 @@
-import { button, el, formatNumber, iconButton, progress, svgEl } from "../components.js?v=profile-redirect-20260619-v30";
+import { button, el, formatNumber, iconButton, progress, svgEl } from "../components.js";
 
 export function storyGrid(ctx, stories, options) {
   var g = el("section", "story-grid");
@@ -29,11 +29,11 @@ export function storyCard(ctx, story, options) {
   var genres = (story.genre || "").split(",").map(function (g) { return g.trim(); }).filter(Boolean);
   var metaContainer = card.querySelector(".story-meta");
   metaContainer.innerHTML = "";
-  metaContainer.appendChild(document.createTextNode(genres.join(", ") + " / "));
   var authorLink = el("a", "story-author-link", story.author);
   authorLink.href = "#profile?username=" + encodeURIComponent(story.author);
   metaContainer.appendChild(authorLink);
-  metaContainer.appendChild(document.createTextNode(" / " + formatNumber(story.views) + " reads"));
+  metaContainer.appendChild(el("span", "meta-separator", " • "));
+  metaContainer.appendChild(el("span", "meta-views", formatNumber(story.views) + " reads"));
   var titleEl = card.querySelector("h2");
   titleEl.textContent = story.title;
   titleEl.dataset.action = "openStory";

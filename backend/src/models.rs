@@ -287,6 +287,7 @@ pub struct DirectMessageRow {
     pub receiver_name: Option<String>,
     pub content: String,
     pub created_at: NaiveDateTime,
+    pub is_read: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -302,6 +303,7 @@ pub struct ConversationSummary {
     pub other_avatar_url: Option<String>,
     pub last_message: String,
     pub last_message_at: NaiveDateTime,
+    pub unread_count: i64,
 }
 
 // ── Bookmarks ──

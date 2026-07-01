@@ -2,13 +2,16 @@
 .profile-header-card {
   display: flex;
   align-items: center;
-  gap: 24px;
-  background: linear-gradient(135deg, rgba(229, 124, 51, .08), rgba(212, 140, 31, .04));
-  border: 1px solid rgba(255, 255, 255, .06);
+  gap: 28px;
+  background: linear-gradient(135deg, rgba(25, 25, 25, 0.5), rgba(15, 15, 15, 0.3));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
   border-radius: 16px;
   padding: 32px;
   margin-bottom: 24px;
   animation: fadeIn .4s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
 }
 
 .profile-avatar-lg {
@@ -46,29 +49,78 @@
 }
 
 .profile-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-radius: 20px;
   margin-top: 4px;
   width: fit-content;
 }
 
+.profile-role-badge.admin {
+  background: rgba(253, 224, 71, 0.1);
+  color: #fde047;
+  border: 1px solid rgba(253, 224, 71, 0.3);
+  box-shadow: 0 0 12px rgba(253, 224, 71, 0.25);
+}
+
+.profile-role-badge.moderator {
+  background: rgba(229, 124, 51, 0.1);
+  color: #e57c33;
+  border: 1px solid rgba(229, 124, 51, 0.3);
+  box-shadow: 0 0 12px rgba(229, 124, 51, 0.25);
+}
+
+.profile-role-badge.author {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.25);
+}
+
+.profile-role-badge.reader {
+  background: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow: 0 0 8px rgba(148, 163, 184, 0.15);
+}
+
 .profile-tabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, .06);
-  padding-bottom: 0;
+  gap: 8px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+  position: relative;
 }
 
 .profile-tab {
-  padding: 10px 20px;
+  padding: 12px 24px;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  font-size: .9rem;
-  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: all .2s ease;
+  transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-bottom-color 0.25s;
   margin-bottom: -1px;
+  position: relative;
+}
+
+.profile-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .profile-tab:focus-visible {
@@ -82,43 +134,90 @@
 
 .profile-tab.active {
   color: var(--primary);
-  border-bottom-color: var(--primary);
+}
+
+.profile-tab.active::after {
+  transform: scaleX(1);
+  transform-origin: left;
 }
 
 .profile-stats-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
 }
 
 .profile-stat {
-  background: rgba(255, 255, 255, .03);
-  border: 1px solid rgba(255, 255, 255, .06);
-  border-radius: 12px;
-  padding: 20px;
-  text-align: center;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  transition: background .2s ease;
+  align-items: center;
+  gap: 16px;
+  background: rgba(25, 25, 25, 0.4);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px 24px;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  text-align: left;
 }
 
 .profile-stat:hover {
-  background: rgba(255, 255, 255, .05);
+  background: rgba(229, 124, 51, 0.04);
+  border-color: rgba(229, 124, 51, 0.35);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(229, 124, 51, 0.15);
+}
+
+.profile-stat .stat-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.profile-stat-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .profile-stat strong {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   font-weight: 800;
-  color: var(--primary);
+  color: var(--text);
+  line-height: 1.1;
 }
 
 .profile-stat span {
-  color: var(--muted);
-  font-size: .8rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
   text-transform: uppercase;
-  letter-spacing: .5px;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+}
+
+.profile-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.profile-section-header .profile-section-title {
+  margin-bottom: 0;
+}
+
+.story-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: rgba(229, 124, 51, 0.12);
+  color: var(--primary);
+  border: 1px solid rgba(229, 124, 51, 0.24);
+  border-radius: 20px;
 }
 
 .profile-section-title {
@@ -948,4 +1047,53 @@
   background: var(--danger);
   color: var(--ink);
 }
+
+/* Messages UX Unread Badge & Sending/Error States */
+.messages-convo-unread-badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+  margin-left: 6px;
+  line-height: 1;
+  align-self: center;
+}
+
+.messages-bubble-wrapper.pending {
+  opacity: 0.6;
+}
+
+.messages-bubble-wrapper.error .messages-chat-bubble {
+  background: #a83232 !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 0, 0, 0.2);
+}
+
+.messages-retry-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  padding: 0 4px;
+}
+
+.messages-retry-btn:hover {
+  color: #ff9f5b;
+}
+
+.messages-chat-time.error-time {
+  color: #ff5f5f;
+  align-self: flex-end;
+}
+
+.messages-bubble-wrapper.received .messages-chat-time.error-time {
+  align-self: flex-start;
+}
+
 

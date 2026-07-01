@@ -1,4 +1,4 @@
-import { button, el, formatDate, formatNumber, list, progress } from "../components.js?v=profile-redirect-20260619-v30";
+import { button, el, formatDate, formatNumber, list, progress } from "../components.js";
 
 export function renderStoryDetails(ctx) {
   ctx = ctx || this;
@@ -154,12 +154,19 @@ export function renderStoryDetails(ctx) {
         metaText += " (" + formatDate(ch.scheduledAt) + ")";
       }
 
-      var row = el("div", "chapter-item details-chapter-item", [
-        el("div", "chapter-item-info", [
-          el("strong", "chapter-item-title", ch.title),
-          el("span", "mini-meta", metaText)
+      var row = el("div", {
+        class: "chapter-item details-chapter-item",
+        "data-action": "openChapter",
+        "data-index": String(origIndex)
+      }, [
+        el("div", "chapter-item-left", [
+          el("span", "chapter-number-badge", String(origIndex + 1)),
+          el("div", "chapter-item-info", [
+            el("strong", "chapter-item-title", ch.title),
+            el("span", "mini-meta", metaText)
+          ])
         ]),
-        button("Read", "btn text-btn", { action: "openChapter", index: String(origIndex) })
+        el("span", "chapter-read-arrow", "→")
       ]);
       chapterListItems.push(row);
     });
@@ -178,10 +185,13 @@ export function renderStoryDetails(ctx) {
   // Reading Progress Panel (if logged in and has progress)
   if (ctx.state.user && progressData && story.chapters && story.chapters.length) {
     var percent = ctx.calculateStoryProgressPercent(story);
-    var progressPanel = el("section", "panel", [
+    var progressPanel = el("section", "panel progress-sidebar-panel", [
       el("h3", "panel-title", "Your Progress"),
-      progress(percent),
-      el("div", "mini-meta", percent + "% read")
+      el("div", "progress-container-row", [
+        progress(percent),
+        el("span", "progress-percentage-text", percent + "%")
+      ]),
+      el("div", "mini-meta", "You've read " + percent + "% of this story")
     ]);
     rightCol.appendChild(progressPanel);
   }

@@ -374,6 +374,10 @@ function applyAttrs(node, attrs) {
   Object.keys(attrs).forEach(function (k) {
     if (k === "action") node.dataset.action = attrs[k];
     else if (k === "required") node.required = true;
+    else if (k === "disabled") {
+      if (attrs[k]) node.disabled = true;
+      else node.removeAttribute("disabled");
+    }
     else if (k.indexOf("on") === 0) node[k] = attrs[k];
     else node.setAttribute(k, attrs[k]);
   });

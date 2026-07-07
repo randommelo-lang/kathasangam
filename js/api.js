@@ -15,6 +15,11 @@ let supabaseUrl = "";
 let supabaseAnonKey = "";
 const tokenCache = { token: null, expiresAt: 0 };
 
+export function clearTokenCache() {
+  tokenCache.token = null;
+  tokenCache.expiresAt = 0;
+}
+
 export async function loadSupabaseConfig() {
   try {
     const res = await fetch(API_BASE_URL + "/api/config");

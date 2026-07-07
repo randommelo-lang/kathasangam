@@ -1,6 +1,6 @@
 import { state, ui } from "./state.js";
 import { log } from "./logger.js";
-import { api, apiPatch, apiPut, adminEmail, moderatorEmails, getSupabaseClient } from "./api.js";
+import { api, apiPatch, apiPut, adminEmail, moderatorEmails, getSupabaseClient, clearTokenCache } from "./api.js";
 import { el } from "./components.js";
 import { stopNotificationPolling } from "./notifications.js";
 
@@ -23,6 +23,8 @@ export function openAuthModal() {
   const els = getAuthElements();
   if (els.authModal) els.authModal.hidden = false;
   clearAuthMessages();
+  if (els.loginForm) setAuthLoading(els.loginForm, false);
+  if (els.signupForm) setAuthLoading(els.signupForm, false);
   switchAuthTab("login");
   document.body.style.overflow = "hidden";
 }
@@ -315,6 +317,7 @@ export function autoSaveReaderPreferences() {
 }
 
 export function onAuthStateChange(event, session) {
+  clearTokenCache();
   log.debug("[AUTH] onAuthStateChange event:", event);
   if (session && session.user) {
     log.debug("[AUTH] User logged in:", session.user.email);
@@ -337,7 +340,10 @@ export function onAuthStateChange(event, session) {
     state.profile = null;
     state.role = "reader";
     state.library = [];
-    state.reports = [];
+    var repsArray = [];
+    repsArray.items = repsArray;
+    repsArray.total = 0;
+    state.reports = repsArray;
     state.notifications = [];
     stopNotificationPolling();
     state.progress = [];

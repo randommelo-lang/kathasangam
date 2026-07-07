@@ -20,7 +20,7 @@ import { handleDiscoverClick } from "./controllers/discoverController.js";
 import { handleLibraryClick } from "./controllers/libraryController.js";
 import { handleReaderClick, handleReaderInput, handleReaderSubmit } from "./controllers/readerController.js";
 import { handleStudioClick, handleStudioSubmit } from "./controllers/studioController.js";
-import { handleModerationClick } from "./controllers/moderationController.js";
+import { handleModerationClick, handleModerationInput } from "./controllers/moderationController.js";
 import { handleProfileClick } from "./controllers/profileController.js";
 import { handleCommunityClick, handleCommunitySubmit } from "./controllers/communityController.js";
 
@@ -180,14 +180,18 @@ function loadAll() {
   return Promise.all([
     api("/stories").catch(function () { return []; }),
     isAuthenticated ? api("/library/ids").catch(function () { return []; }) : Promise.resolve([]),
-    canLoadReports ? api("/reports").catch(function () { return []; }) : Promise.resolve([]),
+    canLoadReports ? api("/reports?status=open&limit=5&offset=0").catch(function () { return { items: [], total: 0 }; }) : Promise.resolve({ items: [], total: 0 }),
     isAuthenticated ? api("/notifications").catch(function () { return []; }) : Promise.resolve([]),
     api("/stats").catch(function () { return { published: 0, views: 0, followers: 0, open_reports: 0 }; }),
     isAuthenticated ? api("/progress").catch(function () { return []; }) : Promise.resolve([])
   ]).then(function (results) {
     state.stories = results[0];
     state.library = results[1];
-    state.reports = results[2];
+    var reps = results[2] || { items: [], total: 0 };
+    var repsArray = reps.items || [];
+    repsArray.items = repsArray;
+    repsArray.total = reps.total || repsArray.length;
+    state.reports = repsArray;
     state.notifications = results[3];
     state.stats = results[4];
     state.progress = results[5] || [];
@@ -433,6 +437,7 @@ function handleViewInput(e) {
   var action = e.target.dataset.action;
   if (!action) return;
   if (handleReaderInput(ctx, action, e.target, e)) return;
+  if (handleModerationInput(ctx, action, e.target, e)) return;
 }
 
 function handleViewSubmit(e) {

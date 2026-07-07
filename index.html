@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260701-v6">
+  <link rel="stylesheet" href="styles.css?v=20260701-v11">
 </head>
 <body>
 
@@ -149,6 +149,165 @@
       </div>
     </article>
   </template>
+
+  <!-- ─── Report Modal ─── -->
+  <div id="reportModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal report-modal" role="dialog" aria-labelledby="reportModalTitle" aria-modal="true">
+      <button class="auth-modal-close" id="reportModalClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">⚠️</span>
+        <h2 id="reportModalTitle" class="auth-modal-title">Report Content</h2>
+        <p id="reportModalSubtitle" class="auth-modal-subtitle">Help us keep KathaSangam safe</p>
+      </div>
+
+      <form id="reportForm" class="auth-form">
+        <!-- Type selection (hidden for comment reports, shown for content reports) -->
+        <div id="reportTypeSection" class="report-type-section">
+          <label class="report-type-label">What would you like to report?</label>
+          <div class="report-type-options">
+            <label class="report-type-option">
+              <input type="radio" name="reportType" value="story" checked>
+              <span class="report-type-card">
+                <span class="report-type-icon">📖</span>
+                <span class="report-type-text">Story</span>
+              </span>
+            </label>
+            <label class="report-type-option">
+              <input type="radio" name="reportType" value="chapter">
+              <span class="report-type-card">
+                <span class="report-type-icon">📄</span>
+                <span class="report-type-text">Chapter</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>Reason for reporting</span>
+          <textarea id="reportReason" name="reason" placeholder="Please describe why you are reporting this content..." required rows="4" minlength="5"></textarea>
+        </label>
+
+        <label class="field" style="margin-top: 15px;">
+          <span>Severity level</span>
+          <select id="reportSeverity" name="severity" required style="width: 100%; padding: 8px 12px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); color: var(--ink);">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+
+        <div id="reportError" class="auth-error" hidden></div>
+
+        <button type="submit" id="reportSubmitBtn" class="btn primary auth-submit-btn">Submit Report</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Confirm Deletion Modal ─── -->
+  <div id="confirmDeleteModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal confirm-delete-modal" role="dialog" aria-labelledby="confirmDeleteTitle" aria-modal="true">
+      <button class="auth-modal-close" id="confirmDeleteClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🗑️</span>
+        <h2 id="confirmDeleteTitle" class="auth-modal-title">Delete Content</h2>
+        <p id="confirmDeleteSubtitle" class="auth-modal-subtitle">This action is permanent and cannot be undone.</p>
+      </div>
+
+      <div class="confirm-delete-body" style="margin-bottom: 20px; color: var(--ink);">
+        <p id="confirmDeleteText" style="font-size: 0.95rem; line-height: 1.5; margin: 0;"></p>
+      </div>
+
+      <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+        <button type="button" id="confirmDeleteCancelBtn" class="btn">Cancel</button>
+        <button type="button" id="confirmDeleteConfirmBtn" class="btn danger">Remove Content</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Ban User Modal ─── -->
+  <div id="banUserModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal ban-user-modal" role="dialog" aria-labelledby="banUserTitle" aria-modal="true">
+      <button class="auth-modal-close" id="banUserClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🚫</span>
+        <h2 id="banUserTitle" class="auth-modal-title">Ban User</h2>
+        <p id="banUserSubtitle" class="auth-modal-subtitle">Restrict this user from accessing KathaSangam.</p>
+      </div>
+
+      <form id="banUserForm" data-form="banUserForm">
+        <input type="hidden" id="banTargetUserId" name="userId">
+        
+        <div class="confirm-delete-body" style="margin-bottom: 20px; color: var(--ink);">
+          <p id="banUserText" style="font-size: 0.95rem; line-height: 1.5; margin: 0;"></p>
+        </div>
+
+        <label class="field">
+          <span>Reason for ban</span>
+          <textarea id="banReason" name="reason" placeholder="Describe the reason for this ban (violating guidelines, spamming, etc.)..." required rows="4" minlength="5"></textarea>
+        </label>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+          <button type="button" id="banUserCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="banUserSubmitBtn" class="btn danger">Ban User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Moderator Action Note Modal ─── -->
+  <div id="modNoteModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal mod-note-modal" role="dialog" aria-labelledby="modNoteTitle" aria-modal="true" style="max-width: 480px;">
+      <button class="auth-modal-close" id="modNoteClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">📝</span>
+        <h2 id="modNoteTitle" class="auth-modal-title">Moderator Note</h2>
+        <p id="modNoteSubtitle" class="auth-modal-subtitle">Add an optional reason or note for this action.</p>
+      </div>
+
+      <form id="modNoteForm" data-form="modNoteForm">
+        <input type="hidden" id="modNoteReportId" name="reportId">
+        <input type="hidden" id="modNoteAction" name="action">
+
+        <div class="confirm-delete-body" style="margin-bottom: 16px; color: var(--ink);">
+          <p id="modNoteText" style="font-size: 0.95rem; line-height: 1.5; margin: 0;"></p>
+        </div>
+
+        <label class="field">
+          <span>Note (optional)</span>
+          <textarea id="modNoteInput" name="note" placeholder="Describe why you are taking this action…" rows="3"></textarea>
+        </label>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+          <button type="button" id="modNoteCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="modNoteSubmitBtn" class="btn success">Confirm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Text Scan Results Modal ─── -->
+  <div id="textScanResultsModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal text-scan-modal" role="dialog" aria-labelledby="textScanTitle" aria-modal="true" style="max-width: 600px;">
+      <button class="auth-modal-close" id="textScanClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🔍</span>
+        <h2 id="textScanTitle" class="auth-modal-title">Text Scan Results</h2>
+        <p id="textScanSubtitle" class="auth-modal-subtitle">Automated keyword profanity scan check summary.</p>
+      </div>
+
+      <div class="confirm-delete-body" style="margin-bottom: 20px; color: var(--ink);">
+        <p id="textScanSummaryText" style="font-size: 0.95rem; line-height: 1.5; margin-bottom: 16px; font-weight: 500;"></p>
+        
+        <div id="textScanDetailsContainer" style="max-height: 250px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 12px; background: rgba(0,0,0,0.2);">
+          <ul id="textScanDetailsList" style="margin: 0; padding-left: 18px; font-size: 0.9rem; line-height: 1.6; color: var(--muted-ink);"></ul>
+        </div>
+      </div>
+
+      <div class="button-row" style="display: flex; justify-content: flex-end; margin-top: 24px;">
+        <button type="button" id="textScanOkBtn" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Supabase JS Client -->
   <script src="js/vendor/supabase.min.js" integrity="sha384-GMmlk3PgEaV4QITo1ucN4bsD8RYSEL/EIfi3r1o+fi2ZOqjwXBDr5HvUyyt8XBBB" crossorigin="anonymous"></script>

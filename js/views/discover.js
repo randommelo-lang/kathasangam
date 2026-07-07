@@ -17,7 +17,12 @@ function totalFollowers(ctx) {
 }
 
 function countOpenReports(ctx) {
-  return ctx.state.reports.filter(function (r) { return r.status === "open"; }).length;
+  if (ctx.state.stats && typeof ctx.state.stats.open_reports === "number") {
+    return ctx.state.stats.open_reports;
+  }
+  var reportsObj = ctx.state.reports || { items: [], total: 0 };
+  var reports = Array.isArray(reportsObj) ? reportsObj : (reportsObj.items || []);
+  return reports.filter(function (r) { return r.status === "open"; }).length;
 }
 
 export function startCarouselAuto() {

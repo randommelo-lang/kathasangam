@@ -36,7 +36,7 @@ async fn verify_story_owner_or_admin(
         .await?;
 
     if let Some((r,)) = role {
-        if r == "admin" {
+        if r == "admin" || r == "moderator" {
             return Ok(());
         }
     }
@@ -287,10 +287,44 @@ pub async fn delete_chapter(
         .await?
         .ok_or_else(|| AppError::not_found("Chapter not found."))?;
 
-    // Verify user is story owner or admin
+    // Verify user is story owner or staff (admin/moderator)
     verify_story_owner_or_admin(&pool, auth.user_id, row.story_id).await?;
 
+    // Retrieve story info to check if moderation action
+    let story_row: Option<(Option<Uuid>, Option<String>)> = sqlx::query_as("SELECT author_id, title FROM stories WHERE id = $1")
+        .bind(row.story_id)
+        .fetch_optional(&pool)
+        .await?;
+    let (story_author_id, story_title) = story_row.unwrap_or((None, None));
+
+    let is_moderation_action = story_author_id != Some(auth.user_id);
+
     let mut tx = pool.begin().await?;
+
+    if is_moderation_action {
+        let role_opt: Option<(String,)> = sqlx::query_as("SELECT role::text FROM profiles WHERE id = $1")
+            .bind(auth.user_id)
+            .fetch_optional(&pool)
+            .await?;
+        let user_role = role_opt.map(|(r,)| r).unwrap_or_else(|| "moderator".to_string());
+        let action_name = if user_role == "admin" { "delete_chapter_by_admin" } else { "delete_chapter_by_moderator" };
+        let details = serde_json::json!({
+            "chapter_title": row.title,
+            "story_id": row.story_id,
+            "story_title": story_title,
+            "is_moderation": true
+        });
+        sqlx::query(
+            "INSERT INTO moderation_audit_logs (moderator_id, action, target_type, target_id, details) VALUES ($1, $2, $3, $4, $5)"
+        )
+        .bind(auth.user_id)
+        .bind(action_name)
+        .bind("chapter")
+        .bind(chapter_id)
+        .bind(&details)
+        .execute(&mut *tx)
+        .await?;
+    }
 
     sqlx::query("DELETE FROM comments WHERE chapter_id = $1")
         .bind(chapter_id)

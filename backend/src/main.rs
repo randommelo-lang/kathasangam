@@ -149,6 +149,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             get(routes::reports::list_reports)
                 .post(routes::reports::create_report),
         )
+        .route(
+            "/reports/bulk",
+            post(routes::reports::bulk_update_reports),
+        )
 
         .route(
             "/reports/logs",
@@ -158,6 +162,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route(
             "/reports/:id",
             patch(routes::reports::update_report),
+        )
+        .route(
+            "/reports/:id/severity",
+            patch(routes::reports::update_report_severity),
+        )
+        .route(
+            "/moderation/ban",
+            post(routes::reports::ban_user),
+        )
+        .route(
+            "/moderation/scan",
+            post(routes::reports::run_text_scan),
         )
 
         // NOTIFICATIONS

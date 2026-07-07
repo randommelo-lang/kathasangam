@@ -132,18 +132,18 @@ pub async fn delete_comment(
     auth: AuthUser,
     Path(comment_id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
-    // 1. Fetch the comment to check user_id
-    let comment: Option<(Option<Uuid>,)> = sqlx::query_as("SELECT user_id FROM comments WHERE id = $1")
+    // 1. Fetch the comment to check user_id and content
+    let comment: Option<(Option<Uuid>, String)> = sqlx::query_as("SELECT user_id, content FROM comments WHERE id = $1")
         .bind(comment_id)
         .fetch_optional(&pool)
         .await?;
 
-    let comment_user_id = comment
-        .ok_or_else(|| AppError::not_found("Comment not found"))?
-        .0;
+    let (comment_user_id, comment_content) = comment
+        .ok_or_else(|| AppError::not_found("Comment not found"))?;
 
     // 2. Check if current user is the owner
     let mut is_authorized = false;
+    let mut user_role = String::new();
     if comment_user_id == Some(auth.user_id) {
         is_authorized = true;
     } else {
@@ -153,6 +153,7 @@ pub async fn delete_comment(
             .fetch_optional(&pool)
             .await?;
         if let Some((r,)) = role {
+            user_role = r.clone();
             if r == "admin" || r == "moderator" {
                 is_authorized = true;
             }
@@ -163,11 +164,34 @@ pub async fn delete_comment(
         return Err(AppError::forbidden("You do not have permission to delete this comment."));
     }
 
+    let mut tx = pool.begin().await?;
+
+    if comment_user_id != Some(auth.user_id) {
+        let action_name = if user_role == "admin" { "delete_comment_by_admin" } else { "delete_comment_by_moderator" };
+        let details = serde_json::json!({
+            "comment_content": comment_content,
+            "comment_author_id": comment_user_id,
+            "is_moderation": true
+        });
+        sqlx::query(
+            "INSERT INTO moderation_audit_logs (moderator_id, action, target_type, target_id, details) VALUES ($1, $2, $3, $4, $5)"
+        )
+        .bind(auth.user_id)
+        .bind(action_name)
+        .bind("comment")
+        .bind(comment_id)
+        .bind(&details)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     // 4. Delete the comment
     sqlx::query("DELETE FROM comments WHERE id = $1")
         .bind(comment_id)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
+
+    tx.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)
 }

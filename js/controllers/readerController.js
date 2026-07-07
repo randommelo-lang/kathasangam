@@ -132,53 +132,146 @@ export function handleReaderClick(ctx, action, target, e) {
     return true;
   }
   if (action === "reportContent") {
-    var storyId = target.dataset.storyId;
-    var chapterId = target.dataset.chapterId;
-    var option = window.prompt("Type 'story' to report the story, or 'chapter' to report the current chapter:");
-    if (!option) return true;
-    option = option.trim().toLowerCase();
-    if (option !== "story" && option !== "chapter") {
-      ctx.notify("Invalid option. Please type 'story' or 'chapter'.");
-      return true;
-    }
-    var reason = window.prompt("Please enter the reason for reporting this " + option + ":");
-    if (!reason || !reason.trim()) {
-      ctx.notify("Reporting requires a reason.");
-      return true;
-    }
-    var targetId = option === "story" ? storyId : chapterId;
-    ctx.apiPost("/reports", {
-      target_type: option,
-      target_id: targetId,
-      reason: reason.trim()
-    }).then(function () {
-      ctx.notify("Report submitted successfully.");
-    }).catch(function (err) {
-      console.error(err);
-      ctx.notify(err.message || "Failed to submit report. Please log in.");
-    });
+    var storyId = target.dataset.storyId || target.dataset.storyid;
+    var chapterId = target.dataset.chapterId || target.dataset.chapterid;
+    openReportModal(ctx, "content", storyId, chapterId);
     return true;
   }
   if (action === "reportComment") {
     var commentId = target.dataset.id;
-    var reason = window.prompt("Please enter the reason for reporting this comment:");
-    if (!reason || !reason.trim()) {
-      ctx.notify("Reporting requires a reason.");
-      return true;
-    }
-    ctx.apiPost("/reports", {
-      target_type: "comment",
-      target_id: commentId,
-      reason: reason.trim()
-    }).then(function () {
-      ctx.notify("Report submitted successfully.");
-    }).catch(function (err) {
-      console.error(err);
-      ctx.notify(err.message || "Failed to submit report. Please log in.");
-    });
+    openReportModal(ctx, "comment", commentId, null);
     return true;
   }
   return false;
+}
+
+function openReportModal(ctx, mode, id1, id2) {
+  var modal = document.getElementById("reportModal");
+  var form = document.getElementById("reportForm");
+  var typeSection = document.getElementById("reportTypeSection");
+  var reasonInput = document.getElementById("reportReason");
+  var errorEl = document.getElementById("reportError");
+  var submitBtn = document.getElementById("reportSubmitBtn");
+  var closeBtn = document.getElementById("reportModalClose");
+  var title = document.getElementById("reportModalTitle");
+  var subtitle = document.getElementById("reportModalSubtitle");
+
+  if (!modal || !form) return;
+
+  // Reset state
+  reasonInput.value = "";
+  errorEl.hidden = true;
+  errorEl.textContent = "";
+  submitBtn.disabled = false;
+  submitBtn.textContent = "Submit Report";
+
+  if (mode === "comment") {
+    typeSection.hidden = true;
+    title.textContent = "Report Comment";
+    subtitle.textContent = "Tell us why this comment is inappropriate";
+  } else {
+    typeSection.hidden = false;
+    title.textContent = "Report Content";
+    subtitle.textContent = "Help us keep KathaSangam safe";
+    // Reset radio to story
+    var storyRadio = form.querySelector('input[name="reportType"][value="story"]');
+    if (storyRadio) storyRadio.checked = true;
+
+    // Dynamically show/hide the chapter radio depending on whether a valid chapterId was passed
+    var chapterOption = form.querySelector('input[value="chapter"]');
+    if (chapterOption) {
+      var label = chapterOption.closest('.report-type-option');
+      if (label) {
+        if (!id2 || id2 === "undefined") {
+          label.style.display = "none";
+        } else {
+          label.style.display = "block";
+        }
+      }
+    }
+  }
+
+  // Show modal
+  modal.hidden = false;
+
+  // Cleanup function
+  function cleanup() {
+    form.removeEventListener("submit", onSubmit);
+    closeBtn.removeEventListener("click", onClose);
+    modal.removeEventListener("click", onBackdrop);
+    document.removeEventListener("keydown", onEscape);
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+    cleanup();
+  }
+
+  function onClose() {
+    closeModal();
+  }
+
+  function onBackdrop(e) {
+    if (e.target === modal) closeModal();
+  }
+
+  function onEscape(e) {
+    if (e.key === "Escape") closeModal();
+  }
+
+  function onSubmit(e) {
+    e.preventDefault();
+    var reason = reasonInput.value.trim();
+    if (!reason) {
+      errorEl.textContent = "Please provide a reason for your report.";
+      errorEl.hidden = false;
+      return;
+    }
+
+    var targetType, targetId;
+    if (mode === "comment") {
+      targetType = "comment";
+      targetId = id1;
+    } else {
+      var checked = form.querySelector('input[name="reportType"]:checked');
+      targetType = checked ? checked.value : "story";
+      targetId = targetType === "story" ? id1 : id2;
+    }
+
+    if (!targetId || targetId === "undefined") {
+      errorEl.textContent = "Unable to identify the reported content ID. Please refresh and try again.";
+      errorEl.hidden = false;
+      return;
+    }
+
+    var severitySelect = document.getElementById("reportSeverity");
+    var severity = severitySelect ? severitySelect.value : "medium";
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting…";
+    errorEl.hidden = true;
+
+    ctx.apiPost("/reports", {
+      target_type: targetType,
+      target_id: targetId,
+      reason: reason,
+      severity: severity
+    }).then(function () {
+      closeModal();
+      ctx.notify("Report submitted successfully.");
+    }).catch(function (err) {
+      console.error(err);
+      errorEl.textContent = err.message || "Failed to submit report. Please log in.";
+      errorEl.hidden = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit Report";
+    });
+  }
+
+  form.addEventListener("submit", onSubmit);
+  closeBtn.addEventListener("click", onClose);
+  modal.addEventListener("click", onBackdrop);
+  document.addEventListener("keydown", onEscape);
 }
 
 export function handleReaderInput(ctx, action, target, e) {

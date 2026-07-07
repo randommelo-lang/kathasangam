@@ -190,9 +190,32 @@ pub struct ReportRow {
     pub severity: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct GroupedReportRow {
+    pub id: Uuid,
+    pub reporter_id: Option<Uuid>,
+    pub target_type: String,
+    pub target_id: Uuid,
+    pub reason: String,
+    pub status: String,
+    pub severity: String,
+    pub report_count: i64,
+    pub reporter_username: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UpdateReportRequest {
     pub status: String, // "resolved" or "escalated"
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkUpdateReportsRequest {
+    pub ids: Vec<Uuid>,
+    pub status: String, // "resolved" or "escalated"
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,6 +223,56 @@ pub struct CreateReportRequest {
     pub target_type: String, // "story", "chapter", "comment"
     pub target_id: Uuid,
     pub reason: String,
+    pub severity: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateReportSeverityRequest {
+    pub severity: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BanUserRequest {
+    pub user_id: Uuid,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T> {
+    pub items: Vec<T>,
+    pub total: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReportQuery {
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub search: Option<String>,
+    pub sort: Option<String>,
+    pub target_type: Option<String>,
+    pub severity: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AuditLogQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TextScanReportDetail {
+    pub report_id: Uuid,
+    pub target_type: String,
+    pub target_id: Uuid,
+    pub matched_term: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TextScanResult {
+    pub reports_scanned: i64,
+    pub reports_escalated: i64,
+    pub details: Vec<TextScanReportDetail>,
 }
 
 // ── Notification ──

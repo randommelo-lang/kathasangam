@@ -1156,4 +1156,78 @@
   background: #ebe0c5 !important;
 }
 
+/* ─── Report Modal ─── */
+.report-modal-icon {
+  display: block;
+  font-size: 2.4rem;
+  margin-bottom: 8px;
+}
 
+.report-type-section {
+  margin-bottom: 4px;
+}
+
+.report-type-label {
+  display: block;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+
+.report-type-options {
+  display: flex;
+  gap: 12px;
+}
+
+.report-type-option {
+  flex: 1;
+  cursor: pointer;
+}
+
+.report-type-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.report-type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface-2, rgba(255,255,255,.04));
+  transition: all .2s ease;
+}
+
+.report-type-option input[type="radio"]:checked + .report-type-card {
+  border-color: var(--accent, #E57C33);
+  background: rgba(229, 124, 51, .08);
+  box-shadow: 0 0 0 1px rgba(229, 124, 51, .15);
+}
+
+.report-type-option:hover .report-type-card {
+  border-color: var(--muted);
+}
+
+.report-type-icon {
+  font-size: 1.6rem;
+}
+
+.report-type-text {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.report-modal textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+  font-size: .9rem;
+  line-height: 1.5;
+}

@@ -8,7 +8,7 @@ use axum::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::db::AuthUser;
+use crate::db::{AuthUser, OptionalAuthUser};
 use crate::models::*;
 use crate::errors::AppError;
 
@@ -182,14 +182,22 @@ pub async fn delete_story(
         .fetch_one(&pool)
         .await?;
 
-    // Allow deleting only if the user is the author OR if they are an admin
-    if row.author_id != Some(auth.user_id) && user_role != "admin" {
+    // Allow deleting only if the user is the author OR if they are an admin or moderator
+    if row.author_id != Some(auth.user_id) && user_role != "admin" && user_role != "moderator" {
         return Err(AppError::forbidden("You do not have permission to delete this story."));
     }
 
     // Log the deletion action
     let is_moderation_action = row.author_id != Some(auth.user_id);
-    let action_name = if is_moderation_action { "delete_story_by_admin" } else { "delete_story_by_author" };
+    let action_name = if is_moderation_action {
+        if user_role == "admin" {
+            "delete_story_by_admin"
+        } else {
+            "delete_story_by_moderator"
+        }
+    } else {
+        "delete_story_by_author"
+    };
 
     let details = serde_json::json!({
         "title": row.title,
@@ -376,22 +384,47 @@ pub async fn create_story(
 }
 
 /// GET /api/stats
-pub async fn get_stats(State(pool): State<PgPool>) -> Result<Json<StatsResponse>, AppError> {
-    let row: (i64, i64, i64, i64) = sqlx::query_as(
+pub async fn get_stats(
+    opt_auth: OptionalAuthUser,
+    State(pool): State<PgPool>,
+) -> Result<Json<StatsResponse>, AppError> {
+    let row: (i64, i64, i64) = sqlx::query_as(
         "SELECT \
          (SELECT COUNT(*) FROM stories WHERE status = 'published'), \
          (SELECT COALESCE(SUM(views), 0) FROM stories), \
-         (SELECT COALESCE(SUM(followers), 0) FROM stories), \
-         (SELECT COUNT(*) FROM reports WHERE status = 'open')"
+         (SELECT COALESCE(SUM(followers), 0) FROM stories)"
     )
     .fetch_one(&pool)
     .await?;
+
+    // Only expose open_reports count to authenticated staff
+    let open_reports = if let Some(user_id) = opt_auth.user_id {
+        let role_row: Option<(String,)> = sqlx::query_as(
+            "SELECT role::text FROM profiles WHERE id = $1"
+        )
+        .bind(user_id)
+        .fetch_optional(&pool)
+        .await?;
+        match role_row {
+            Some((role,)) if role == "admin" || role == "moderator" => {
+                let count: (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM reports WHERE status = 'open'"
+                )
+                .fetch_one(&pool)
+                .await?;
+                count.0
+            }
+            _ => 0,
+        }
+    } else {
+        0
+    };
 
     Ok(Json(StatsResponse {
         published: row.0,
         views: row.1,
         followers: row.2,
-        open_reports: row.3,
+        open_reports,
     }))
 }
 

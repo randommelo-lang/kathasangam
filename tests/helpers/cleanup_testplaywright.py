@@ -70,14 +70,76 @@ try:
     conn.autocommit = True
     cur = conn.cursor()
 
+    # Always clean up public test data IDs to prevent leftovers
+    print("Deleting public test data...")
+    cur.execute("""
+        DELETE FROM public.reports 
+        WHERE id IN (
+            '40000000-0000-0000-0000-000000000001',
+            '40000000-0000-0000-0000-000000000002',
+            '40000000-0000-0000-0000-000000000003',
+            'e8f9c2d1-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 
+            'f9a8b7c6-d5e4-3a2b-1c0d-9e8d7c6b5a4f',
+            'a2b3c4d5-e6f7-8a9b-0c1d-2e3f4a5b6c7d',
+            'b3c4d5e6-f7a8-9b0c-1d2e-3f4a5b6c7d8e',
+            'c4d5e6f7-a8b9-0c1d-2e3f-4a5b6c7d8e9f',
+            'd5e6f7a8-b9c0-1d2e-3f4a-5b6c7d8e9f0a'
+        ) OR target_id IN (
+            '10000000-0000-0000-0000-000000000001',
+            '10000000-0000-0000-0000-000000000002',
+            '10000000-0000-0000-0000-000000000003',
+            '20000000-0000-0000-0000-000000000001',
+            '20000000-0000-0000-0000-000000000002',
+            '20000000-0000-0000-0000-000000000003',
+            '30000000-0000-0000-0000-000000000001',
+            '30000000-0000-0000-0000-000000000002',
+            '30000000-0000-0000-0000-000000000003',
+            '288ccb78-7a45-4089-9b35-c8c17cc5e50e',
+            'ccd82df2-be63-4277-8a34-4180572687b7'
+        )
+    """)
+    cur.execute("""
+        DELETE FROM public.comments 
+        WHERE id IN (
+            '30000000-0000-0000-0000-000000000001',
+            '30000000-0000-0000-0000-000000000002',
+            '30000000-0000-0000-0000-000000000003'
+        )
+    """)
+    cur.execute("""
+        DELETE FROM public.chapters 
+        WHERE id IN (
+            '20000000-0000-0000-0000-000000000001',
+            '20000000-0000-0000-0000-000000000002',
+            '20000000-0000-0000-0000-000000000003',
+            'ccd82df2-be63-4277-8a34-4180572687b7'
+        ) OR story_id = '288ccb78-7a45-4089-9b35-c8c17cc5e50e'
+    """)
+    cur.execute("""
+        DELETE FROM public.stories 
+        WHERE id IN (
+            '10000000-0000-0000-0000-000000000001',
+            '10000000-0000-0000-0000-000000000002',
+            '10000000-0000-0000-0000-000000000003',
+            '288ccb78-7a45-4089-9b35-c8c17cc5e50e'
+        )
+    """)
+
     # Find all test users in auth.users
-    # Criteria: email ends with @example.com, starts with testplaywright or testplay, or id is the hardcoded ID
+    # Criteria: specific test email address list, or specific test IDs
     cur.execute("""
         SELECT id, email 
         FROM auth.users 
-        WHERE email LIKE '%@example.com' 
-           OR email LIKE 'testplay%'
-           OR id = 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'
+        WHERE email IN (
+            'testplaywright@example.com',
+            'dummyauthor@example.com',
+            'reader@example.com',
+            'wrong@example.com'
+        ) OR id IN (
+            'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+            'b2c3d4e5-f67a-8b9c-0d1e-2f3a4b5c6d7e',
+            'c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f'
+        )
     """)
     test_users = cur.fetchall()
 
@@ -127,7 +189,6 @@ try:
         else:
             print("No storage files found to clean up.")
 
-        # 3. Clean up DB records
         # Explicitly delete profile as fallback (it triggers cascade deletes for profiles-related records)
         print("Deleting DB records from public.profiles...")
         cur.execute("DELETE FROM public.profiles WHERE id = %s", (user_id,))

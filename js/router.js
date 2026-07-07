@@ -34,7 +34,25 @@ export function render(ctx) {
 
   const canModerate = ctx.canModerateRole();
   const moderationLink = document.querySelector('[data-nav="moderation"]');
-  if (moderationLink) moderationLink.hidden = !canModerate;
+  if (moderationLink) {
+    moderationLink.hidden = !canModerate;
+    
+    // Update counter badge
+    var badge = moderationLink.querySelector('.nav-badge');
+    var openCount = ctx.state.stats ? (ctx.state.stats.open_reports || 0) : 0;
+    if (openCount > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'nav-badge';
+        moderationLink.appendChild(badge);
+      }
+      badge.textContent = openCount;
+    } else {
+      if (badge) {
+        badge.remove();
+      }
+    }
+  }
   if (ctx.ui.currentView === "moderation" && !canModerate) {
     ctx.ui.currentView = "discover";
     window.location.hash = "discover";

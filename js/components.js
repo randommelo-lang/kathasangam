@@ -7,7 +7,6 @@ export function calculateStars(story) {
 
 export function generateChartData(story, metric) {
   metric = metric || "reads";
-  const pointsCount = 7;
   const data = [];
   
   function getVal(ch) {
@@ -16,60 +15,27 @@ export function generateChartData(story, metric) {
     return ch.reads || 0;
   }
 
-  if (story.chapters && story.chapters.length >= 2) {
-    let maxVal = 0;
-    story.chapters.forEach(function (ch) {
-      const val = getVal(ch);
-      if (val > maxVal) maxVal = val;
-    });
-    const stepX = 300 / Math.max(1, story.chapters.length - 1);
-    story.chapters.forEach(function (ch, idx) {
-      const x = idx * stepX;
-      const val = getVal(ch);
-      let y = 85;
-      if (maxVal > 0) {
-        y = 85 - (val / maxVal) * 70;
-      } else {
-        y = 75 - (idx * 7) % 30;
-      }
-      data.push({
-        x: Math.round(x),
-        y: Math.round(y),
-        value: val,
-        label: ch.title || ("Chapter " + (idx + 1))
-      });
-    });
-  } else {
-    let seed = 0;
-    if (story.id) {
-      for (let i = 0; i < story.id.length; i++) {
-        seed += story.id.charCodeAt(i);
-      }
-    }
-    if (metric === "likes") seed += 100;
-    if (metric === "words") seed += 200;
-
-    const stepX = 300 / (pointsCount - 1);
-    for (let idx = 0; idx < pointsCount; idx++) {
-      const x = idx * stepX;
-      const sineVal = Math.sin(seed + idx * 0.95) * 28;
-      const y = 60 + sineVal;
-      
-      let fakeVal = Math.round(50 + Math.sin(seed + idx) * 30);
-      if (metric === "words") {
-        fakeVal = Math.round(1500 + Math.sin(seed + idx) * 800);
-      } else if (metric === "likes") {
-        fakeVal = Math.round(15 + Math.sin(seed + idx) * 10);
-      }
-      
-      data.push({
-        x: Math.round(x),
-        y: Math.round(Math.min(85, Math.max(15, y))),
-        value: Math.max(0, fakeVal),
-        label: "Chapter " + (idx + 1)
-      });
-    }
+  if (!story || !story.chapters || story.chapters.length < 1) {
+    return data;
   }
+
+  let maxVal = 0;
+  story.chapters.forEach(function (ch) {
+    const val = getVal(ch);
+    if (val > maxVal) maxVal = val;
+  });
+  const stepX = story.chapters.length > 1 ? 300 / Math.max(1, story.chapters.length - 1) : 0;
+  story.chapters.forEach(function (ch, idx) {
+    const x = story.chapters.length > 1 ? idx * stepX : 150;
+    const val = getVal(ch);
+    let y = maxVal > 0 ? 85 - (val / maxVal) * 70 : 85;
+    data.push({
+      x: Math.round(x),
+      y: Math.round(y),
+      value: val,
+      label: ch.title || ("Chapter " + (idx + 1))
+    });
+  });
   return data;
 }
 
@@ -83,10 +49,18 @@ export function svgEl(tag, attrs, children) {
   if (children) {
     if (Array.isArray(children)) {
       children.forEach(function (c) {
-        n.appendChild(c);
+        if (typeof c === "string" || typeof c === "number") {
+          n.appendChild(document.createTextNode(String(c)));
+        } else if (c) {
+          n.appendChild(c);
+        }
       });
     } else {
-      n.appendChild(children);
+      if (typeof children === "string" || typeof children === "number") {
+        n.appendChild(document.createTextNode(String(children)));
+      } else if (children) {
+        n.appendChild(children);
+      }
     }
   }
   return n;
@@ -111,14 +85,15 @@ export function iconButton(text, className, data, iconName, disabled) {
   return btn;
 }
 
-export function analyticsMetricBox(label, value, trend, isUp) {
-  const trendClass = isUp ? "analytics-trend-up" : "analytics-trend-down";
-  const trendSymbol = isUp ? "^ " : "v ";
-  return el("div", "analytics-metric-box", [
+export function analyticsMetricBox(label, value, subtitle) {
+  var children = [
     el("span", null, label),
-    el("strong", null, String(value)),
-    el("em", trendClass, trendSymbol + trend)
-  ]);
+    el("strong", null, String(value))
+  ];
+  if (subtitle) {
+    children.push(el("em", "analytics-metric-subtitle", subtitle));
+  }
+  return el("div", "analytics-metric-box", children);
 }
 
 export function quickActionTile(iconName, label, action) {
@@ -381,4 +356,88 @@ function applyAttrs(node, attrs) {
     else if (k.indexOf("on") === 0) node[k] = attrs[k];
     else node.setAttribute(k, attrs[k]);
   });
+}
+
+export function generateChapterReadsChart(story) {
+  const data = [];
+  if (!story || !story.chapters || story.chapters.length < 1) {
+    return data;
+  }
+
+  let maxVal = 0;
+  story.chapters.forEach(function (ch) {
+    const val = ch.reads || 0;
+    if (val > maxVal) maxVal = val;
+  });
+
+  if (maxVal === 0) return data;
+
+  const stepX = story.chapters.length > 1 ? 300 / (story.chapters.length - 1) : 150;
+  story.chapters.forEach(function (ch, idx) {
+    const x = story.chapters.length > 1 ? idx * stepX : 150;
+    const val = ch.reads || 0;
+    const y = maxVal > 0 ? 85 - (val / maxVal) * 70 : 85;
+    data.push({
+      x: Math.round(x),
+      y: Math.round(y),
+      value: val,
+      label: ch.title || ("Ch. " + (idx + 1))
+    });
+  });
+  return data;
+}
+
+export function calculateRetentionFunnel(story) {
+  const data = [];
+  if (!story || !story.chapters || story.chapters.length === 0) {
+    return data;
+  }
+
+  const firstChapterReads = story.chapters[0].reads || 0;
+  if (firstChapterReads === 0) return data;
+
+  story.chapters.forEach((ch, idx) => {
+    let retention = 100;
+    let dropOff = 0;
+    const currentReads = ch.reads || 0;
+
+    if (idx > 0) {
+      retention = firstChapterReads > 0 ? (currentReads / firstChapterReads) * 100 : 0;
+      const prevReads = story.chapters[idx - 1].reads || 0;
+      dropOff = prevReads > 0 ? ((prevReads - currentReads) / prevReads) * 100 : 0;
+      if (dropOff < 0) dropOff = 0;
+    }
+
+    data.push({
+      chapterIndex: idx,
+      title: ch.title || ("Chapter " + (idx + 1)),
+      reads: currentReads,
+      retention: Math.min(100, Math.round(retention)),
+      dropOff: Math.round(dropOff),
+      highDropOff: dropOff > 20
+    });
+  });
+  return data;
+}
+
+export function calculateGenreAverages(stories) {
+  const genres = {};
+  if (stories && stories.length > 0) {
+    stories.forEach(s => {
+      const g = s.genre || "General";
+      if (!genres[g]) {
+        genres[g] = { totalViews: 0, count: 0 };
+      }
+      genres[g].totalViews += s.views || 0;
+      genres[g].count += 1;
+    });
+  }
+
+  const list = Object.keys(genres).map(g => ({
+    genre: g,
+    avgViews: Math.round(genres[g].totalViews / genres[g].count),
+    count: genres[g].count
+  }));
+
+  return list.sort((a, b) => b.avgViews - a.avgViews);
 }

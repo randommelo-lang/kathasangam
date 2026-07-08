@@ -7,6 +7,7 @@ use axum::{
 };
 use sqlx::PgPool;
 use uuid::Uuid;
+use chrono::NaiveDateTime;
 
 use crate::db::AuthUser;
 use crate::models::*;
@@ -93,8 +94,8 @@ pub async fn list_chapters(
     .bind(&chapter_ids)
     .fetch_all(&pool);
 
-    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String)>(
-        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader') \
+    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>)>(
+        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index \
          FROM comments c \
          LEFT JOIN profiles p ON c.user_id = p.id \
          WHERE c.chapter_id = ANY($1) \
@@ -115,13 +116,13 @@ pub async fn list_chapters(
     for p in all_pages {
         page_map.entry(p.chapter_id).or_default().push(p);
     }
-    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String)>> =
+    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String, Option<i32>)>> =
         HashMap::new();
-    for (chapter_id, id, user_id, text, username) in all_comments {
+    for (chapter_id, id, user_id, text, username, paragraph_index) in all_comments {
         comment_map
             .entry(chapter_id)
             .or_default()
-            .push((id, user_id, text, username));
+            .push((id, user_id, text, username, paragraph_index));
     }
 
     let chapters = rows
@@ -155,11 +156,12 @@ pub async fn list_chapters(
             let comment_rows = comment_map.remove(&ch.id).unwrap_or_default();
             let comments = comment_rows
                 .into_iter()
-                .map(|(id, user_id, text, username)| CommentResponse {
+                .map(|(id, user_id, text, username, paragraph_index)| CommentResponse {
                     id,
                     user_id,
                     user: username,
                     text,
+                    paragraph_index,
                 })
                 .collect();
 
@@ -201,12 +203,24 @@ pub async fn create_chapter(
             .await?;
 
     let ch_id = Uuid::new_v4();
-    let status = body.status.unwrap_or_else(|| "draft".to_string());
+    let mut status = body.status.unwrap_or_else(|| "draft".to_string());
     let access = body.access.unwrap_or_else(|| "free".to_string());
 
-    sqlx::query("INSERT INTO chapters (id, story_id, sort_order, title, status, access) VALUES ($1,$2,$3,$4,$5,$6)")
+    // Parse optional scheduled_at
+    let scheduled_at: Option<NaiveDateTime> = match &body.scheduled_at {
+        Some(s) if !s.is_empty() => {
+            let parsed = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
+                .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M"))
+                .map_err(|_| AppError::bad_request("Invalid scheduledAt format. Use ISO 8601 (e.g. 2026-07-15T10:00:00)."))?;
+            status = "scheduled".to_string();
+            Some(parsed)
+        }
+        _ => None,
+    };
+
+    sqlx::query("INSERT INTO chapters (id, story_id, sort_order, title, status, access, scheduled_at) VALUES ($1,$2,$3,$4,$5,$6,$7)")
         .bind(ch_id).bind(story_id).bind(max_order + 1)
-        .bind(&body.title).bind(&status).bind(&access)
+        .bind(&body.title).bind(&status).bind(&access).bind(scheduled_at)
         .execute(&pool).await?;
 
     if status == "published" {
@@ -255,16 +269,25 @@ pub async fn toggle_chapter_status(
     // Verify user is story owner or admin
     verify_story_owner_or_admin(&pool, auth.user_id, row.story_id).await?;
 
-    let new_status = if row.status == "published" {
-        "draft"
-    } else {
-        "published"
+    let (new_status, clear_schedule) = match row.status.as_str() {
+        "published" => ("draft", false),
+        "scheduled" => ("draft", true),   // Cancel schedule → revert to draft
+        _ => ("published", true),          // draft → published (clear any leftover scheduled_at)
     };
-    sqlx::query("UPDATE chapters SET status = $1 WHERE id = $2")
-        .bind(new_status)
-        .bind(chapter_id)
-        .execute(&pool)
-        .await?;
+
+    if clear_schedule {
+        sqlx::query("UPDATE chapters SET status = $1, scheduled_at = NULL WHERE id = $2")
+            .bind(new_status)
+            .bind(chapter_id)
+            .execute(&pool)
+            .await?;
+    } else {
+        sqlx::query("UPDATE chapters SET status = $1 WHERE id = $2")
+            .bind(new_status)
+            .bind(chapter_id)
+            .execute(&pool)
+            .await?;
+    }
 
     if new_status == "published" {
         notify_followers(&pool, row.story_id, &row.title, row.sort_order).await;
@@ -369,14 +392,54 @@ pub async fn update_chapter(
 
     let mut tx = pool.begin().await?;
 
-    // Update chapter title and status if provided
-    if let Some(ref status) = body.status {
-        sqlx::query("UPDATE chapters SET title = $1, status = $2 WHERE id = $3")
-            .bind(&body.title)
-            .bind(&status)
-            .bind(chapter_id)
-            .execute(&mut *tx)
-            .await?;
+    // Handle scheduled_at field
+    let parsed_scheduled_at: Option<NaiveDateTime> = match &body.scheduled_at {
+        Some(s) if !s.is_empty() => {
+            let parsed = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
+                .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M"))
+                .map_err(|_| AppError::bad_request("Invalid scheduledAt format. Use ISO 8601."))?;
+            Some(parsed)
+        }
+        Some(_) => None,  // Empty string means clear schedule
+        None => None,      // Not provided means no change
+    };
+
+    // Determine effective status
+    let effective_status: Option<String> = if body.scheduled_at.as_deref() == Some("") {
+        // Clear schedule → revert to draft
+        Some("draft".to_string())
+    } else if parsed_scheduled_at.is_some() {
+        // Setting a schedule
+        Some("scheduled".to_string())
+    } else {
+        body.status.clone()
+    };
+
+    // Update chapter title, status, and scheduled_at
+    if let Some(ref status) = effective_status {
+        if parsed_scheduled_at.is_some() {
+            sqlx::query("UPDATE chapters SET title = $1, status = $2, scheduled_at = $3 WHERE id = $4")
+                .bind(&body.title)
+                .bind(status)
+                .bind(parsed_scheduled_at)
+                .bind(chapter_id)
+                .execute(&mut *tx)
+                .await?;
+        } else if body.scheduled_at.as_deref() == Some("") {
+            sqlx::query("UPDATE chapters SET title = $1, status = $2, scheduled_at = NULL WHERE id = $3")
+                .bind(&body.title)
+                .bind(status)
+                .bind(chapter_id)
+                .execute(&mut *tx)
+                .await?;
+        } else {
+            sqlx::query("UPDATE chapters SET title = $1, status = $2 WHERE id = $3")
+                .bind(&body.title)
+                .bind(status)
+                .bind(chapter_id)
+                .execute(&mut *tx)
+                .await?;
+        }
     } else {
         sqlx::query("UPDATE chapters SET title = $1 WHERE id = $2")
             .bind(&body.title)
@@ -448,7 +511,7 @@ pub async fn update_chapter(
             .await?;
     }
 
-    let should_notify = body.status.as_deref() == Some("published") && row.status != "published";
+    let should_notify = effective_status.as_deref() == Some("published") && row.status != "published";
 
     tx.commit().await?;
 
@@ -490,5 +553,35 @@ async fn notify_followers(
     if let Err(e) = result {
         tracing::error!("Failed to notify followers for story {}: {:?}", story_id, e);
     }
+}
+
+/// GET /api/chapters/scheduled
+pub async fn list_scheduled_chapters(
+    auth: AuthUser,
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let rows: Vec<(Uuid, Uuid, String, String, NaiveDateTime, i32)> = sqlx::query_as(
+        "SELECT c.id, c.story_id, c.title, s.title, c.scheduled_at, c.sort_order \
+         FROM chapters c \
+         JOIN stories s ON c.story_id = s.id \
+         WHERE s.author_id = $1 AND c.status = 'scheduled' AND c.scheduled_at IS NOT NULL \
+         ORDER BY c.scheduled_at ASC"
+    )
+    .bind(auth.user_id)
+    .fetch_all(&pool)
+    .await?;
+
+    let result: Vec<serde_json::Value> = rows.iter().map(|r| {
+        serde_json::json!({
+            "id": r.0,
+            "storyId": r.1,
+            "title": r.2,
+            "storyTitle": r.3,
+            "scheduledAt": r.4.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            "sortOrder": r.5
+        })
+    }).collect();
+
+    Ok(Json(result))
 }
 

@@ -1,5 +1,130 @@
-import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea } from "../components.js";
+import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea, svgEl } from "../components.js";
 import { emptyState } from "./shared.js";
+
+function createParagraphBubble(ctx, chapter, index) {
+  var inlineComments = (chapter.comments || []).filter(function (c) {
+    return c.paragraphIndex === index;
+  });
+  var count = inlineComments.length;
+  var bubble = el("button", "para-comment-bubble" + (count > 0 ? " has-comments" : ""), [
+    svgEl("svg", { viewBox: "0 0 24 24", class: "icon-bubble-svg" }, [
+      svgEl("path", { d: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" })
+    ]),
+    count > 0 ? el("span", "count", String(count)) : null
+  ].filter(Boolean));
+  bubble.dataset.action = "openParagraphComments";
+  bubble.dataset.index = String(index);
+  return bubble;
+}
+
+function inlineCommentsDrawer(ctx, story, chapter) {
+  var pIdx = ctx.ui.activeParagraphIndex;
+  var isOpen = pIdx !== undefined && pIdx !== null;
+  
+  var drawerClasses = "inline-comments-drawer" + (isOpen ? " active" : "");
+  if (!isOpen) {
+    return el("div", drawerClasses); // Render empty hidden drawer
+  }
+
+  // Get paragraph snippet
+  var isComic = story.type === "Chitrānk";
+  var snippetText = "";
+  if (isComic) {
+    var pObj = chapter.pages && chapter.pages[pIdx];
+    snippetText = pObj ? (pObj.label || "Comic Panel #" + (pIdx + 1)) : "Comic Panel #" + (pIdx + 1);
+  } else {
+    var rawPara = chapter.content && chapter.content[pIdx];
+    if (rawPara) {
+      snippetText = rawPara;
+      // Strip formatting tags
+      if (snippetText.startsWith("[center]")) snippetText = snippetText.substring(8);
+      else if (snippetText.startsWith("[right]")) snippetText = snippetText.substring(7);
+      else if (snippetText.startsWith("[left]")) snippetText = snippetText.substring(6);
+    } else {
+      snippetText = "Paragraph #" + (pIdx + 1);
+    }
+  }
+
+  // Max snippet length for header
+  if (snippetText.length > 60) {
+    snippetText = snippetText.substring(0, 57) + "...";
+  }
+
+  var closeBtn = button("✕", "drawer-close-btn", { action: "closeParagraphComments" });
+  
+  var header = el("div", "drawer-header", [
+    el("div", "inline-comments-header-title", [
+      el("h3", null, "Inline Comments"),
+      el("span", "snippet-text", snippetText)
+    ]),
+    closeBtn
+  ]);
+
+  // Filter comments for this paragraph
+  var inlineComments = (chapter.comments || []).filter(function (c) {
+    return c.paragraphIndex === pIdx;
+  });
+
+  var listContent;
+  if (inlineComments.length) {
+    listContent = el("ul", "activity-list comment-feed-list inline-comments-list", inlineComments.map(function (c) {
+      var canDelete = (ctx.state.user && c.user_id === ctx.state.user.id) || ["moderator", "admin"].indexOf(ctx.state.role) !== -1;
+      var initials = (c.user || "U").substring(0, 2).toUpperCase();
+      var isStoryCreator = c.user === story.author || c.user_id === story.author_id;
+
+      return el("li", "activity-item comment-item inline-comment-item", [
+        el("div", "comment-avatar", initials),
+        el("div", "comment-body", [
+          el("div", "comment-header", [
+            el("div", "comment-meta", [
+              (function () {
+                var a = el("a", "commenter-name", c.user);
+                a.href = "#profile?username=" + encodeURIComponent(c.user);
+                return a;
+              })(),
+              isStoryCreator ? el("span", "comment-author-badge", "Author") : null
+            ].filter(Boolean)),
+            el("div", "comment-actions button-row", [
+              canDelete ? button("Delete", "btn danger btn-sm", { action: "deleteComment", id: c.id }) : null
+            ].filter(Boolean))
+          ]),
+          el("span", "comment-text", c.text)
+        ])
+      ]);
+    }));
+  } else {
+    listContent = emptyState(
+      "No inline comments yet",
+      "Be the first to react to this specific paragraph/panel!",
+      null,
+      "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
+    );
+  }
+
+  // Inline Comment Form
+  var formEl;
+  if (!ctx.state.user) {
+    formEl = el("div", "comment-login-prompt", [
+      el("p", null, "Please log in to comment."),
+      button("Log In", "btn primary btn-sm", { action: "loginToComment" })
+    ]);
+  } else {
+    formEl = form("inlineCommentForm", [
+      field("Add reaction", textarea("inlineCommentText", "")),
+      submitButton("Post Comment", "btn primary btn-sm")
+    ]);
+    // Set a data attribute to bind the index
+    formEl.dataset.paragraphIndex = String(pIdx);
+  }
+
+  return el("div", drawerClasses, [
+    header,
+    el("div", "drawer-scroll-container", [
+      listContent,
+      formEl
+    ])
+  ]);
+}
 
 function extractRawUrl(bg) {
   if (!bg) return "";
@@ -68,7 +193,9 @@ function comicFlipContent(ctx, chapter) {
   wrapperFirst.dataset.label = currentFirst.label;
   wrapperFirst.dataset.page = (firstIdx + 1) + " / " + pages.length;
 
-  var pageFirst = el("figure", "comic-page comic-page-current", [wrapperFirst]);
+  var bubbleFirst = createParagraphBubble(ctx, chapter, firstIdx);
+  var pageFirst = el("figure", "comic-page comic-page-current paragraph-wrapper", [wrapperFirst, bubbleFirst]);
+  pageFirst.dataset.index = String(firstIdx);
 
   var pageSecond = null;
   if (currentSecond) {
@@ -78,7 +205,9 @@ function comicFlipContent(ctx, chapter) {
     wrapperSecond.dataset.label = currentSecond.label;
     wrapperSecond.dataset.page = (secondIdx + 1) + " / " + pages.length;
 
-    pageSecond = el("figure", "comic-page comic-page-current", [wrapperSecond]);
+    var bubbleSecond = createParagraphBubble(ctx, chapter, secondIdx);
+    pageSecond = el("figure", "comic-page comic-page-current paragraph-wrapper", [wrapperSecond, bubbleSecond]);
+    pageSecond.dataset.index = String(secondIdx);
   }
 
   var pagesContainer = el("div", "comic-double-pages", [pageFirst]);
@@ -118,8 +247,7 @@ function settingsDrawer(ctx) {
 
   var themeControls = el("div", "segmented-controls theme-toggles", [
     button("☀️ Light", ctx.ui.readerTheme === "light" ? "btn active" : "btn", { action: "readerThemeSelect", value: "light" }),
-    button("🌙 Dark", ctx.ui.readerTheme === "dark" ? "btn active" : "btn", { action: "readerThemeSelect", value: "dark" }),
-    button("📜 Sepia", ctx.ui.readerTheme === "sepia" ? "btn active" : "btn", { action: "readerThemeSelect", value: "sepia" })
+    button("🌙 Dark", ctx.ui.readerTheme === "dark" ? "btn active" : "btn", { action: "readerThemeSelect", value: "dark" })
   ]);
 
   drawerContent.push(el("div", "drawer-section", [
@@ -202,12 +330,15 @@ function readerContent(ctx, story, chapter) {
 
   if (story.type === "Chitrānk" && chapter.pages) {
     if (ctx.ui.readerMode === "pages") return comicFlipContent(ctx, chapter);
-    container.appendChild(el("div", "comic-pages", chapter.pages.map(function (p) {
+    container.appendChild(el("div", "comic-pages", chapter.pages.map(function (p, pIdx) {
       var wrapper = el("div", "comic-page-wrapper", [
         el("img", { class: "comic-page-img scroll-img", src: extractRawUrl(p.bg), alt: p.label || "" })
       ]);
       wrapper.dataset.label = p.label;
-      return el("figure", "comic-page", [wrapper]);
+      var bubble = createParagraphBubble(ctx, chapter, pIdx);
+      var fig = el("figure", "comic-page paragraph-wrapper", [wrapper, bubble]);
+      fig.dataset.index = String(pIdx);
+      return fig;
     })));
     return container;
   }
@@ -219,11 +350,14 @@ function readerContent(ctx, story, chapter) {
       activePage.forEach(function (pObj) {
         var p = el("p", null, pObj.text);
         p.classList.add("align-" + pObj.align);
-        container.appendChild(p);
+        var bubble = createParagraphBubble(ctx, chapter, pObj.originalIndex);
+        var wrap = el("div", "paragraph-wrapper", [p, bubble]);
+        wrap.dataset.index = String(pObj.originalIndex);
+        container.appendChild(wrap);
       });
       return container;
     }
-    chapter.content.forEach(function (para) {
+    chapter.content.forEach(function (para, pIdx) {
       var align = "left";
       var cleanText = para;
       if (para.startsWith("[center]")) {
@@ -238,7 +372,10 @@ function readerContent(ctx, story, chapter) {
       }
       var p = el("p", null, cleanText);
       p.classList.add("align-" + align);
-      container.appendChild(p);
+      var bubble = createParagraphBubble(ctx, chapter, pIdx);
+      var wrap = el("div", "paragraph-wrapper", [p, bubble]);
+      wrap.dataset.index = String(pIdx);
+      container.appendChild(wrap);
     });
   }
   return container;
@@ -296,7 +433,8 @@ export function renderReader(ctx) {
     secondaryToolbar,
     readerContent(ctx, story, chapter),
     bottomNav,
-    settingsDrawer(ctx)
+    settingsDrawer(ctx),
+    inlineCommentsDrawer(ctx, story, chapter)
   ].filter(Boolean));
 
   var layoutTwo = el("div", "layout-two", [

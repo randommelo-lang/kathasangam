@@ -68,6 +68,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
+    // Auto-publisher: checks every 60 seconds for scheduled chapters
+    let publish_pool = pool.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            let rows: Vec<(uuid::Uuid, uuid::Uuid, String, i32)> = match sqlx::query_as(
+                "SELECT id, story_id, title, sort_order FROM chapters WHERE status = 'scheduled' AND scheduled_at <= NOW()"
+            )
+            .fetch_all(&publish_pool)
+            .await {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::error!("Auto-publisher query failed: {:?}", e);
+                    continue;
+                }
+            };
+
+            for (ch_id, story_id, title, sort_order) in &rows {
+                if let Err(e) = sqlx::query("UPDATE chapters SET status = 'published', scheduled_at = NULL WHERE id = $1")
+                    .bind(ch_id)
+                    .execute(&publish_pool)
+                    .await
+                {
+                    tracing::error!("Auto-publisher failed to publish chapter {}: {:?}", ch_id, e);
+                    continue;
+                }
+
+                tracing::info!("📅 Auto-published chapter '{}' (id: {})", title, ch_id);
+
+                // Notify followers
+                let story_info: Option<(String,)> = sqlx::query_as("SELECT title FROM stories WHERE id = $1")
+                    .bind(story_id)
+                    .fetch_optional(&publish_pool)
+                    .await
+                    .unwrap_or(None);
+
+                let story_title = story_info.map(|s| s.0).unwrap_or_else(|| "a followed story".to_string());
+                let message = format!("New chapter '{}' published for '{}'", title, story_title);
+
+                let _ = sqlx::query(
+                    "INSERT INTO notifications (user_id, message, story_id, chapter_sort_order) \
+                     SELECT l.user_id, $1, $2, $3 \
+                     FROM library l \
+                     JOIN profiles p ON l.user_id = p.id \
+                     WHERE l.story_id = $2 AND (COALESCE(p.preferences->>'in_app_notifications', 'true'))::boolean = true"
+                )
+                .bind(&message)
+                .bind(story_id)
+                .bind(sort_order)
+                .execute(&publish_pool)
+                .await;
+            }
+        }
+    });
+
 
 
     let api = Router::new()
@@ -104,6 +160,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             patch(routes::chapters::toggle_chapter_status),
         )
 
+        .route(
+            "/chapters/scheduled",
+            get(routes::chapters::list_scheduled_chapters),
+        )
         .route(
             "/chapters/:chapter_id",
             put(routes::chapters::update_chapter)

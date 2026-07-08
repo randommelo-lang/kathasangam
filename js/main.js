@@ -1,3 +1,9 @@
+// Immediate Theme Initialization (prevents flash, CSP compliant)
+(function () {
+  var savedTheme = localStorage.getItem("kathasangam_theme") || "dark";
+  document.documentElement.className = savedTheme;
+})();
+
 import { state, ui } from "./state.js";
 import { log } from "./logger.js";
 import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js";
@@ -266,6 +272,33 @@ function bindGlobalEvents() {
       }
     });
   }
+
+  // Global Light/Dark Theme Toggle
+  var themeToggleBtn = document.getElementById("themeToggleBtn");
+  if (themeToggleBtn) {
+    var updateThemeUI = function() {
+      var isLight = document.documentElement.classList.contains("light");
+      var sun = themeToggleBtn.querySelector(".sun-icon");
+      var moon = themeToggleBtn.querySelector(".moon-icon");
+      if (isLight) {
+        if (sun) sun.style.display = "none";
+        if (moon) moon.style.display = "block";
+      } else {
+        if (sun) sun.style.display = "block";
+        if (moon) moon.style.display = "none";
+      }
+    };
+    
+    updateThemeUI();
+    
+    themeToggleBtn.addEventListener("click", function() {
+      var isLight = document.documentElement.classList.contains("light");
+      var nextTheme = isLight ? "dark" : "light";
+      document.documentElement.className = nextTheme;
+      localStorage.setItem("kathasangam_theme", nextTheme);
+      updateThemeUI();
+    });
+  }
 }
 
 function bindAuthEvents() {
@@ -486,10 +519,16 @@ function filteredStories() {
 }
 
 function getCurrentStory() {
+  if (!state.stories) {
+    return { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
+  }
   return state.stories.find(function (s) { return s.id === ui.currentStoryId; }) || state.stories[0] || { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
 }
 
 function getCurrentStudioStory() {
+  if (!state.stories) {
+    return { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
+  }
   var userStories = state.stories.filter(function (s) {
     return state.user && s.author_id === state.user.id;
   });
@@ -536,11 +575,11 @@ function clampComicPage(pages) {
 }
 
 function paginateText(content) {
-  if (!content || !content.length) return [[{ text: "", align: "left" }]];
+  if (!content || !content.length) return [[{ text: "", align: "left", originalIndex: 0 }]];
   var pages = [];
   var currentPage = [];
   var currentWordCount = 0;
-  content.forEach(function (para) {
+  content.forEach(function (para, idx) {
     var align = "left";
     var cleanText = para;
     if (para.startsWith("[center]")) {
@@ -557,7 +596,7 @@ function paginateText(content) {
     var wordCount = words.length;
     if (wordCount === 0) {
       if (currentPage.length === 0) {
-        currentPage.push({ text: "", align: align });
+        currentPage.push({ text: "", align: align, originalIndex: idx });
       }
       return;
     }
@@ -571,7 +610,7 @@ function paginateText(content) {
       while (remainingWords.length > 0) {
         var limit = 150 - currentWordCount;
         var chunk = remainingWords.slice(0, limit);
-        currentPage.push({ text: chunk.join(" "), align: align });
+        currentPage.push({ text: chunk.join(" "), align: align, originalIndex: idx });
         currentWordCount += chunk.length;
         remainingWords = remainingWords.slice(limit);
         if (currentWordCount >= 150 || remainingWords.length > 0) {
@@ -581,7 +620,7 @@ function paginateText(content) {
         }
       }
     } else {
-      currentPage.push({ text: cleanText, align: align });
+      currentPage.push({ text: cleanText, align: align, originalIndex: idx });
       currentWordCount += wordCount;
     }
   });

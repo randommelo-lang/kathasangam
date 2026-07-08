@@ -160,6 +160,169 @@ export function handleStudioClick(ctx, action, target, e) {
     saveChapterFromEditorModule(ctx, "published");
     return true;
   }
+  if (action === "openScheduleModal") {
+    var modal = document.getElementById("scheduleModal");
+    var input = document.getElementById("scheduleDateTime");
+    var chapterIdField = document.getElementById("scheduleChapterId");
+    var info = document.getElementById("scheduleInfo");
+    if (!modal || !input) return true;
+    
+    // Set chapter ID
+    var chId = target.dataset.id || ctx.ui.editingChapterId;
+    if (chapterIdField) chapterIdField.value = chId || "";
+    
+    // Set min to current datetime
+    var now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    input.min = now.toISOString().slice(0, 16);
+    
+    // Pre-fill existing schedule
+    var existingSchedule = target.dataset.scheduledat || "";
+    if (existingSchedule) {
+      var d = new Date(existingSchedule);
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      input.value = d.toISOString().slice(0, 16);
+      info.textContent = "This chapter is currently scheduled. Change the date to reschedule.";
+    } else {
+      input.value = "";
+      info.textContent = "The chapter will be automatically published at the selected date and time.";
+    }
+    
+    modal.hidden = false;
+    
+    // Setup handlers
+    var closeModal = function() { modal.hidden = true; };
+    var closeBtn = document.getElementById("scheduleModalClose");
+    var cancelBtn = document.getElementById("scheduleCancelBtn");
+    if (closeBtn) closeBtn.onclick = closeModal;
+    if (cancelBtn) cancelBtn.onclick = closeModal;
+    modal.onclick = function(e) { if (e.target === modal) closeModal(); };
+    
+    var form = document.getElementById("scheduleForm");
+    form.onsubmit = function(e) {
+      e.preventDefault();
+      var scheduledAt = input.value;
+      if (!scheduledAt) { ctx.notify("Please select a date and time."); return; }
+      var selectedDate = new Date(scheduledAt);
+      if (selectedDate <= new Date()) { ctx.notify("Scheduled time must be in the future."); return; }
+      
+      var scheduleChapterId = chapterIdField.value;
+      var confirmBtn = document.getElementById("scheduleConfirmBtn");
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Scheduling...";
+      
+      // If in editor view, save chapter content with schedule
+      if (ctx.ui.currentView === "editor" && ctx.ui.editingChapterId === scheduleChapterId) {
+        var titleEl = document.querySelector(".editor-title-input");
+        var contentEl = document.querySelector(".editor-textarea");
+        var story = ctx.getCurrentStudioStory();
+        var isComic = story && story.type === "Chitrānk";
+        
+        var payload = { title: titleEl ? titleEl.value.trim() : "Untitled", content: [], status: "scheduled", scheduledAt: scheduledAt + ":00" };
+        if (isComic) {
+          payload.pages = ctx.ui.editingPages || [];
+        } else if (contentEl) {
+          var paragraphs = [];
+          Array.from(contentEl.childNodes).forEach(function(node) {
+            var text = node.textContent.trim();
+            if (!text) return;
+            var align = "left";
+            if (node.nodeType === 1) {
+              if (node.classList.contains("align-center")) align = "center";
+              else if (node.classList.contains("align-right")) align = "right";
+            }
+            if (align === "center") paragraphs.push("[center]" + text);
+            else if (align === "right") paragraphs.push("[right]" + text);
+            else paragraphs.push("[left]" + text);
+          });
+          payload.content = paragraphs;
+        }
+        
+        ctx.apiPut("/chapters/" + scheduleChapterId, payload).then(function() {
+          closeModal();
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "📅 Confirm Schedule";
+          ctx.notify("Chapter scheduled for " + selectedDate.toLocaleString() + ".");
+          return ctx.api("/stories");
+        }).then(function(s) {
+          ctx.state.stories = s;
+          ctx.ui.currentView = "studio";
+          window.location.hash = "studio";
+          ctx.render();
+        }).catch(function(err) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "📅 Confirm Schedule";
+          ctx.notify(err.message || "Failed to schedule chapter.");
+        });
+      } else {
+        // From timeline view, just update schedule
+        var story = ctx.getCurrentStudioStory();
+        var chapter = story ? story.chapters.find(function(ch) { return ch.id === scheduleChapterId; }) : null;
+        
+        var payload = {
+          title: chapter ? chapter.title : "Untitled",
+          content: chapter && chapter.content ? chapter.content : [],
+          status: "scheduled",
+          scheduledAt: scheduledAt + ":00"
+        };
+        if (chapter && chapter.pages) payload.pages = chapter.pages;
+        
+        ctx.apiPut("/chapters/" + scheduleChapterId, payload).then(function() {
+          closeModal();
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "📅 Confirm Schedule";
+          ctx.notify("Chapter scheduled for " + selectedDate.toLocaleString() + ".");
+          return ctx.api("/stories");
+        }).then(function(s) {
+          ctx.state.stories = s;
+          ctx.render();
+        }).catch(function(err) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "📅 Confirm Schedule";
+          ctx.notify(err.message || "Failed to schedule chapter.");
+        });
+      }
+    };
+    return true;
+  }
+  if (action === "cancelSchedule") {
+    var chapterId = target.dataset.id;
+    var story = ctx.getCurrentStudioStory();
+    var chapter = story ? story.chapters.find(function(ch) { return ch.id === chapterId; }) : null;
+    if (!chapter) return true;
+    
+    window.showConfirm({
+      title: "Cancel Schedule",
+      message: 'Cancel the scheduled publishing for "' + chapter.title + '"? It will revert to draft status.',
+      confirmText: "Cancel Schedule",
+      isDanger: true
+    }).then(function(confirmed) {
+      if (!confirmed) return;
+      ctx.apiPut("/chapters/" + chapterId, {
+        title: chapter.title,
+        content: chapter.content || [],
+        scheduledAt: ""
+      }).then(function() {
+        ctx.notify('Schedule cancelled for "' + chapter.title + '".');
+        return ctx.api("/stories");
+      }).then(function(s) {
+        ctx.state.stories = s;
+        ctx.render();
+      });
+    });
+    return true;
+  }
+  if (action === "publishNow") {
+    var chapterId = target.dataset.id;
+    ctx.apiPatch("/chapters/" + chapterId + "/status").then(function(r) {
+      ctx.notify('"' + r.title + '" published immediately!');
+      return ctx.api("/stories");
+    }).then(function(s) {
+      ctx.state.stories = s;
+      ctx.render();
+    });
+    return true;
+  }
   if (action === "cancelEditChapter") {
     var titleEl = document.querySelector(".editor-title-input");
     var contentEl = document.querySelector(".editor-textarea");

@@ -142,6 +142,17 @@ export function handleReaderClick(ctx, action, target, e) {
     openReportModal(ctx, "comment", commentId, null);
     return true;
   }
+  if (action === "openParagraphComments") {
+    var index = Number(target.dataset.index);
+    ctx.ui.activeParagraphIndex = index;
+    ctx.render();
+    return true;
+  }
+  if (action === "closeParagraphComments") {
+    ctx.ui.activeParagraphIndex = null;
+    ctx.render();
+    return true;
+  }
   return false;
 }
 
@@ -352,6 +363,35 @@ export function handleReaderSubmit(ctx, formName, target, e) {
       return true;
     }
     ctx.apiPost("/chapters/" + story.id + "/" + chapter.sort_order + "/comments", { user: "You", text: comment })
+      .then(function () {
+        return ctx.api("/stories");
+      })
+      .then(function (s) {
+        ctx.state.stories = s;
+        ctx.notify("Comment posted.");
+        ctx.render();
+      })
+      .catch(function (err) {
+        console.error("Failed to post comment:", err);
+        ctx.notify(err.message || "Failed to post comment. Please log in.");
+      });
+    return true;
+  }
+  if (formName === "inlineCommentForm") {
+    var comment = new FormData(target).get("inlineCommentText").trim();
+    if (!comment) return true;
+    var story = ctx.getCurrentStory();
+    var chapter = ctx.getCurrentChapter(story);
+    if (!chapter || !chapter.id) {
+      ctx.notify("No chapter selected.");
+      return true;
+    }
+    var pIdx = Number(target.dataset.paragraphIndex);
+    ctx.apiPost("/chapters/" + story.id + "/" + chapter.sort_order + "/comments", {
+      user: "You",
+      text: comment,
+      paragraphIndex: pIdx
+    })
       .then(function () {
         return ctx.api("/stories");
       })

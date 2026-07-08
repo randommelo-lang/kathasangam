@@ -40,12 +40,13 @@ function setButtonsLoading(isLoading, activeAction) {
   });
 }
 
-export function saveTextChapter(ctx, title, paragraphs, status) {
+export function saveTextChapter(ctx, title, paragraphs, status, scheduledAt) {
   const payload = {
     title: title,
     content: paragraphs,
     status: status
   };
+  if (scheduledAt) payload.scheduledAt = scheduledAt;
 
   setFormFeedback("", "");
   const activeAction = status === "published" ? "publishChapter" : "saveChapterDraft";
@@ -321,6 +322,7 @@ export function renderTextEditor(ctx, story, chapter) {
 
   const actionsRow = el("div", "editor-actions-row", [
     button("Publish", "btn primary orange-glow-btn", { action: "publishChapter" }),
+    button("📅 Schedule", "btn schedule-btn", { action: "openScheduleModal" }),
     button("Save Draft", "btn", { action: "saveChapterDraft" }),
     button("Cancel", "btn danger", { action: "cancelEditChapter" })
   ]);

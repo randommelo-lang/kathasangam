@@ -40,13 +40,14 @@ function setButtonsLoading(isLoading, activeAction) {
   });
 }
 
-export function saveComicChapter(ctx, title, status) {
+export function saveComicChapter(ctx, title, status, scheduledAt) {
   const payload = {
     title: title,
     content: [],
     pages: ctx.ui.editingPages || [],
     status: status
   };
+  if (scheduledAt) payload.scheduledAt = scheduledAt;
 
   setFormFeedback("", "");
   const activeAction = status === "published" ? "publishChapter" : "saveChapterDraft";
@@ -301,6 +302,7 @@ export function renderComicEditor(ctx, story, chapter) {
 
   const actionsRow = el("div", "editor-actions-row", [
     button("Publish", "btn primary orange-glow-btn", { action: "publishChapter" }),
+    button("📅 Schedule", "btn schedule-btn", { action: "openScheduleModal" }),
     button("Save Draft", "btn", { action: "saveChapterDraft" }),
     button("Cancel", "btn danger", { action: "cancelEditChapter" })
   ]);

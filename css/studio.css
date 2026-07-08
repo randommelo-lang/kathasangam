@@ -627,3 +627,352 @@
 .icon-bell { mask-image: url('../icons/filled-bell-icon.svg'); -webkit-mask-image: url('../icons/filled-bell-icon.svg'); }
 .icon-bookmark { mask-image: url('../icons/bookmark-icon.svg'); -webkit-mask-image: url('../icons/bookmark-icon.svg'); }
 
+/* ─── Scheduled Publishing ─── */
+.badge-status.scheduled {
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+}
+
+.schedule-date-label {
+  font-size: 0.72rem !important;
+  color: #818cf8 !important;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.schedule-btn {
+  background: rgba(99, 102, 241, 0.1) !important;
+  color: #818cf8 !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  font-size: 0.78rem !important;
+}
+.schedule-btn:hover {
+  background: rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+}
+
+.publish-now-btn {
+  background: rgba(16, 185, 129, 0.1) !important;
+  color: #10b981 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  font-size: 0.78rem !important;
+}
+.publish-now-btn:hover {
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-color: rgba(16, 185, 129, 0.5) !important;
+}
+
+/* Schedule Modal Overrides */
+.schedule-modal input[type="datetime-local"] {
+  color-scheme: dark;
+}
+:root.light .schedule-modal input[type="datetime-local"] {
+  color-scheme: light;
+}
+
+/* Upcoming Schedule Panel */
+.upcoming-schedule-panel {
+  border-left: 3px solid #818cf8;
+}
+
+.upcoming-schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.upcoming-schedule-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(99, 102, 241, 0.04);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  border-radius: 8px;
+  padding: 14px 18px;
+  transition: all 0.2s ease;
+}
+.upcoming-schedule-card:hover {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.upcoming-schedule-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.upcoming-schedule-info strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.upcoming-schedule-date {
+  font-size: 0.78rem;
+  color: #818cf8;
+  font-weight: 500;
+}
+
+.upcoming-schedule-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.upcoming-countdown-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #818cf8;
+  background: rgba(99, 102, 241, 0.1);
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+/* Light theme overrides */
+:root.light .upcoming-schedule-card {
+  background: rgba(99, 102, 241, 0.04);
+  border-color: rgba(99, 102, 241, 0.12);
+}
+:root.light .upcoming-schedule-card:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+/* ─── Advanced Analytics Theme styling ─── */
+.chart-grid-line {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+:root.light .chart-grid-line {
+  stroke: rgba(0, 0, 0, 0.08);
+}
+
+.chart-axis-line {
+  stroke: rgba(255, 255, 255, 0.15);
+}
+:root.light .chart-axis-line {
+  stroke: rgba(0, 0, 0, 0.15);
+}
+
+.chart-point-circle {
+  r: 4;
+  fill: #1a1a1a;
+  stroke: #f36b15;
+  stroke-width: 2;
+  transition: all 0.2s ease;
+}
+:root.light .chart-point-circle {
+  fill: #ffffff;
+}
+.chart-point-circle:hover,
+.chart-point-circle:focus,
+.chart-point-circle.active {
+  r: 6;
+  fill: #f36b15;
+  stroke: #f36b15;
+}
+.chart-point-circle.active-focus {
+  stroke: #ffffff;
+}
+:root.light .chart-point-circle.active-focus {
+  stroke: #333333;
+}
+
+.genre-bar-active {
+  filter: drop-shadow(0 0 4px rgba(243, 107, 21, 0.6));
+  stroke: #f36b15;
+}
+.genre-bar-inactive {
+  stroke: rgba(255, 255, 255, 0.15);
+}
+:root.light .genre-bar-inactive {
+  stroke: rgba(0, 0, 0, 0.15);
+}
+
+.retention-alert-badge {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Advanced Analytics Dashboard Restored & Polished ─── */
+.analytics-tabs-switcher {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  flex-wrap: nowrap;
+}
+:root.light .analytics-tabs-switcher {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+.analytics-tab-btn {
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: -1px;
+  position: relative;
+  white-space: nowrap;
+  flex: 1;
+  text-align: center;
+}
+
+.analytics-tab-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.analytics-tab-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.analytics-tab-btn:hover {
+  color: var(--text);
+}
+
+.analytics-tab-btn.active {
+  color: var(--accent);
+}
+
+.analytics-tab-btn.active::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* Empty States & Charts Containers */
+.analytics-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+:root.light .analytics-empty-state {
+  background: rgba(0, 0, 0, 0.01);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.analytics-empty-state .icon {
+  font-size: 2.2rem;
+  opacity: 0.4;
+  color: var(--accent);
+}
+.analytics-empty-state p {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+.analytics-empty-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.svg-chart-container {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 20px 16px 12px 16px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.2);
+}
+:root.light .svg-chart-container {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.05);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Retention List Styles */
+.analytics-retention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 4px;
+}
+
+.retention-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.retention-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.retention-item-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.retention-item-reads {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.retention-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.retention-bar-track {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  flex-grow: 1;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+:root.light .retention-bar-track {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.04);
+}
+
+.retention-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f36b15, #f3a315);
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.retention-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.retention-item-pct {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 32px;
+  text-align: right;
+}
+
+

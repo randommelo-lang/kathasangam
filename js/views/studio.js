@@ -1,4 +1,4 @@
-import { analyticsMetricBox, button, calculateStars, el, formatDate, formatNumber, generateChartData, iconButton, progress, quickActionTile, svgEl } from "../components.js";
+import { analyticsMetricBox, button, el, formatDate, formatNumber, generateChartData, generateChapterReadsChart, calculateRetentionFunnel, calculateGenreAverages, iconButton, progress, quickActionTile, svgEl } from "../components.js";
 import { storyGrid, storyCardSkeleton } from "./shared.js";
 
 export function renderStudio(ctx) {
@@ -94,7 +94,7 @@ export function renderStudio(ctx) {
         el("div", "studio-active-subtitle", "By " + active.author + " · " + (active.genre || "General")),
         el("p", "studio-active-synopsis", active.description || "No description provided."),
         
-        // Stats Row: Views, Likes, Followers, Stars
+        // Stats Row: Views, Likes, Followers
         el("div", "studio-stats-row", [
           el("div", "studio-stat-item", [
             el("span", "icon icon-eye"),
@@ -115,13 +115,6 @@ export function renderStudio(ctx) {
             el("div", "studio-stat-val", [
               el("strong", null, formatNumber(active.followers)),
               el("span", null, "Followers")
-            ])
-          ]),
-          el("div", "studio-stat-item", [
-            el("span", "icon icon-star"),
-            el("div", "studio-stat-val", [
-              el("strong", null, calculateStars(active)),
-              el("span", null, "Stars")
             ])
           ])
         ]),
@@ -165,21 +158,57 @@ export function renderStudio(ctx) {
       timelineItems = active.chapters.map(function (ch, i) {
         var isCurrent = (ctx.ui.currentChapterIndex === i);
         var itemClass = "timeline-item" + (isCurrent ? " active-chapter" : "");
-        var statusClass = "badge-status " + (ch.status === "published" ? "published" : "draft");
+        var statusClass = "badge-status " + (ch.status === "published" ? "published" : ch.status === "scheduled" ? "scheduled" : "draft");
+        
+        var detailParts = ["Updated " + (ch.updated_at ? formatDate(ch.updated_at) : "recently") + " · " + (ch.access || "Free")];
+        
+        var detailsChildren = [
+          el("strong", null, ch.title),
+          el("span", null, detailParts.join(""))
+        ];
+        
+        // Show scheduled date below title
+        if (ch.status === "scheduled" && ch.scheduledAt) {
+          var schedDate = new Date(ch.scheduledAt);
+          var formatted = schedDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + " at " + schedDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+          detailsChildren.push(el("span", "schedule-date-label", "📅 " + formatted));
+        }
+        
+        // Build action buttons
+        var actionButtons = [
+          el("span", "timeline-words", (ch.words || "0") + " words"),
+          el("span", statusClass, ch.status)
+        ];
+        
+        // Schedule / Reschedule button
+        if (ch.status === "draft" || ch.status === "scheduled") {
+          actionButtons.push(
+            button(ch.status === "scheduled" ? "⏰" : "📅", "btn btn-sm schedule-btn", { action: "openScheduleModal", id: ch.id, scheduledAt: ch.scheduledAt || "" })
+          );
+        }
+        // Publish Now button (for draft and scheduled)
+        if (ch.status !== "published") {
+          actionButtons.push(
+            button("▶", "btn btn-sm publish-now-btn", { action: "publishNow", id: ch.id })
+          );
+        }
+        // Cancel Schedule (for scheduled)
+        if (ch.status === "scheduled") {
+          actionButtons.push(
+            button("✕", "btn btn-sm danger", { action: "cancelSchedule", id: ch.id })
+          );
+        }
+        
+        actionButtons.push(
+          iconButton("", "btn btn-sm", { action: "editChapter", id: ch.id }, "icon-edit"),
+          iconButton("", "btn btn-sm", { action: "openChapter", index: String(i) }, "icon-book"),
+          iconButton("", "btn btn-sm danger", { action: "deleteChapter", id: ch.id }, "icon-trash")
+        );
         
         return el("li", itemClass, [
           el("div", "timeline-badge", String(i + 1)),
-          el("div", "timeline-details", [
-            el("strong", null, ch.title),
-            el("span", null, "Updated " + (ch.updated_at ? formatDate(ch.updated_at) : "recently") + " · " + (ch.access || "Free"))
-          ]),
-          el("div", "timeline-actions", [
-            el("span", "timeline-words", (ch.words || "0") + " words"),
-            el("span", statusClass, ch.status),
-            iconButton("", "btn btn-sm", { action: "editChapter", id: ch.id }, "icon-edit"),
-            iconButton("", "btn btn-sm", { action: "openChapter", index: String(i) }, "icon-book"),
-            iconButton("", "btn btn-sm danger", { action: "deleteChapter", id: ch.id }, "icon-trash")
-          ])
+          el("div", "timeline-details", detailsChildren),
+          el("div", "timeline-actions", actionButtons)
         ]);
       });
     }
@@ -193,6 +222,48 @@ export function renderStudio(ctx) {
     ]);
 
     middleColumnChildren.push(chapterPlanPanel);
+
+    // Upcoming Schedule Panel
+    var scheduledChapters = [];
+    if (active.chapters && active.chapters.length) {
+      scheduledChapters = active.chapters.filter(function(ch) {
+        return ch.status === "scheduled" && ch.scheduledAt;
+      }).sort(function(a, b) {
+        return new Date(a.scheduledAt) - new Date(b.scheduledAt);
+      });
+    }
+    if (scheduledChapters.length > 0) {
+      var scheduleItems = scheduledChapters.map(function(ch) {
+        var schedDate = new Date(ch.scheduledAt);
+        var now = new Date();
+        var diffMs = schedDate - now;
+        var diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        var diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        var countdown = diffMs > 0 ? (diffDays > 0 ? diffDays + "d " + diffHours + "h" : diffHours + "h") : "Publishing soon...";
+        var formatted = schedDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + " at " + schedDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+        
+        return el("div", "upcoming-schedule-card", [
+          el("div", "upcoming-schedule-info", [
+            el("strong", null, ch.title),
+            el("span", "upcoming-schedule-date", "📅 " + formatted)
+          ]),
+          el("div", "upcoming-schedule-right", [
+            el("span", "upcoming-countdown-badge", countdown),
+            button("Cancel", "btn btn-sm danger", { action: "cancelSchedule", id: ch.id })
+          ])
+        ]);
+      });
+
+      var upcomingPanel = el("section", "panel upcoming-schedule-panel", [
+        el("div", "toolbar", [
+          el("h2", null, "📅 Upcoming Schedule"),
+          el("span", "mini-meta", scheduledChapters.length + " scheduled")
+        ]),
+        el("div", "upcoming-schedule-list", scheduleItems)
+      ]);
+
+      middleColumnChildren.push(upcomingPanel);
+    }
   } else {
     // Welcome placeholder card for first story
     var welcomeCard = el("section", "panel", [
@@ -231,7 +302,12 @@ export function renderStudio(ctx) {
     if (activeMetric === "likes") metricLabel = "likes";
     else if (activeMetric === "words") metricLabel = "words";
 
-    var ptsData = generateChartData(active, activeMetric);
+    var ptsData;
+    if (activeMetric === "reads") {
+      ptsData = generateChapterReadsChart(active);
+    } else {
+      ptsData = generateChartData(active, activeMetric);
+    }
     var lineD = ptsData.length ? "M " + ptsData.map(function(p) { return p.x + " " + p.y; }).join(" L ") : "M 0 85";
     var areaD = lineD + " L 300 100 L 0 100 Z";
 
@@ -250,31 +326,27 @@ export function renderStudio(ctx) {
       "stroke-linejoin": "round"
     });
 
-    var grid1 = svgEl("line", { x1: "0", y1: "25", x2: "300", y2: "25", stroke: "rgba(255,255,255,0.05)", "stroke-dasharray": "4 4" });
-    var grid2 = svgEl("line", { x1: "0", y1: "50", x2: "300", y2: "50", stroke: "rgba(255,255,255,0.05)", "stroke-dasharray": "4 4" });
-    var grid3 = svgEl("line", { x1: "0", y1: "75", x2: "300", y2: "75", stroke: "rgba(255,255,255,0.05)", "stroke-dasharray": "4 4" });
+    var grid1 = svgEl("line", { x1: "0", y1: "25", x2: "300", y2: "25", class: "chart-grid-line", "stroke-dasharray": "4 4" });
+    var grid2 = svgEl("line", { x1: "0", y1: "50", x2: "300", y2: "50", class: "chart-grid-line", "stroke-dasharray": "4 4" });
+    var grid3 = svgEl("line", { x1: "0", y1: "75", x2: "300", y2: "75", class: "chart-grid-line", "stroke-dasharray": "4 4" });
 
     var pts = ptsData.map(function (pt) {
       var circle = svgEl("circle", {
         cx: String(pt.x),
         cy: String(pt.y),
-        r: "4",
-        fill: "#111",
-        stroke: "#f36b15",
-        "stroke-width": "2",
+        class: "chart-point-circle",
         tabindex: "0",
         role: "button",
         "aria-label": pt.label + ": " + formatNumber(pt.value) + " " + metricLabel,
-        style: "cursor: pointer; transition: all 0.2s ease; outline: none;"
+        style: "cursor: pointer; outline: none;"
       });
 
       function showTooltip(isFocus) {
-        circle.setAttribute("r", "6");
-        circle.setAttribute("fill", "#f36b15");
+        circle.classList.add("active");
         if (isFocus) {
-          circle.setAttribute("stroke", "#fff");
+          circle.classList.add("active-focus");
         } else {
-          circle.setAttribute("stroke", "#f36b15");
+          circle.classList.remove("active-focus");
         }
         
         var tooltip = document.getElementById("chart-tooltip");
@@ -296,9 +368,8 @@ export function renderStudio(ctx) {
       }
 
       function hideTooltip() {
-        circle.setAttribute("r", "4");
-        circle.setAttribute("fill", "#111");
-        circle.setAttribute("stroke", "#f36b15");
+        circle.classList.remove("active");
+        circle.classList.remove("active-focus");
         
         var tooltip = document.getElementById("chart-tooltip");
         if (tooltip) {
@@ -326,28 +397,149 @@ export function renderStudio(ctx) {
       return circle;
     });
 
-    var chartSvg = svgEl("svg", {
-      viewBox: "0 0 300 100",
-      class: "svg-chart"
-    }, [defs, grid1, grid2, grid3, areaPath, linePath].concat(pts));
+    var activeTab = ctx.ui.activeAnalyticsTab || "trend";
+    var displayContainer;
 
-    var chartContainer = el("div", "svg-chart-container", [chartSvg]);
+    if (activeTab === "retention") {
+      var funnelData = calculateRetentionFunnel(active);
+      if (funnelData.length === 0) {
+        displayContainer = el("div", "analytics-empty-state", [
+          el("span", "icon icon-lg icon-users"),
+          el("p", null, "No reader data yet."),
+          el("span", "analytics-empty-hint", "Retention data appears once your chapters have reads.")
+        ]);
+      } else {
+        var funnelItems = funnelData.map(function (pt) {
+          var barFill = el("div", { class: "retention-bar-fill", style: "width: " + pt.retention + "%;" });
+          var barTrack = el("div", "retention-bar-track", [barFill]);
+          
+          var headerInfo = el("div", "retention-item-header", [
+            el("span", "retention-item-title", pt.title),
+            el("span", "retention-item-reads", formatNumber(pt.reads) + " reads")
+          ]);
+
+          var pctText = el("span", "retention-item-pct", pt.retention + "%");
+          var rightPartChildren = [pctText];
+          if (pt.highDropOff) {
+            rightPartChildren.push(el("span", "badge-status draft retention-alert-badge", "⚠️ High drop-off (>20%)"));
+          }
+          var rightPart = el("div", "retention-item-right", rightPartChildren);
+
+          var barRow = el("div", "retention-bar-row", [
+            barTrack,
+            rightPart
+          ]);
+
+          return el("div", "retention-item", [
+            headerInfo,
+            barRow
+          ]);
+        });
+        
+        displayContainer = el("div", "analytics-retention-list", funnelItems);
+      }
+
+    } else if (activeTab === "genre") {
+      var genreData = calculateGenreAverages(ctx.state.stories);
+      if (genreData.length === 0) {
+        displayContainer = el("div", "analytics-empty-state", [
+          el("span", "icon icon-lg icon-book"),
+          el("p", null, "No genre data available."),
+          el("span", "analytics-empty-hint", "Publish stories to see genre comparisons.")
+        ]);
+      } else {
+        var maxAvg = Math.max.apply(Math, genreData.map(function (g) { return g.avgViews; })) || 10;
+        var barWidth = 30;
+        var barGap = 20;
+        var startX = 30;
+        var chartContent = [];
+        
+        var genreGradientId = "genreChartGrad-" + Math.random().toString(36).substring(2, 9);
+        var genreGradient = svgEl("linearGradient", { id: genreGradientId, x1: "0", y1: "0", x2: "0", y2: "1" }, [
+          svgEl("stop", { offset: "0%", "stop-color": "#f36b15", "stop-opacity": "0.8" }),
+          svgEl("stop", { offset: "100%", "stop-color": "#f36b15", "stop-opacity": "0.2" })
+        ]);
+        var defaultGradientId = "defaultGenreGrad-" + Math.random().toString(36).substring(2, 9);
+        var defaultGradient = svgEl("linearGradient", { id: defaultGradientId, x1: "0", y1: "0", x2: "0", y2: "1" }, [
+          svgEl("stop", { offset: "0%", "stop-color": "rgba(255,255,255,0.2)", "stop-opacity": "0.6" }),
+          svgEl("stop", { offset: "100%", "stop-color": "rgba(255,255,255,0.05)", "stop-opacity": "0.1" })
+        ]);
+        
+        chartContent.push(svgEl("defs", null, [genreGradient, defaultGradient]));
+        
+        genreData.slice(0, 5).forEach(function (g, idx) {
+          var isActiveGenre = (active.genre && g.genre.toLowerCase() === active.genre.toLowerCase());
+          var barHeight = (g.avgViews / maxAvg) * 60;
+          var x = startX + idx * (barWidth + barGap);
+          var y = 80 - barHeight;
+          
+          var rect = svgEl("rect", {
+            x: String(x),
+            y: String(y),
+            width: String(barWidth),
+            height: String(barHeight),
+            rx: "4",
+            class: isActiveGenre ? "genre-bar-active" : "genre-bar-inactive",
+            fill: "url(#" + (isActiveGenre ? genreGradientId : defaultGradientId) + ")",
+            "stroke-width": isActiveGenre ? "2" : "1"
+          });
+          
+          var valText = svgEl("text", {
+            x: String(x + barWidth / 2),
+            y: String(y - 6),
+            "text-anchor": "middle",
+            fill: isActiveGenre ? "#f36b15" : "var(--text-muted)",
+            "font-size": "7",
+            "font-weight": isActiveGenre ? "bold" : "normal"
+          }, [formatNumber(g.avgViews)]);
+          
+          var labelText = svgEl("text", {
+            x: String(x + barWidth / 2),
+            y: "92",
+            "text-anchor": "middle",
+            fill: isActiveGenre ? "#f36b15" : "var(--text)",
+            "font-size": "7",
+            "font-weight": isActiveGenre ? "bold" : "normal"
+          }, [g.genre + (isActiveGenre ? " ★" : "")]);
+          
+          chartContent.push(rect, valText, labelText);
+        });
+        
+        chartContent.push(svgEl("line", { x1: "10", y1: "80", x2: "290", y2: "80", class: "chart-axis-line" }));
+        
+        var genreSvg = svgEl("svg", {
+          viewBox: "0 0 300 100",
+          class: "svg-chart"
+        }, chartContent);
+        
+        displayContainer = el("div", "svg-chart-container", [genreSvg]);
+      }
+
+    } else {
+      if (ptsData.length === 0) {
+        displayContainer = el("div", "analytics-empty-state", [
+          el("span", "icon icon-lg icon-eye"),
+          el("p", null, "No chapter data to chart yet."),
+          el("span", "analytics-empty-hint", "Add chapters with reads to see the trend chart.")
+        ]);
+      } else {
+        var chartSvg = svgEl("svg", {
+          viewBox: "0 0 300 100",
+          class: "svg-chart"
+        }, [defs, grid1, grid2, grid3, areaPath, linePath].concat(pts));
+
+        displayContainer = el("div", "svg-chart-container", [chartSvg]);
+      }
+    }
 
 
 
-    // Dynamic Trends calculation based on story stats
-    var viewsTrend = active.views > 0 ? "+" + (active.views % 13 + 2.5).toFixed(1) + "%" : "0.0%";
-    var likesTrend = active.likes > 0 ? "+" + (active.likes % 9 + 1.1).toFixed(1) + "%" : "0.0%";
-    var followersTrend = active.followers > 0 ? "+" + (active.followers % 6 + 0.7).toFixed(1) + "%" : "0.0%";
-    var starsVal = calculateStars(active);
-    var starsTrend = starsVal === "5.0" ? "Max score" : "Stable";
-
-    // Interactive metric cards
-    var viewsBox = analyticsMetricBox("Views (Reads)", formatNumber(active.views), viewsTrend, true);
+    // Metric cards — real data only, no fabricated trends
+    var viewsBox = analyticsMetricBox("Views", formatNumber(active.views), "All-time total");
     viewsBox.classList.add("interactive");
     viewsBox.setAttribute("tabindex", "0");
     viewsBox.setAttribute("role", "button");
-    viewsBox.setAttribute("aria-label", "Show views chart");
+    viewsBox.setAttribute("aria-label", "Show reads per chapter chart");
     if (activeMetric === "reads") viewsBox.classList.add("active");
     viewsBox.addEventListener("click", function () {
       ctx.ui.activeChartMetric = "reads";
@@ -360,11 +552,11 @@ export function renderStudio(ctx) {
       }
     });
 
-    var likesBox = analyticsMetricBox("Likes", formatNumber(active.likes), likesTrend, true);
+    var likesBox = analyticsMetricBox("Likes", formatNumber(active.likes), "All-time total");
     likesBox.classList.add("interactive");
     likesBox.setAttribute("tabindex", "0");
     likesBox.setAttribute("role", "button");
-    likesBox.setAttribute("aria-label", "Show likes chart");
+    likesBox.setAttribute("aria-label", "Show likes per chapter chart");
     if (activeMetric === "likes") likesBox.classList.add("active");
     likesBox.addEventListener("click", function () {
       ctx.ui.activeChartMetric = "likes";
@@ -378,12 +570,11 @@ export function renderStudio(ctx) {
     });
 
     var totalWords = active.chapters.reduce(function (sum, ch) { return sum + (ch.words || 0); }, 0);
-    var wordsTrend = totalWords > 0 ? "+" + (totalWords % 17 + 5).toFixed(0) + " words" : "Stable";
-    var wordsBox = analyticsMetricBox("Word Count", formatNumber(totalWords), wordsTrend, true);
+    var wordsBox = analyticsMetricBox("Word Count", formatNumber(totalWords), active.chapters.length + " chapters");
     wordsBox.classList.add("interactive");
     wordsBox.setAttribute("tabindex", "0");
     wordsBox.setAttribute("role", "button");
-    wordsBox.setAttribute("aria-label", "Show word count chart");
+    wordsBox.setAttribute("aria-label", "Show words per chapter chart");
     if (activeMetric === "words") wordsBox.classList.add("active");
     wordsBox.addEventListener("click", function () {
       ctx.ui.activeChartMetric = "words";
@@ -396,18 +587,40 @@ export function renderStudio(ctx) {
       }
     });
 
-    var followersBox = analyticsMetricBox("Followers", formatNumber(active.followers), followersTrend, true);
-    var starsBox = analyticsMetricBox("Rating (Stars)", starsVal, starsTrend, true);
+    var followersBox = analyticsMetricBox("Followers", formatNumber(active.followers), "All-time total");
 
     var totalChapters = active.chapters.length;
-    var chaptersTrend = totalChapters > 0 ? "Published" : "No chapters";
-    var chaptersBox = analyticsMetricBox("Total Chapters", formatNumber(totalChapters), chaptersTrend, true);
+    var chaptersBox = analyticsMetricBox("Total Chapters", formatNumber(totalChapters), totalChapters > 0 ? (active.chapters.filter(function(c) { return c.status === 'published'; }).length + " published") : "None yet");
 
-    var engagementVal = active.views > 0 ? ((active.likes / active.views) * 100).toFixed(1) + "%" : "0.0%";
-    var engagementTrend = active.views > 0 ? "Likes/Views ratio" : "No activity";
-    var engagementBox = analyticsMetricBox("Engagement Rate", engagementVal, engagementTrend, true);
+    var engagementVal = active.views > 0 ? ((active.likes / active.views) * 100).toFixed(1) + "%" : "—";
+    var engagementBox = analyticsMetricBox("Engagement", engagementVal, active.views > 0 ? "Likes / Views" : "No views yet");
 
-    // Analytics Overview Card with SVG Chart
+    // Analytics sub-tabs switcher
+    var tabTrendBtn = el("button", "analytics-tab-btn" + (activeTab === "trend" ? " active" : ""), "Metrics Trend");
+    tabTrendBtn.addEventListener("click", function () {
+      ctx.ui.activeAnalyticsTab = "trend";
+      ctx.render();
+    });
+
+    var tabRetentionBtn = el("button", "analytics-tab-btn" + (activeTab === "retention" ? " active" : ""), "Reader Retention");
+    tabRetentionBtn.addEventListener("click", function () {
+      ctx.ui.activeAnalyticsTab = "retention";
+      ctx.render();
+    });
+
+    var tabGenreBtn = el("button", "analytics-tab-btn" + (activeTab === "genre" ? " active" : ""), "Genre Analytics");
+    tabGenreBtn.addEventListener("click", function () {
+      ctx.ui.activeAnalyticsTab = "genre";
+      ctx.render();
+    });
+
+    var tabsSwitcher = el("div", "analytics-tabs-switcher", [
+      tabTrendBtn,
+      tabRetentionBtn,
+      tabGenreBtn
+    ]);
+
+    // Analytics Overview Card with SVG Chart or sub-list
     var analyticsPanel = el("section", "panel", [
       el("h2", null, "Analytics Overview"),
       
@@ -416,12 +629,12 @@ export function renderStudio(ctx) {
         likesBox,
         wordsBox,
         followersBox,
-        starsBox,
         chaptersBox,
         engagementBox
       ]),
       
-      chartContainer
+      tabsSwitcher,
+      displayContainer
     ]);
     rightColumnChildren.push(analyticsPanel);
   }

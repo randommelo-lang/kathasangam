@@ -525,8 +525,8 @@ pub async fn build_story_responses_batch(
     .fetch_all(pool);
 
     // Include c.chapter_id as first field so we can group by it
-    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String)>(
-        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader') \
+    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>)>(
+        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index \
          FROM comments c \
          LEFT JOIN profiles p ON c.user_id = p.id \
          WHERE c.chapter_id = ANY($1) \
@@ -547,13 +547,13 @@ pub async fn build_story_responses_batch(
     for p in all_pages {
         page_map.entry(p.chapter_id).or_default().push(p);
     }
-    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String)>> =
+    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String, Option<i32>)>> =
         HashMap::new();
-    for (chapter_id, id, user_id, text, username) in all_comments {
+    for (chapter_id, id, user_id, text, username, paragraph_index) in all_comments {
         comment_map
             .entry(chapter_id)
             .or_default()
-            .push((id, user_id, text, username));
+            .push((id, user_id, text, username, paragraph_index));
     }
 
     // Assemble responses
@@ -593,11 +593,12 @@ pub async fn build_story_responses_batch(
                             let comment_rows = comment_map.remove(&ch.id).unwrap_or_default();
                             let comments = comment_rows
                                 .into_iter()
-                                .map(|(id, user_id, text, username)| CommentResponse {
+                                .map(|(id, user_id, text, username, paragraph_index)| CommentResponse {
                                     id,
                                     user_id,
                                     user: username,
                                     text,
+                                    paragraph_index,
                                 })
                                 .collect();
 

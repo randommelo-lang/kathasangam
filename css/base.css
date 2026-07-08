@@ -3,6 +3,7 @@
   --bg: #1A1614;
   --surface: #241E1A;
   --surface-2: #332a24;
+  --surface-3: #42372e;
   --ink: #fffdfa;
   --muted: #A68A7C;
   --line: rgba(229, 124, 51, 0.18);
@@ -23,8 +24,35 @@
   --text-muted: var(--muted);
   --text: var(--ink);
   --primary: var(--accent);
-  --surface-3: #42372e;
+  --overlay: rgba(255, 255, 255, 0.05);
+  --overlay-soft: rgba(255, 255, 255, 0.02);
+  --overlay-strong: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.15);
+  --line-stronger: rgba(255, 255, 255, 0.25);
+  --line-soft: rgba(255, 255, 255, 0.05);
+  --line-softer: rgba(255, 255, 255, 0.08);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+:root.light {
+  color-scheme: light;
+  --bg: #F5F2EB;
+  --surface: #FCFAF2;
+  --surface-2: #ECE7DB;
+  --surface-3: #DFD9CD;
+  --ink: #2C221E;
+  --muted: #8C7C71;
+  --text-muted: #8C7C71;
+  --line: rgba(44, 34, 30, 0.12);
+  --glass: rgba(245, 242, 235, 0.72);
+  --shadow: 0 12px 32px rgba(44, 34, 30, 0.08);
+  --overlay: rgba(44, 34, 30, 0.05);
+  --overlay-soft: rgba(44, 34, 30, 0.02);
+  --overlay-strong: rgba(44, 34, 30, 0.1);
+  --line-strong: rgba(44, 34, 30, 0.15);
+  --line-stronger: rgba(44, 34, 30, 0.25);
+  --line-soft: rgba(44, 34, 30, 0.05);
+  --line-softer: rgba(44, 34, 30, 0.08);
 }
 
 * {
@@ -72,7 +100,7 @@ a:focus-visible {
 .hero-bar {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 1100;
   background: var(--glass);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -147,7 +175,7 @@ a:focus-visible {
 
 .nav-links a:hover {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.05)
+  background: var(--overlay)
 }
 
 .nav-links a.active {
@@ -175,7 +203,7 @@ a:focus-visible {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--overlay);
   font-size: .85rem;
   transition: border-color .2s;
 }
@@ -866,6 +894,43 @@ button:disabled {
   font-size: 0.85rem;
   color: var(--muted-ink);
   margin: 0 8px;
+}
+
+/* Theme Toggle Button Styling */
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.theme-icon {
+  transition: transform 0.3s ease, opacity 0.2s ease;
+}
+
+.theme-toggle-btn:hover .theme-icon {
+  transform: rotate(15deg) scale(1.08);
 }
 
 

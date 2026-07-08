@@ -440,6 +440,49 @@
   background: #f4ecd8 !important;
 }
 
+/* Light Theme overrides (#ECC7AD) */
+.reader-frame.light {
+  background: #ECC7AD !important;
+  color: #432B1E !important;
+  border-color: #D9B49A !important;
+}
+
+.reader-frame.light .reader-toolbar {
+  background: rgba(67, 43, 30, 0.05) !important;
+  border-color: #D9B49A !important;
+  color: #432B1E !important;
+}
+
+.reader-frame.light .mini-meta {
+  color: #6D503E !important;
+}
+
+.reader-frame.light .btn {
+  border-color: rgba(67, 43, 30, 0.2) !important;
+  color: #432B1E !important;
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+.reader-frame.light .btn:hover {
+  background: rgba(229, 124, 51, 0.15) !important;
+}
+
+.reader-frame.light .segmented button {
+  border-color: rgba(67, 43, 30, 0.2) !important;
+  color: #432B1E !important;
+  background: transparent !important;
+}
+
+.reader-frame.light .segmented button.active {
+  background: #e57c33 !important;
+  color: #fff !important;
+}
+
+.reader-content.light {
+  color: #432B1E !important;
+  background: #ECC7AD !important;
+}
+
 /* Reader Settings Drawer */
 .reader-settings-drawer {
   position: absolute;
@@ -564,6 +607,42 @@
   background: rgba(74, 53, 37, 0.08) !important;
 }
 
+/* Light variations for the drawer (#ECC7AD) */
+.reader-frame.light .reader-settings-drawer {
+  background: #EBE0C5 !important;
+  border-color: #D9B49A !important;
+  color: #432B1E !important;
+  box-shadow: -10px 0 30px rgba(67, 43, 30, 0.15);
+}
+
+.reader-frame.light .drawer-header h3 {
+  color: #432B1E !important;
+}
+
+.reader-frame.light .drawer-header {
+  border-color: #D9B49A !important;
+}
+
+.reader-frame.light .drawer-section label {
+  color: #6D503E !important;
+}
+
+.reader-frame.light .drawer-section select,
+.reader-frame.light .drawer-section input[type="range"] {
+  background: #ECC7AD !important;
+  border-color: #D9B49A !important;
+  color: #432B1E !important;
+}
+
+.reader-frame.light .drawer-close-btn {
+  color: #6D503E !important;
+}
+
+.reader-frame.light .drawer-close-btn:hover {
+  color: #432B1E !important;
+  background: rgba(67, 43, 30, 0.08) !important;
+}
+
 /* ─── Reader UI Redesign Updates ─── */
 
 /* 1. Reader View Theme variables cascading wrapper */
@@ -576,15 +655,15 @@
 }
 
 .reader-view-wrapper.light {
-  --bg: #F7F5F0;
-  --surface: #FFFFFF;
-  --surface-2: #F2EFE8;
-  --surface-3: #E8E5DD;
-  --ink: #2C221E;
-  --text: #2C221E;
-  --muted: #8C7C71;
-  --text-muted: #8C7C71;
-  --line: rgba(44, 34, 30, 0.12);
+  --bg: #ECC7AD;
+  --surface: #ECC7AD;
+  --surface-2: #E0B89D;
+  --surface-3: #D2A88D;
+  --ink: #432B1E;
+  --text: #432B1E;
+  --muted: #6D503E;
+  --text-muted: #6D503E;
+  --line: rgba(67, 43, 30, 0.16);
   color-scheme: light;
 }
 
@@ -1090,7 +1169,7 @@
 
 /* Theme variations for the bottom nav */
 .reader-view-wrapper.light .reader-bottom-nav {
-  border-top-color: #ebe6df !important;
+  border-top-color: #D9B49A !important;
 }
 
 .reader-view-wrapper.light .reader-bottom-nav .btn:hover:not(:disabled) {
@@ -1154,6 +1233,23 @@
 
 .reader-frame.sepia .drawer-actions-row .btn:hover:not(.danger) {
   background: #ebe0c5 !important;
+}
+
+/* Light Theme drawer actions row overrides (#ECC7AD) */
+.reader-frame.light .drawer-actions-row .btn {
+  background: #ECC7AD !important;
+  border-color: #D9B49A !important;
+  color: #432B1E !important;
+}
+
+.reader-frame.light .drawer-actions-row .btn.danger {
+  color: #c23b3b !important;
+  border-color: rgba(194, 59, 59, 0.25) !important;
+  background: rgba(194, 59, 59, 0.05) !important;
+}
+
+.reader-frame.light .drawer-actions-row .btn:hover:not(.danger) {
+  background: #EBE0C5 !important;
 }
 
 /* ─── Report Modal ─── */
@@ -1231,3 +1327,342 @@
   font-size: .9rem;
   line-height: 1.5;
 }
+
+/* ─── Inline / Paragraph Comments ─── */
+.paragraph-wrapper {
+  position: relative;
+  display: block;
+}
+
+/* Bubble comment indicator next to text paragraphs or figures */
+.para-comment-bubble {
+  position: absolute;
+  right: -42px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text-muted, #a0a0a0);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: auto;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  z-index: 5;
+  padding: 0;
+}
+
+/* Make bubble visible on paragraph hover */
+.paragraph-wrapper:hover .para-comment-bubble,
+.paragraph-wrapper:focus-within .para-comment-bubble {
+  opacity: 0.65;
+}
+
+.para-comment-bubble:hover {
+  opacity: 1 !important;
+  transform: translateY(-50%) scale(1.1);
+  border-color: var(--accent, #E57C33);
+  color: var(--accent, #E57C33);
+  box-shadow: 0 4px 12px rgba(229, 124, 51, 0.35);
+}
+
+/* When a paragraph has active comments, keep bubble partially visible */
+.para-comment-bubble.has-comments {
+  opacity: 0.8;
+  background: rgba(229, 124, 51, 0.12);
+  border-color: rgba(229, 124, 51, 0.4);
+  color: var(--accent, #E57C33);
+}
+
+.icon-bubble-svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
+/* Bubble comment count badge */
+.para-comment-bubble .count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: var(--accent, #E57C33);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  min-width: 13px;
+  height: 13px;
+  border-radius: 6.5px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Comic reader alignment tweaks */
+.comic-page.paragraph-wrapper {
+  position: relative;
+}
+.comic-page.paragraph-wrapper .para-comment-bubble {
+  right: 12px;
+  top: 24px;
+  transform: none;
+  opacity: 0.35;
+}
+.comic-page.paragraph-wrapper:hover .para-comment-bubble {
+  opacity: 0.9;
+}
+
+/* Inline Comments Slide-drawer */
+.inline-comments-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  max-width: 100%;
+  background: rgba(20, 20, 20, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.6);
+  z-index: 990;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.inline-comments-drawer.active {
+  transform: translateX(0);
+}
+
+.inline-comments-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.inline-comments-header-title h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text, #fff);
+}
+
+.inline-comments-header-title .snippet-text {
+  font-size: 0.78rem;
+  color: var(--text-muted, #8a8a8a);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.drawer-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.inline-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+}
+
+.inline-comment-item {
+  display: flex;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 16px;
+}
+
+.inline-comment-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.inline-comment-item .comment-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-gradient, linear-gradient(135deg, #f36b15, #fa8c16));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.inline-comment-item .comment-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.inline-comment-item .comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.inline-comment-item .commenter-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text, #fff);
+  text-decoration: none;
+}
+
+.inline-comment-item .commenter-name:hover {
+  text-decoration: underline;
+}
+
+.inline-comment-item .comment-text {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-muted, #d9d9d9);
+  word-break: break-word;
+}
+
+/* Form Styling */
+.inline-comments-drawer form {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 20px;
+}
+
+.inline-comments-drawer .field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inline-comments-drawer .field span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text, #fff);
+  text-align: left;
+}
+
+.inline-comments-drawer textarea {
+  width: 100%;
+  min-height: 64px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text, #fff);
+  padding: 10px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.inline-comments-drawer textarea:focus {
+  border-color: var(--accent, #E57C33);
+}
+
+/* Light / Sepia themes override */
+.reader-frame.light .para-comment-bubble {
+  background: rgba(245, 235, 215, 0.95);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #5c4e37;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.reader-frame.light .para-comment-bubble.has-comments {
+  background: rgba(229, 124, 51, 0.08);
+  border-color: rgba(229, 124, 51, 0.3);
+}
+
+.reader-frame.light .inline-comments-drawer {
+  background: #fdf5e6;
+  border-left-color: rgba(0, 0, 0, 0.08);
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.08);
+}
+
+.reader-frame.light .inline-comments-header-title h3 {
+  color: #3e2723;
+}
+
+.reader-frame.light .inline-comment-item {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+.reader-frame.light .commenter-name {
+  color: #3e2723;
+}
+
+.reader-frame.light .comment-text {
+  color: #5c4e37;
+}
+
+.reader-frame.light .inline-comments-drawer textarea {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #3e2723;
+}
+
+/* Sepia theme override */
+.reader-frame.sepia .para-comment-bubble {
+  background: rgba(230, 205, 185, 0.95);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #5c3c26;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.reader-frame.sepia .para-comment-bubble.has-comments {
+  background: rgba(229, 124, 51, 0.08);
+  border-color: rgba(229, 124, 51, 0.3);
+}
+
+.reader-frame.sepia .inline-comments-drawer {
+  background: #ecc7ad;
+  border-left-color: rgba(0, 0, 0, 0.08);
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.08);
+}
+
+.reader-frame.sepia .inline-comments-header-title h3 {
+  color: #3e1b05;
+}
+
+.reader-frame.sepia .inline-comment-item {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+.reader-frame.sepia .commenter-name {
+  color: #3e1b05;
+}
+
+.reader-frame.sepia .comment-text {
+  color: #5c3c26;
+}
+
+.reader-frame.sepia .inline-comments-drawer textarea {
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #3e1b05;
+}
+

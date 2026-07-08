@@ -23,9 +23,9 @@ pub async fn list_comments(
             .await?
             .ok_or_else(|| AppError::not_found("Chapter not found"))?;
 
-    let rows: Vec<(Uuid, Option<Uuid>, String, String)> =
+    let rows: Vec<(Uuid, Option<Uuid>, String, String, Option<i32>)> =
         sqlx::query_as(
-            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader') \
+            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index \
              FROM comments c \
              LEFT JOIN profiles p ON c.user_id = p.id \
              WHERE c.chapter_id = $1 \
@@ -37,11 +37,12 @@ pub async fn list_comments(
 
     Ok(Json(
         rows.into_iter()
-            .map(|(id, user_id, text, username)| CommentResponse {
+            .map(|(id, user_id, text, username, paragraph_index)| CommentResponse {
                 id,
                 user_id,
                 user: username,
                 text,
+                paragraph_index,
             })
             .collect(),
     ))
@@ -67,11 +68,12 @@ pub async fn create_comment(
             .ok_or_else(|| AppError::not_found("Chapter not found"))?;
 
     let id = Uuid::new_v4();
-    sqlx::query("INSERT INTO comments (id, chapter_id, user_id, content) VALUES ($1,$2,$3,$4)")
+    sqlx::query("INSERT INTO comments (id, chapter_id, user_id, content, paragraph_index) VALUES ($1,$2,$3,$4,$5)")
         .bind(id)
         .bind(ch.id)
         .bind(user_id)
         .bind(&body.text)
+        .bind(body.paragraph_index)
         .execute(&pool)
         .await?;
 
@@ -122,6 +124,7 @@ pub async fn create_comment(
             user_id: Some(user_id),
             user: username,
             text: body.text,
+            paragraph_index: body.paragraph_index,
         }),
     ))
 }

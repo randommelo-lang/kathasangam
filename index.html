@@ -44,6 +44,23 @@
         </div>
         <div id="heroNotificationArea" class="hero-notification-area"></div>
 
+        <button id="themeToggleBtn" class="theme-toggle-btn" type="button" aria-label="Toggle light/dark theme">
+          <svg class="theme-icon sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#FFD700" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2" />
+            <path d="M12 20v2" />
+            <path d="M4.93 4.93l1.41 1.41" />
+            <path d="M17.66 17.66l1.41 1.41" />
+            <path d="M2 12h2" />
+            <path d="M20 12h2" />
+            <path d="M6.34 17.66l-1.41 1.41" />
+            <path d="M19.07 4.93l-1.41 1.41" />
+          </svg>
+          <svg class="theme-icon moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#FFD700" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+            <path d="M12 3a9 9 0 1 0 8.313 12.454a7.5 7.5 0 0 1 -7.92 -12.446c-.13 0 -.261 0 -.393 -.008z" transform="scale(-1, 1) translate(-24, 0)" />
+          </svg>
+        </button>
+
         <!-- Mobile Search Toggle -->
         <button id="mobileSearchBtn" class="mobile-toggle-btn mobile-search-btn" type="button" aria-label="Toggle search" aria-expanded="false">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -249,6 +266,34 @@
         <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
           <button type="button" id="banUserCancelBtn" class="btn">Cancel</button>
           <button type="submit" id="banUserSubmitBtn" class="btn danger">Ban User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Schedule Publishing Modal ─── -->
+  <div id="scheduleModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal schedule-modal" role="dialog" aria-labelledby="scheduleModalTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="scheduleModalClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">📅</span>
+        <h2 id="scheduleModalTitle" class="auth-modal-title">Schedule Chapter</h2>
+        <p id="scheduleModalSubtitle" class="auth-modal-subtitle">Set a date and time for automatic publishing</p>
+      </div>
+
+      <form id="scheduleForm" data-form="scheduleForm">
+        <input type="hidden" id="scheduleChapterId" name="chapterId">
+
+        <label class="field">
+          <span>Publish Date & Time</span>
+          <input type="datetime-local" id="scheduleDateTime" name="scheduledAt" required style="width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-size: 0.95rem;">
+        </label>
+
+        <p id="scheduleInfo" style="font-size: 0.82rem; color: var(--text-muted); margin: 12px 0 0; line-height: 1.4;"></p>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+          <button type="button" id="scheduleCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="scheduleConfirmBtn" class="btn primary orange-glow-btn">📅 Confirm Schedule</button>
         </div>
       </form>
     </div>

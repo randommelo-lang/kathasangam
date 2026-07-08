@@ -127,6 +127,8 @@ pub struct CreateChapterRequest {
     pub title: String,
     pub status: Option<String>,
     pub access: Option<String>,
+    #[serde(rename = "scheduledAt")]
+    pub scheduled_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -135,6 +137,8 @@ pub struct UpdateChapterRequest {
     pub content: Vec<String>,
     pub status: Option<String>,
     pub pages: Option<Vec<PageResponse>>,
+    #[serde(rename = "scheduledAt")]
+    pub scheduled_at: Option<String>,
 }
 
 // ── Chapter content / pages ──
@@ -170,11 +174,15 @@ pub struct CommentResponse {
     pub user_id: Option<Uuid>,
     pub user: String,
     pub text: String,
+    #[serde(rename = "paragraphIndex")]
+    pub paragraph_index: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCommentRequest {
     pub text: String,
+    #[serde(rename = "paragraphIndex")]
+    pub paragraph_index: Option<i32>,
 }
 
 // ── Report ──

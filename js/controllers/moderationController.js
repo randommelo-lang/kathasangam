@@ -36,11 +36,35 @@ function fetchLogsPage(ctx) {
   var page = ctx.ui.auditLogsPage || 1;
   var limit = ctx.ui.auditLogsLimit || 10;
   var offset = (page - 1) * limit;
-  return ctx.api("/reports/logs?limit=" + limit + "&offset=" + offset)
-    .then(function (logs) {
-      ctx.state.auditLogs = logs;
-      ctx.render();
-    });
+
+  var url = "/reports/logs?limit=" + limit + "&offset=" + offset;
+  if (ctx.ui.auditLogModeratorId && ctx.ui.auditLogModeratorId !== "all") {
+    url += "&moderator_id=" + encodeURIComponent(ctx.ui.auditLogModeratorId);
+  }
+  if (ctx.ui.auditLogAction && ctx.ui.auditLogAction !== "all") {
+    url += "&action=" + encodeURIComponent(ctx.ui.auditLogAction);
+  }
+  if (ctx.ui.auditLogStartDate) {
+    url += "&start_date=" + encodeURIComponent(ctx.ui.auditLogStartDate);
+  }
+  if (ctx.ui.auditLogEndDate) {
+    url += "&end_date=" + encodeURIComponent(ctx.ui.auditLogEndDate);
+  }
+
+
+
+  var moderatorsPromise = ctx.state.logModerators 
+    ? Promise.resolve(ctx.state.logModerators)
+    : ctx.api("/reports/logs/moderators").catch(function () { return []; });
+
+  return Promise.all([
+    ctx.api(url),
+    moderatorsPromise
+  ]).then(function (results) {
+    ctx.state.auditLogs = results[0];
+    ctx.state.logModerators = results[1];
+    ctx.render();
+  });
 }
 
 export function handleModerationClick(ctx, action, target, e) {
@@ -355,6 +379,15 @@ export function handleModerationClick(ctx, action, target, e) {
     fetchReportsPage(ctx);
     return true;
   }
+  if (action === "resetAuditLogFilters") {
+    ctx.ui.auditLogModeratorId = "all";
+    ctx.ui.auditLogAction = "all";
+    ctx.ui.auditLogStartDate = "";
+    ctx.ui.auditLogEndDate = "";
+    ctx.ui.auditLogsPage = 1;
+    fetchLogsPage(ctx);
+    return true;
+  }
   if (action === "setModerationTab") {
     ctx.ui.activeModerationTab = target.dataset.value;
     if (ctx.ui.activeModerationTab === "logs") {
@@ -611,6 +644,30 @@ export function handleModerationInput(ctx, action, target, e) {
       ctx.ui.reportsPage = 1;
       fetchReportsPage(ctx);
     }
+    return true;
+  }
+  if (action === "changeAuditLogModerator") {
+    ctx.ui.auditLogModeratorId = target.value;
+    ctx.ui.auditLogsPage = 1;
+    fetchLogsPage(ctx);
+    return true;
+  }
+  if (action === "changeAuditLogAction") {
+    ctx.ui.auditLogAction = target.value;
+    ctx.ui.auditLogsPage = 1;
+    fetchLogsPage(ctx);
+    return true;
+  }
+  if (action === "changeAuditLogStartDate") {
+    ctx.ui.auditLogStartDate = target.value;
+    ctx.ui.auditLogsPage = 1;
+    fetchLogsPage(ctx);
+    return true;
+  }
+  if (action === "changeAuditLogEndDate") {
+    ctx.ui.auditLogEndDate = target.value;
+    ctx.ui.auditLogsPage = 1;
+    fetchLogsPage(ctx);
     return true;
   }
   return false;

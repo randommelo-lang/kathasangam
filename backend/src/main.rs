@@ -169,6 +169,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             put(routes::chapters::update_chapter)
                 .delete(routes::chapters::delete_chapter),
         )
+        // COLLABORATORS
+        .route(
+            "/stories/:story_id/collaborators",
+            get(routes::collaborators::list_collaborators)
+                .post(routes::collaborators::invite_collaborator),
+        )
+        .route(
+            "/stories/:story_id/collaborators/:user_id",
+            delete(routes::collaborators::remove_collaborator),
+        )
+        .route(
+            "/collaborations/invites",
+            get(routes::collaborators::list_my_invites),
+        )
+        .route(
+            "/collaborations/invites/:invite_id/respond",
+            post(routes::collaborators::respond_invite),
+        )
+
+        // INTERNAL NOTES
+        .route(
+            "/stories/:story_id/internal-notes",
+            get(routes::internal_notes::list_internal_notes)
+                .post(routes::internal_notes::create_internal_note),
+        )
+        .route(
+            "/stories/:story_id/internal-notes/:note_id",
+            delete(routes::internal_notes::delete_internal_note),
+        )
 
         // COMMENTS
         .route(
@@ -214,6 +243,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             post(routes::reports::bulk_update_reports),
         )
 
+        .route(
+            "/reports/logs/moderators",
+            get(routes::reports::list_log_moderators),
+        )
         .route(
             "/reports/logs",
             get(routes::reports::list_audit_logs),

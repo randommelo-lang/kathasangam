@@ -62,17 +62,6 @@ export function renderDiscover(ctx) {
     const carousel = el("section", "hero-carousel skeleton-hero skeleton");
     ctx.view.appendChild(carousel);
     
-    // 2. Stats Row skeleton
-    const isLoggedIn = !!ctx.state.user;
-    const role = ctx.state.role;
-    if (isLoggedIn && (role === "author" || role === "moderator" || role === "admin")) {
-      ctx.view.appendChild(el("div", "stats-row", [
-        el("div", "skeleton skeleton-metric"),
-        el("div", "skeleton skeleton-metric"),
-        el("div", "skeleton skeleton-metric"),
-        el("div", "skeleton skeleton-metric")
-      ]));
-    }
     
     // 3. Filter Toolbar placeholder
     ctx.view.appendChild(el("div", "toolbar", [
@@ -153,28 +142,6 @@ export function renderDiscover(ctx) {
   carousel.appendChild(next);
   ctx.view.appendChild(carousel);
   startCarouselAuto();
-
-  // Stats
-  const isLoggedIn = !!ctx.state.user;
-  const role = ctx.state.role;
-  const pubCount = countPublished(ctx);
-  const viewsCount = totalViews(ctx);
-  const followersCount = totalFollowers(ctx);
-  const openReportsCount = countOpenReports(ctx);
-  
-  const hasRole = role === "author" || role === "moderator" || role === "admin";
-  const hasMetrics = pubCount > 0 || viewsCount > 0 || followersCount > 0 || openReportsCount > 0;
-
-  if (isLoggedIn && (hasRole || hasMetrics)) {
-    var s = ctx.state.stats || {};
-    ctx.view.appendChild(el("div", "stats-row", [
-      metric("Published", s.published || pubCount),
-      metric("Total reads", formatNumber(s.views || viewsCount)),
-      metric("Followers", formatNumber(s.followers || followersCount)),
-      metric("Open reports", s.open_reports || openReportsCount)
-    ]));
-  }
-
   // Filter toolbar
   var filterBtn = el("button", "btn secondary filter-toggle-btn" + (ctx.ui.showFilterDrawer ? " active" : ""), ctx.ui.showFilterDrawer ? "Filters ▴" : "Filters ▾");
   filterBtn.dataset.action = "toggleFilterDrawer";

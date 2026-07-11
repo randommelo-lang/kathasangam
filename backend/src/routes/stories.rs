@@ -254,8 +254,9 @@ pub async fn update_story(
         .await?
         .ok_or_else(|| AppError::not_found("Story not found."))?;
 
-    // Only allow updating if the user is the author
-    if row.author_id != Some(auth.user_id) {
+    // Only allow updating if the user has collaborator access (author or accepted collaborator)
+    let has_access = crate::routes::collaborators::check_collaborator_access(&pool, auth.user_id, id).await?;
+    if !has_access {
         return Err(AppError::forbidden("You do not have permission to edit this story."));
     }
 
@@ -448,13 +449,50 @@ pub async fn build_story_responses_batch(
         return Ok(Vec::new());
     }
 
+    let story_ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
+    let collab_rows: Vec<(Uuid, Uuid, Uuid, String, String, String, String)> = if story_ids.is_empty() {
+        Vec::new()
+    } else {
+        sqlx::query_as(
+            "SELECT c.story_id, c.id, c.user_id, p.username, COALESCE(p.avatar_url, '') as avatar_url, c.role, c.status \
+             FROM story_collaborators c \
+             JOIN profiles p ON c.user_id = p.id \
+             WHERE c.story_id = ANY($1)"
+        )
+        .bind(&story_ids)
+        .fetch_all(pool)
+        .await?
+    };
+
+    let mut collabs_by_story: HashMap<Uuid, Vec<CollaboratorResponse>> = HashMap::new();
+    for r in collab_rows {
+        collabs_by_story.entry(r.0).or_default().push(CollaboratorResponse {
+            id: r.1,
+            user_id: r.2,
+            username: r.3,
+            avatar_url: r.4,
+            role: r.5,
+            status: r.6,
+        });
+    }
+
     // Split story IDs into owned vs non-owned for chapter visibility
     let mut owned_ids: Vec<Uuid> = Vec::new();
     let mut non_owned_ids: Vec<Uuid> = Vec::new();
     for row in rows {
-        let show_all = auth
+        let is_owner = auth
             .map(|u| Some(u.user_id) == row.author_id)
             .unwrap_or(false);
+
+        let is_accepted_collab = auth
+            .map(|u| {
+                collabs_by_story.get(&row.id)
+                    .map(|list| list.iter().any(|c| c.user_id == u.user_id && c.status == "accepted"))
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+
+        let show_all = is_owner || is_accepted_collab;
         if show_all {
             owned_ids.push(row.id);
         } else {
@@ -508,7 +546,10 @@ pub async fn build_story_responses_batch(
 
     // If no chapters exist, return stories with empty chapter vecs
     if all_chapter_ids.is_empty() {
-        return Ok(rows.iter().map(|row| assemble_story(row, Vec::new())).collect());
+        return Ok(rows.iter().map(|row| {
+            let collaborators = collabs_by_story.get(&row.id).cloned().unwrap_or_default();
+            assemble_story(row, Vec::new(), collaborators)
+        }).collect());
     }
 
     // Batch fetch content, pages, comments for ALL chapters at once
@@ -621,14 +662,19 @@ pub async fn build_story_responses_batch(
                 })
                 .unwrap_or_default();
 
-            assemble_story(row, chapters)
+            let collaborators = collabs_by_story.get(&row.id).cloned().unwrap_or_default();
+            assemble_story(row, chapters, collaborators)
         })
         .collect();
 
     Ok(responses)
 }
 
-fn assemble_story(row: &StoryRow, chapters: Vec<ChapterResponse>) -> StoryResponse {
+fn assemble_story(
+    row: &StoryRow,
+    chapters: Vec<ChapterResponse>,
+    collaborators: Vec<CollaboratorResponse>,
+) -> StoryResponse {
     let tags: Vec<String> = row
         .tags
         .as_array()
@@ -660,6 +706,7 @@ fn assemble_story(row: &StoryRow, chapters: Vec<ChapterResponse>) -> StoryRespon
         progress: row.progress,
         created_at: row.created_at,
         chapters,
+        collaborators,
     }
 }
 

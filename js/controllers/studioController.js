@@ -447,6 +447,86 @@ export function handleStudioClick(ctx, action, target, e) {
     });
     return true;
   }
+  if (action === "acceptInvite") {
+    var inviteId = target.dataset.id;
+    ctx.notify("Accepting invitation...");
+    ctx.apiPost("/collaborations/invites/" + inviteId + "/respond", { action: "accept" })
+      .then(function () {
+        ctx.notify("Invitation accepted!");
+        ctx.state.pendingInvitesUserId = null; // force reload invites
+        return ctx.api("/stories");
+      })
+      .then(function (s) {
+        ctx.state.stories = s;
+        ctx.render();
+      })
+      .catch(function (err) {
+        ctx.notify(err.message || "Failed to accept invitation.");
+      });
+    return true;
+  }
+  if (action === "declineInvite") {
+    var inviteId = target.dataset.id;
+    ctx.notify("Declining invitation...");
+    ctx.apiPost("/collaborations/invites/" + inviteId + "/respond", { action: "decline" })
+      .then(function () {
+        ctx.notify("Invitation declined.");
+        ctx.state.pendingInvitesUserId = null; // force reload invites
+        ctx.render();
+      })
+      .catch(function (err) {
+        ctx.notify(err.message || "Failed to decline invitation.");
+      });
+    return true;
+  }
+  if (action === "removeCollaborator") {
+    var storyId = target.dataset.storyId;
+    var userId = target.dataset.userId;
+    var isSelf = (ctx.state.user && userId === ctx.state.user.id);
+    
+    window.showConfirm({
+      title: isSelf ? "Leave Story" : "Remove Collaborator",
+      message: isSelf ? "Are you sure you want to leave this story's collaboration?" : "Are you sure you want to remove this collaborator?",
+      confirmText: isSelf ? "Leave" : "Remove",
+      isDanger: true
+    }).then(function (confirmed) {
+      if (!confirmed) return;
+      ctx.notify(isSelf ? "Leaving story..." : "Removing collaborator...");
+      ctx.apiDelete("/stories/" + storyId + "/collaborators/" + userId)
+        .then(function () {
+          ctx.notify(isSelf ? "You have left the story." : "Collaborator removed.");
+          if (isSelf && ctx.ui.currentStoryId === storyId) {
+            ctx.ui.currentStoryId = "";
+          }
+          return ctx.api("/stories");
+        })
+        .then(function (s) {
+          ctx.state.stories = s;
+          ctx.render();
+        })
+        .catch(function (err) {
+          ctx.notify(err.message || "Failed to remove collaborator.");
+        });
+    });
+    return true;
+  }
+  if (action === "deleteInternalNote") {
+    var storyId = target.dataset.storyId;
+    var noteId = target.dataset.noteId;
+    
+    ctx.apiDelete("/stories/" + storyId + "/internal-notes/" + noteId)
+      .then(function () {
+        ctx.notify("Note deleted.");
+        if (ctx.state.internalNotes) {
+          ctx.state.internalNotes = ctx.state.internalNotes.filter(function (n) { return n.id !== noteId; });
+        }
+        ctx.render();
+      })
+      .catch(function (err) {
+        ctx.notify(err.message || "Failed to delete note.");
+      });
+    return true;
+  }
   return false;
 }
 
@@ -568,6 +648,63 @@ export function handleStudioSubmit(ctx, formName, target, e) {
       setButtonLoading(submitBtn, false);
       console.error(err);
       setFormFeedback(target, (err.message || "Failed to update story metadata.") + " Please check your inputs and try again.", "error");
+    });
+    return true;
+  }
+  if (formName === "inviteForm") {
+    var active = ctx.getCurrentStudioStory();
+    if (!active || !active.id) return true;
+    var fd = new FormData(target);
+    var username = fd.get("username").trim();
+    var role = fd.get("role");
+    
+    if (!username) return true;
+    
+    var submitBtn = target.querySelector("button[type='submit']");
+    submitBtn.disabled = true;
+    
+    ctx.apiPost("/stories/" + active.id + "/collaborators", {
+      username: username,
+      role: role
+    }).then(function () {
+      ctx.notify("Invitation sent to @" + username);
+      target.reset();
+      return ctx.api("/stories");
+    }).then(function (s) {
+      ctx.state.stories = s;
+      ctx.render();
+    }).catch(function (err) {
+      ctx.notify(err.message || "Failed to invite collaborator.");
+    }).finally(function () {
+      submitBtn.disabled = false;
+    });
+    return true;
+  }
+  if (formName === "noteForm") {
+    var active = ctx.getCurrentStudioStory();
+    if (!active || !active.id) return true;
+    var fd = new FormData(target);
+    var chapterId = fd.get("chapterId") || null;
+    var content = fd.get("content").trim();
+    
+    if (!content) return true;
+    
+    var submitBtn = target.querySelector("button[type='submit']");
+    submitBtn.disabled = true;
+    
+    ctx.apiPost("/stories/" + active.id + "/internal-notes", {
+      chapterId: chapterId || null,
+      content: content
+    }).then(function (note) {
+      ctx.notify("Note posted.");
+      if (!ctx.state.internalNotes) ctx.state.internalNotes = [];
+      ctx.state.internalNotes.push(note);
+      target.reset();
+      ctx.render();
+    }).catch(function (err) {
+      ctx.notify(err.message || "Failed to post note.");
+    }).finally(function () {
+      submitBtn.disabled = false;
     });
     return true;
   }

@@ -975,4 +975,246 @@
   text-align: right;
 }
 
+/* ─── Collaborative Co-Authoring ─── */
+
+/* Pending Invites Banner */
+.studio-invite-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: rgba(243, 107, 21, 0.12);
+  border: 1px solid rgba(243, 107, 21, 0.3);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  animation: slideInDown 0.3s ease-out;
+}
+
+@media (max-width: 600px) {
+  .studio-invite-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+}
+
+.studio-invite-text {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.studio-invite-role-badge {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  background: rgba(243, 107, 21, 0.2);
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 0 6px;
+}
+
+.studio-invite-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Collaborators Panel */
+.collaborators-panel {
+  margin-bottom: 24px;
+}
+
+.collab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.collab-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+:root.light .collab-item-row {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.collab-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.collab-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f36b15, #f3a315);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  background-size: cover;
+  background-position: center;
+}
+
+.collab-name-role {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.collab-role-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.collab-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Workspace Discussion (Internal Notes) */
+.internal-notes-panel {
+  margin-bottom: 24px;
+}
+
+.note-list-scroll {
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 6px;
+  margin-top: 8px;
+}
+
+.note-bubble-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.note-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:root.light .note-avatar {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.note-bubble-content {
+  position: relative;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  padding-right: 32px;
+}
+
+:root.light .note-bubble-content {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.note-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.note-author-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.note-chapter-badge {
+  font-size: 0.72rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+:root.light .note-chapter-badge {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.note-timestamp {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.note-text {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.btn-delete-note {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.btn-delete-note:hover {
+  color: var(--danger);
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 

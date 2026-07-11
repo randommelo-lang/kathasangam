@@ -31,6 +31,19 @@ async fn verify_story_owner_or_admin(
         return Ok(());
     }
 
+    // Check if user is accepted collaborator
+    let collab_exists: (bool,) = sqlx::query_as(
+        "SELECT EXISTS(SELECT 1 FROM story_collaborators WHERE story_id = $1 AND user_id = $2 AND status = 'accepted')"
+    )
+    .bind(story_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    if collab_exists.0 {
+        return Ok(());
+    }
+
     let role: Option<(String,)> = sqlx::query_as("SELECT role::text FROM profiles WHERE id = $1")
         .bind(user_id)
         .fetch_optional(pool)

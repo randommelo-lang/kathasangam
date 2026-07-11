@@ -224,6 +224,26 @@ a:focus-visible {
   color: var(--ink)
 }
 
+.audit-logs-filter-bar {
+  margin-bottom: 20px;
+}
+
+.searchbar input[type="date"] {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  background: var(--overlay);
+  font-size: .85rem;
+  transition: border-color .2s;
+  font-family: inherit;
+}
+
+.searchbar input[type="date"]:focus {
+  border-color: var(--accent);
+}
+
 .role-select {
   font-weight: 700;
   color: var(--accent-soft);

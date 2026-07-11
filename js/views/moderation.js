@@ -278,6 +278,81 @@ function getAuditActionClass(action, details) {
   return "audit-info";
 }
 
+function formatAuditDate(v) {
+  if (!v) return "recently";
+  var d = new Date(v);
+  if (isNaN(d.getTime())) return "recently";
+  var day = String(d.getDate()).padStart(2, '0');
+  var month = String(d.getMonth() + 1).padStart(2, '0');
+  var year = d.getFullYear();
+  var hours = String(d.getHours()).padStart(2, '0');
+  var minutes = String(d.getMinutes()).padStart(2, '0');
+  return day + "-" + month + "-" + year + " " + hours + ":" + minutes;
+}
+
+function renderAuditLogsFilterBar(ctx) {
+  var activeMod = ctx.ui.auditLogModeratorId || "all";
+  var activeAction = ctx.ui.auditLogAction || "all";
+  var activeStart = ctx.ui.auditLogStartDate || "";
+  var activeEnd = ctx.ui.auditLogEndDate || "";
+
+  var moderators = ctx.state.logModerators || [];
+  
+  var modOptions = [
+    el("option", { value: "all" }, "All Moderators")
+  ];
+  moderators.forEach(function (m) {
+    modOptions.push(el("option", { value: m.id }, m.username));
+  });
+  
+  var modSelect = el("select", {
+    "data-action": "changeAuditLogModerator",
+    id: "audit-moderator-select"
+  }, modOptions);
+  modSelect.value = activeMod;
+
+  var actionOptions = [
+    el("option", { value: "all" }, "All Action Types"),
+    el("option", { value: "ban_user" }, "Ban User"),
+    el("option", { value: "severity_update" }, "Update Severity"),
+    el("option", { value: "status_update_resolved" }, "Resolve Report"),
+    el("option", { value: "status_update_escalated" }, "Escalate Report"),
+    el("option", { value: "delete_story" }, "Delete Story"),
+    el("option", { value: "delete_chapter" }, "Delete Chapter"),
+    el("option", { value: "delete_comment" }, "Delete Comment")
+  ];
+  var actionSelect = el("select", {
+    "data-action": "changeAuditLogAction",
+    id: "audit-action-select"
+  }, actionOptions);
+  actionSelect.value = activeAction;
+
+  var startInput = el("input", {
+    type: "date",
+    "data-action": "changeAuditLogStartDate",
+    id: "audit-start-date-input",
+    value: activeStart
+  });
+
+  var endInput = el("input", {
+    type: "date",
+    "data-action": "changeAuditLogEndDate",
+    id: "audit-end-date-input",
+    value: activeEnd
+  });
+
+  var hasFilters = (activeMod !== "all") || (activeAction !== "all") || activeStart || activeEnd;
+  var resetBtn = hasFilters ? button("Reset", "btn btn-sm secondary-btn reset-filters-btn", { action: "resetAuditLogFilters" }) : null;
+
+  return el("div", "audit-logs-filter-bar searchbar", [
+    modSelect,
+    actionSelect,
+    startInput,
+    endInput,
+    resetBtn
+  ].filter(Boolean));
+}
+
 function renderAuditLogs(ctx) {
   var logsObj = ctx.state.auditLogs || { items: [], total: 0 };
   var logs = logsObj.items || [];
@@ -285,70 +360,78 @@ function renderAuditLogs(ctx) {
   var logsPage = ctx.ui.auditLogsPage || 1;
   var limit = ctx.ui.auditLogsLimit || 10;
 
-  if (!logs.length) {
-    return el("div", "empty", "No audit logs found.");
-  }
-  
-  return el("div", "audit-logs-container panel", [
-    el("h2", null, "Moderator Audit Logs"),
-    el("div", "audit-logs-list-wrapper", [
-      list(logs, "report-list", function (log) {
-        var actionText = log.action;
-        if (log.details && log.details.new_status) {
-          actionText = "Changed status to " + log.details.new_status;
-        } else if (log.action === "auto_scan_escalation") {
-          actionText = "Auto-scan: Escalated to high severity";
-        }
-        
-        if (actionText && actionText.includes("_")) {
-          actionText = actionText.replace(/_/g, " ");
-          actionText = actionText.charAt(0).toUpperCase() + actionText.slice(1);
-        }
+  var filterBar = renderAuditLogsFilterBar(ctx);
+  var listContent;
 
-        var dateStr = log.created_at ? formatDate(log.created_at) : "recently";
-        
-        var targetInfo = log.target_type;
-        var targetLinkEl = null;
-        if (log.details && log.details.target_type && log.details.target_id) {
-          var targetCtx = findReportTargetContext(ctx, log.details.target_type, log.details.target_id);
-          if (targetCtx) {
-            targetLinkEl = el("a", { class: "report-target-link", href: targetCtx.link }, 
-              log.details.target_type.toUpperCase() + ": " + targetCtx.name
-            );
-          } else {
-            targetLinkEl = el("span", "report-target-fallback", 
-              log.details.target_type.toUpperCase() + ": " + log.details.target_id + " (Content unavailable)"
-            );
-          }
+  if (!logs.length) {
+    listContent = el("div", "empty", "No audit logs found.");
+  } else {
+    var itemsList = list(logs, "report-list", function (log) {
+      var actionText = log.action;
+      if (log.details && log.details.new_status) {
+        actionText = "Changed status to " + log.details.new_status;
+      } else if (log.action === "auto_scan_escalation") {
+        actionText = "Auto-scan: Escalated to high severity";
+      }
+      
+      if (actionText && actionText.includes("_")) {
+        actionText = actionText.replace(/_/g, " ");
+        actionText = actionText.charAt(0).toUpperCase() + actionText.slice(1);
+      }
+
+      var dateStr = log.created_at ? formatAuditDate(log.created_at) : "recently";
+      
+      var targetInfo = log.target_type;
+      var targetLinkEl = null;
+      if (log.details && log.details.target_type && log.details.target_id) {
+        var targetCtx = findReportTargetContext(ctx, log.details.target_type, log.details.target_id);
+        if (targetCtx) {
+          targetLinkEl = el("a", { class: "report-target-link", href: targetCtx.link }, 
+            log.details.target_type.toUpperCase() + ": " + targetCtx.name
+          );
         } else {
           targetLinkEl = el("span", "report-target-fallback", 
-            String(log.target_type).toUpperCase() + ": " + log.target_id
+            log.details.target_type.toUpperCase() + ": " + log.details.target_id + " (Content unavailable)"
           );
         }
+      } else {
+        targetLinkEl = el("span", "report-target-fallback", 
+          String(log.target_type).toUpperCase() + ": " + log.target_id
+        );
+      }
 
-        var noteText = (log.details && log.details.note) ? log.details.note : "";
-        var auditClass = getAuditActionClass(log.action, log.details);
+      var noteText = (log.details && log.details.note) ? log.details.note : "";
+      var auditClass = getAuditActionClass(log.action, log.details);
 
-        return el("div", "report-item audit-log-item " + auditClass, [
-          el("div", "audit-header", [
-            el("span", "audit-moderator", [
-              el("strong", null, "Moderator: "),
-              el("span", null, log.moderator_name || log.moderator_id || "System")
-            ]),
-            el("span", "audit-date", dateStr)
+      return el("div", "report-item audit-log-item " + auditClass, [
+        el("div", "audit-header", [
+          el("span", "audit-moderator", [
+            el("strong", null, "Moderator: "),
+            el("span", null, log.moderator_name || log.moderator_id || "System")
           ]),
-          el("div", "audit-action-row", [
-            el("span", "report-badge audit-badge " + auditClass, actionText),
-            targetLinkEl
-          ]),
-          noteText ? el("div", "audit-note", [
-            el("strong", null, "Note: "),
-            el("span", null, noteText)
-          ]) : null
-        ].filter(Boolean));
-      }),
+          el("span", "audit-date", dateStr)
+        ]),
+        el("div", "audit-action-row", [
+          el("span", "report-badge audit-badge " + auditClass, actionText),
+          targetLinkEl
+        ]),
+        noteText ? el("div", "audit-note", [
+          el("strong", null, "Note: "),
+          el("span", null, noteText)
+        ]) : null
+      ].filter(Boolean));
+    });
+
+    listContent = el("div", "audit-logs-list-wrapper", [
+      itemsList,
       renderPagination(logsPage, totalLogs, limit, "changeLogsPage")
-    ].filter(Boolean))
+    ]);
+  }
+
+  return el("div", "audit-logs-container panel", [
+    el("h2", null, "Moderator Audit Logs"),
+    filterBar,
+    listContent
   ]);
 }
 

@@ -530,7 +530,11 @@ function getCurrentStudioStory() {
     return { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
   }
   var userStories = state.stories.filter(function (s) {
-    return state.user && s.author_id === state.user.id;
+    if (!state.user) return false;
+    if (s.author_id === state.user.id) return true;
+    return s.collaborators && s.collaborators.some(function (c) {
+      return c.user_id === state.user.id && c.status === "accepted";
+    });
   });
   return userStories.find(function (s) { return s.id === ui.currentStoryId; }) || userStories[0] || { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
 }

@@ -4,6 +4,34 @@ import { storyGrid, storyCardSkeleton } from "./shared.js";
 export function renderStudio(ctx) {
   ctx = ctx || this;
 
+  // Reactively fetch pending invites if not loaded/stale
+  if (ctx.state.user && ctx.state.pendingInvitesUserId !== ctx.state.user.id) {
+    ctx.state.pendingInvitesUserId = ctx.state.user.id;
+    ctx.api("/collaborations/invites")
+      .then(function (invites) {
+        ctx.state.pendingInvites = invites;
+        ctx.render();
+      })
+      .catch(function (err) {
+        console.error("Failed to load invites:", err);
+      });
+  }
+
+  // Reactively fetch internal notes for active story if selection changed
+  var activeStory = ctx.getCurrentStudioStory();
+  if (activeStory && activeStory.id && ctx.state.internalNotesStoryId !== activeStory.id) {
+    ctx.state.internalNotesStoryId = activeStory.id;
+    ctx.state.internalNotes = []; // Clear current notes to avoid flicker
+    ctx.api("/stories/" + activeStory.id + "/internal-notes")
+      .then(function (notes) {
+        ctx.state.internalNotes = notes;
+        ctx.render();
+      })
+      .catch(function (err) {
+        console.error("Failed to load internal notes:", err);
+      });
+  }
+
   if (ctx.state.stories === null) {
     ctx.view.appendChild(
       el("div", "story-grid", [
@@ -15,7 +43,11 @@ export function renderStudio(ctx) {
   }
 
   var userStories = ctx.state.stories.filter(function (s) {
-    return ctx.state.user && s.author_id === ctx.state.user.id;
+    if (!ctx.state.user) return false;
+    if (s.author_id === ctx.state.user.id) return true;
+    return s.collaborators && s.collaborators.some(function (c) {
+      return c.user_id === ctx.state.user.id && c.status === "accepted";
+    });
   });
   var active = userStories.find(function (s) { return s.id === ctx.ui.currentStoryId; }) || userStories[0];
 
@@ -72,6 +104,27 @@ export function renderStudio(ctx) {
   // 2. Middle Column Components
   var middleColumnChildren = [];
   middleColumnChildren.push(headerToolbar);
+
+  // Render pending invites banner at the top of studio if user has invitations
+  if (ctx.state.pendingInvites && ctx.state.pendingInvites.length > 0) {
+    ctx.state.pendingInvites.forEach(function (invite) {
+      var inviteCard = el("div", "studio-invite-banner", [
+        el("div", "studio-invite-text", [
+          el("span", { style: "font-size: 1.2rem; margin-right: 8px;" }, "📩"),
+          el("strong", null, invite.ownerUsername),
+          " invited you to collaborate as a ",
+          el("span", "studio-invite-role-badge", invite.role),
+          " on their story ",
+          el("strong", null, invite.storyTitle)
+        ]),
+        el("div", "studio-invite-actions", [
+          button("Accept", "btn btn-sm success", { action: "acceptInvite", id: invite.collaborationId }),
+          button("Decline", "btn btn-sm danger", { action: "declineInvite", id: invite.collaborationId })
+        ])
+      ]);
+      middleColumnChildren.push(inviteCard);
+    });
+  }
 
   if (active) {
     // Active Story Card
@@ -264,6 +317,162 @@ export function renderStudio(ctx) {
 
       middleColumnChildren.push(upcomingPanel);
     }
+
+    // Collaborators Panel
+    var collaboratorsList = active.collaborators || [];
+    var isOwner = (ctx.state.user && active.author_id === ctx.state.user.id);
+    
+    var collabItems = collaboratorsList.map(function (c) {
+      var badgeClass = "badge-status " + (c.status === "accepted" ? "published" : "draft");
+      
+      var removeBtn = null;
+      if (ctx.state.user) {
+        if (isOwner) {
+          removeBtn = button("Remove", "btn btn-sm danger", { action: "removeCollaborator", storyId: active.id, userId: c.user_id });
+        } else if (c.user_id === ctx.state.user.id) {
+          removeBtn = button("Leave Story", "btn btn-sm danger", { action: "removeCollaborator", storyId: active.id, userId: c.user_id });
+        }
+      }
+
+      var avatarEl = el("div", "collab-avatar", c.username.substring(0, 2).toUpperCase());
+      if (c.avatar_url) {
+        avatarEl.style.backgroundImage = "url('" + c.avatar_url + "')";
+        avatarEl.innerText = "";
+      }
+
+      return el("div", "collab-item-row", [
+        el("div", "collab-info", [
+          avatarEl,
+          el("div", "collab-name-role", [
+            el("strong", null, c.username),
+            el("span", "collab-role-label", c.role === "co-writer" ? "Co-Writer" : "Editor")
+          ])
+        ]),
+        el("div", "collab-status-actions", [
+          el("span", badgeClass, c.status === "accepted" ? "Accepted" : "Invited"),
+          removeBtn
+        ].filter(Boolean))
+      ]);
+    });
+
+    var inviteForm = null;
+    if (isOwner) {
+      inviteForm = el("form", { "data-form": "inviteForm", style: "margin-top: 16px; display: flex; gap: 8px; align-items: flex-end;" }, [
+        el("div", { style: "flex: 1;" }, [
+          el("label", { style: "display: block; font-size: 0.82rem; margin-bottom: 4px; color: var(--text-muted);" }, "Invite Collaborator"),
+          el("input", {
+            type: "text",
+            name: "username",
+            placeholder: "Enter username...",
+            required: true,
+            style: "width: 100%; padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);"
+          })
+        ]),
+        el("div", { style: "width: 130px;" }, [
+          el("label", { style: "display: block; font-size: 0.82rem; margin-bottom: 4px; color: var(--text-muted);" }, "Role"),
+          el("select", {
+            name: "role",
+            style: "width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);"
+          }, [
+            el("option", { value: "co-writer" }, "Co-Writer"),
+            el("option", { value: "editor" }, "Editor")
+          ])
+        ]),
+        el("button", { type: "submit", class: "btn primary orange-glow-btn", style: "padding: 8px 16px;" }, "Invite")
+      ]);
+    }
+
+    var collaboratorsPanel = el("section", "panel collaborators-panel", [
+      el("div", "toolbar", [
+        el("h2", null, "👥 Story Collaborators"),
+        el("span", "mini-meta", collaboratorsList.length + " total")
+      ]),
+      el("div", "collab-list", collabItems.length > 0 ? collabItems : el("p", { style: "color: var(--text-muted); font-size: 0.9rem;" }, "No collaborators added yet.")),
+      inviteForm
+    ].filter(Boolean));
+
+    // Workspace Discussion Panel
+    var notesList = ctx.state.internalNotes || [];
+    
+    var noteItems = notesList.map(function (n) {
+      var isNoteAuthor = (ctx.state.user && n.authorId === ctx.state.user.id);
+      var deleteNoteBtn = null;
+      if (isNoteAuthor || isOwner) {
+        deleteNoteBtn = button("×", "btn-delete-note", { action: "deleteInternalNote", storyId: active.id, noteId: n.id });
+      }
+
+      var avatarEl = el("div", "note-avatar", n.authorName.substring(0, 2).toUpperCase());
+      if (n.authorAvatar) {
+        avatarEl.style.backgroundImage = "url('" + n.authorAvatar + "')";
+        avatarEl.innerText = "";
+      }
+
+      // Format date
+      var noteDate = new Date(n.createdAt);
+      var formattedDate = noteDate.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + noteDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
+      var chapterBadge = null;
+      if (n.chapterId) {
+        var associatedChapter = active.chapters && active.chapters.find(function (ch) { return ch.id === n.chapterId; });
+        if (associatedChapter) {
+          chapterBadge = el("span", "note-chapter-badge", associatedChapter.title);
+        }
+      }
+
+      return el("div", "note-bubble-row", [
+        avatarEl,
+        el("div", "note-bubble-content", [
+          el("div", "note-header", [
+            el("span", "note-author-name", n.authorName),
+            chapterBadge,
+            el("span", "note-timestamp", formattedDate)
+          ].filter(Boolean)),
+          el("p", "note-text", n.content),
+          deleteNoteBtn
+        ].filter(Boolean))
+      ]);
+    });
+
+    // Chapter dropdown options for Note Form
+    var noteChapterOptions = [
+      el("option", { value: "" }, "General Story Note")
+    ];
+    if (active.chapters && active.chapters.length) {
+      active.chapters.forEach(function (ch) {
+        var opt = el("option", null, ch.title);
+        opt.value = ch.id;
+        noteChapterOptions.push(opt);
+      });
+    }
+
+    var noteForm = el("form", { "data-form": "noteForm", style: "margin-top: 16px;" }, [
+      el("div", { style: "display: flex; gap: 8px; margin-bottom: 8px;" }, [
+        el("select", {
+          name: "chapterId",
+          style: "flex: 1; padding: 6px 12px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-size: 0.85rem;"
+        }, noteChapterOptions),
+        el("button", { type: "submit", class: "btn primary orange-glow-btn", style: "padding: 6px 16px; font-size: 0.85rem;" }, "Post Note")
+      ]),
+      el("textarea", {
+        name: "content",
+        placeholder: "Write a note or review comment...",
+        required: true,
+        rows: 2,
+        style: "width: 100%; padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-size: 0.9rem; resize: vertical;"
+      })
+    ]);
+
+    var internalNotesPanel = el("section", "panel internal-notes-panel", [
+      el("div", "toolbar", [
+        el("h2", null, "💬 Workspace Discussion"),
+        el("span", "mini-meta", notesList.length + " notes")
+      ]),
+      el("div", "note-list-scroll", noteItems.length > 0 ? noteItems : el("p", { style: "color: var(--text-muted); font-size: 0.9rem;" }, "No discussion notes yet. Start the conversation!")),
+      noteForm
+    ]);
+
+    middleColumnChildren.push(collaboratorsPanel);
+    middleColumnChildren.push(internalNotesPanel);
   } else {
     // Welcome placeholder card for first story
     var welcomeCard = el("section", "panel", [

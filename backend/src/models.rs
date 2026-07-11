@@ -51,6 +51,7 @@ pub struct StoryResponse {
     pub progress: i32,
     pub created_at: NaiveDateTime,
     pub chapters: Vec<ChapterResponse>,
+    pub collaborators: Vec<CollaboratorResponse>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -266,6 +267,10 @@ pub struct ReportQuery {
 pub struct AuditLogQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    pub moderator_id: Option<uuid::Uuid>,
+    pub action: Option<String>,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -429,4 +434,65 @@ pub struct ReadingListDetailResponse {
     pub is_private: bool,
     pub created_at: NaiveDateTime,
     pub stories: Vec<StoryResponse>,
+}
+
+// ── Collaborative Co-Authoring ──
+
+#[derive(Debug, Serialize, Clone)]
+pub struct CollaboratorResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub username: String,
+    pub avatar_url: String,
+    pub role: String,
+    pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InviteCollaboratorRequest {
+    pub username: String,
+    pub role: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RespondInviteRequest {
+    pub action: String, // "accept" or "decline"
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateInternalNoteRequest {
+    #[serde(rename = "chapterId")]
+    pub chapter_id: Option<Uuid>,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct InternalNoteResponse {
+    pub id: Uuid,
+    pub story_id: Uuid,
+    #[serde(rename = "chapterId")]
+    pub chapter_id: Option<Uuid>,
+    #[serde(rename = "authorId")]
+    pub author_id: Uuid,
+    #[serde(rename = "authorName")]
+    pub author_name: String,
+    #[serde(rename = "authorAvatar")]
+    pub author_avatar: String,
+    pub content: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct PendingInviteResponse {
+    #[serde(rename = "collaborationId")]
+    pub collaboration_id: Uuid,
+    #[serde(rename = "storyId")]
+    pub story_id: Uuid,
+    #[serde(rename = "storyTitle")]
+    pub story_title: String,
+    #[serde(rename = "ownerUsername")]
+    pub owner_username: String,
+    pub role: String,
+    pub status: String,
 }

@@ -198,7 +198,59 @@ pub async fn list_audit_logs(
     let limit = params.limit.unwrap_or(10);
     let offset = params.offset.unwrap_or(0);
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM moderation_audit_logs")
+    let action_filter = match params.action.as_deref() {
+        Some("all") | None => None,
+        Some(s) if s.trim().is_empty() => None,
+        Some(s) => Some(s.trim().to_string()),
+    };
+
+    let start_date = match &params.start_date {
+        Some(s) if !s.trim().is_empty() => {
+            let s_trimmed = s.trim();
+            if let Ok(ndt) = chrono::NaiveDateTime::parse_from_str(s_trimmed, "%Y-%m-%dT%H:%M:%S") {
+                Some(ndt)
+            } else if let Ok(ndt) = chrono::NaiveDateTime::parse_from_str(s_trimmed, "%Y-%m-%dT%H:%M") {
+                Some(ndt)
+            } else if let Ok(nd) = chrono::NaiveDate::parse_from_str(s_trimmed, "%d-%m-%Y") {
+                Some(nd.and_hms_opt(0, 0, 0).unwrap())
+            } else if let Ok(nd) = chrono::NaiveDate::parse_from_str(s_trimmed, "%Y-%m-%d") {
+                Some(nd.and_hms_opt(0, 0, 0).unwrap())
+            } else {
+                return Err(AppError::bad_request("Invalid start_date format. Use DD-MM-YYYY or YYYY-MM-DD"));
+            }
+        }
+        _ => None,
+    };
+
+    let end_date = match &params.end_date {
+        Some(s) if !s.trim().is_empty() => {
+            let s_trimmed = s.trim();
+            if let Ok(ndt) = chrono::NaiveDateTime::parse_from_str(s_trimmed, "%Y-%m-%dT%H:%M:%S") {
+                Some(ndt)
+            } else if let Ok(ndt) = chrono::NaiveDateTime::parse_from_str(s_trimmed, "%Y-%m-%dT%H:%M") {
+                Some(ndt)
+            } else if let Ok(nd) = chrono::NaiveDate::parse_from_str(s_trimmed, "%d-%m-%Y") {
+                Some(nd.and_hms_opt(23, 59, 59).unwrap())
+            } else if let Ok(nd) = chrono::NaiveDate::parse_from_str(s_trimmed, "%Y-%m-%d") {
+                Some(nd.and_hms_opt(23, 59, 59).unwrap())
+            } else {
+                return Err(AppError::bad_request("Invalid end_date format. Use DD-MM-YYYY or YYYY-MM-DD"));
+            }
+        }
+        _ => None,
+    };
+
+    let count_sql = "SELECT COUNT(*) FROM moderation_audit_logs l \
+                     WHERE ($1::uuid IS NULL OR l.moderator_id = $1) \
+                       AND ($2::text IS NULL OR l.action = $2 OR l.action LIKE $2 || '%') \
+                       AND ($3::timestamp IS NULL OR l.created_at >= $3) \
+                       AND ($4::timestamp IS NULL OR l.created_at <= $4)";
+
+    let total: i64 = sqlx::query_scalar(count_sql)
+        .bind(&params.moderator_id)
+        .bind(&action_filter)
+        .bind(&start_date)
+        .bind(&end_date)
         .fetch_one(&pool)
         .await?;
 
@@ -206,8 +258,16 @@ pub async fn list_audit_logs(
         "SELECT l.id, l.moderator_id, p.username AS moderator_name, l.action, l.target_type, l.target_id, l.details, l.created_at \
          FROM moderation_audit_logs l \
          LEFT JOIN profiles p ON l.moderator_id = p.id \
-         ORDER BY l.created_at DESC LIMIT $1 OFFSET $2"
+         WHERE ($1::uuid IS NULL OR l.moderator_id = $1) \
+           AND ($2::text IS NULL OR l.action = $2 OR l.action LIKE $2 || '%') \
+           AND ($3::timestamp IS NULL OR l.created_at >= $3) \
+           AND ($4::timestamp IS NULL OR l.created_at <= $4) \
+         ORDER BY l.created_at DESC LIMIT $5 OFFSET $6"
     )
+    .bind(&params.moderator_id)
+    .bind(&action_filter)
+    .bind(&start_date)
+    .bind(&end_date)
     .bind(limit)
     .bind(offset)
     .fetch_all(&pool)
@@ -217,6 +277,34 @@ pub async fn list_audit_logs(
         items: rows,
         total,
     }))
+}
+
+/// GET /api/reports/logs/moderators
+pub async fn list_log_moderators(
+    auth: AuthUser,
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    if !check_is_staff(&pool, auth.user_id).await? {
+        return Err(AppError::forbidden("You do not have staff permissions to perform this action."));
+    }
+
+    let rows: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT DISTINCT l.moderator_id, COALESCE(p.username, 'Unknown') AS username \
+         FROM moderation_audit_logs l \
+         LEFT JOIN profiles p ON l.moderator_id = p.id \
+         ORDER BY username"
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    let result = rows.into_iter().map(|(id, username)| {
+        serde_json::json!({
+            "id": id,
+            "username": username
+        })
+    }).collect();
+
+    Ok(Json(result))
 }
 
 /// POST /api/reports

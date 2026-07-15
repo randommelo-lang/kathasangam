@@ -66,6 +66,60 @@ export function svgEl(tag, attrs, children) {
   return n;
 }
 
+export function makeCalendarIcon(className = "icon") {
+  return svgEl("svg", {
+    width: "16",
+    height: "16",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: className
+  }, [
+    svgEl("rect", { x: "3", y: "4", width: "18", height: "18", rx: "2", ry: "2" }),
+    svgEl("line", { x1: "16", y1: "2", x2: "16", y2: "6" }),
+    svgEl("line", { x1: "8", y1: "2", x2: "8", y2: "6" }),
+    svgEl("line", { x1: "3", y1: "10", x2: "21", y2: "10" })
+  ]);
+}
+
+export function makeCollaboratorsIcon(className = "icon") {
+  return svgEl("svg", {
+    width: "18",
+    height: "18",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: className
+  }, [
+    svgEl("path", { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
+    svgEl("circle", { cx: "9", cy: "7", r: "4" }),
+    svgEl("path", { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
+    svgEl("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" })
+  ]);
+}
+
+export function makeDiscussionIcon(className = "icon") {
+  return svgEl("svg", {
+    width: "18",
+    height: "18",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: className
+  }, [
+    svgEl("path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" })
+  ]);
+}
+
 export function iconButton(text, className, data, iconName, disabled) {
   const btn = el("button", className || "btn");
   btn.type = "button";
@@ -170,7 +224,19 @@ export function button(text, className, data, disabled) {
   const n = document.createElement("button");
   n.type = "button";
   n.className = className == null ? "btn" : className;
-  n.textContent = text;
+  if (Array.isArray(text)) {
+    text.forEach(function (t) {
+      if (typeof t === "string" || typeof t === "number") {
+        n.appendChild(document.createTextNode(String(t)));
+      } else if (t) {
+        n.appendChild(t);
+      }
+    });
+  } else if (typeof text === "string" || typeof text === "number") {
+    n.textContent = text;
+  } else if (text) {
+    n.appendChild(text);
+  }
   if (data) {
     Object.keys(data).forEach(function (k) {
       n.dataset[k] = data[k];

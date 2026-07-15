@@ -1,4 +1,4 @@
-import { button, el } from "../components.js";
+import { button, el, makeCalendarIcon } from "../components.js";
 import { getDraftKey, loadDraft, setupAutosave, showRecoveryBanner } from "./autosave.js";
 import { importComicPdf, importComicImages } from "./importers.js";
 
@@ -302,7 +302,7 @@ export function renderComicEditor(ctx, story, chapter) {
 
   const actionsRow = el("div", "editor-actions-row", [
     button("Publish", "btn primary orange-glow-btn", { action: "publishChapter" }),
-    button("📅 Schedule", "btn schedule-btn", { action: "openScheduleModal" }),
+    button([makeCalendarIcon(), " Schedule"], "btn schedule-btn", { action: "openScheduleModal" }),
     button("Save Draft", "btn", { action: "saveChapterDraft" }),
     button("Cancel", "btn danger", { action: "cancelEditChapter" })
   ]);

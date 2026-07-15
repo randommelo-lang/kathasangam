@@ -1,4 +1,4 @@
-import { analyticsMetricBox, button, el, formatDate, formatNumber, generateChartData, generateChapterReadsChart, calculateRetentionFunnel, calculateGenreAverages, iconButton, progress, quickActionTile, svgEl } from "../components.js";
+import { analyticsMetricBox, button, el, formatDate, formatNumber, generateChartData, generateChapterReadsChart, calculateRetentionFunnel, calculateGenreAverages, iconButton, progress, quickActionTile, svgEl, makeCalendarIcon, makeCollaboratorsIcon, makeDiscussionIcon } from "../components.js";
 import { storyGrid, storyCardSkeleton } from "./shared.js";
 
 export function renderStudio(ctx) {
@@ -224,7 +224,7 @@ export function renderStudio(ctx) {
         if (ch.status === "scheduled" && ch.scheduledAt) {
           var schedDate = new Date(ch.scheduledAt);
           var formatted = schedDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + " at " + schedDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-          detailsChildren.push(el("span", "schedule-date-label", "📅 " + formatted));
+          detailsChildren.push(el("span", "schedule-date-label", [makeCalendarIcon("icon icon-sm"), " " + formatted]));
         }
         
         // Build action buttons
@@ -236,7 +236,7 @@ export function renderStudio(ctx) {
         // Schedule / Reschedule button
         if (ch.status === "draft" || ch.status === "scheduled") {
           actionButtons.push(
-            button(ch.status === "scheduled" ? "⏰" : "📅", "btn btn-sm schedule-btn", { action: "openScheduleModal", id: ch.id, scheduledAt: ch.scheduledAt || "" })
+            button(ch.status === "scheduled" ? "⏰" : makeCalendarIcon("icon icon-sm"), "btn btn-sm schedule-btn", { action: "openScheduleModal", id: ch.id, scheduledAt: ch.scheduledAt || "" })
           );
         }
         // Publish Now button (for draft and scheduled)
@@ -298,7 +298,7 @@ export function renderStudio(ctx) {
         return el("div", "upcoming-schedule-card", [
           el("div", "upcoming-schedule-info", [
             el("strong", null, ch.title),
-            el("span", "upcoming-schedule-date", "📅 " + formatted)
+            el("span", "upcoming-schedule-date", [makeCalendarIcon("icon icon-sm"), " " + formatted])
           ]),
           el("div", "upcoming-schedule-right", [
             el("span", "upcoming-countdown-badge", countdown),
@@ -309,7 +309,7 @@ export function renderStudio(ctx) {
 
       var upcomingPanel = el("section", "panel upcoming-schedule-panel", [
         el("div", "toolbar", [
-          el("h2", null, "📅 Upcoming Schedule"),
+          el("h2", null, [makeCalendarIcon(), " Upcoming Schedule"]),
           el("span", "mini-meta", scheduledChapters.length + " scheduled")
         ]),
         el("div", "upcoming-schedule-list", scheduleItems)
@@ -384,7 +384,7 @@ export function renderStudio(ctx) {
 
     var collaboratorsPanel = el("section", "panel collaborators-panel", [
       el("div", "toolbar", [
-        el("h2", null, "👥 Story Collaborators"),
+        el("h2", null, [makeCollaboratorsIcon(), " Story Collaborators"]),
         el("span", "mini-meta", collaboratorsList.length + " total")
       ]),
       el("div", "collab-list", collabItems.length > 0 ? collabItems : el("p", { style: "color: var(--text-muted); font-size: 0.9rem;" }, "No collaborators added yet.")),
@@ -464,7 +464,7 @@ export function renderStudio(ctx) {
 
     var internalNotesPanel = el("section", "panel internal-notes-panel", [
       el("div", "toolbar", [
-        el("h2", null, "💬 Workspace Discussion"),
+        el("h2", null, [makeDiscussionIcon(), " Workspace Discussion"]),
         el("span", "mini-meta", notesList.length + " notes")
       ]),
       el("div", "note-list-scroll", noteItems.length > 0 ? noteItems : el("p", { style: "color: var(--text-muted); font-size: 0.9rem;" }, "No discussion notes yet. Start the conversation!")),

@@ -1238,5 +1238,44 @@ h2 svg.icon {
   height: 14px;
 }
 
+/* Light Theme overrides for #studio layout elements */
+:root.light .studio-story-active-card {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+:root.light .studio-chart-table-container {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+:root.light .studio-chart-table th {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-bottom-color: var(--line) !important;
+}
+
+:root.light .studio-chart-table tbody tr {
+  border-bottom-color: rgba(44, 34, 30, 0.06) !important;
+}
+
+:root.light .studio-chart-table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+:root.light .studio-active-cover {
+  border-color: var(--line) !important;
+}
+
+/* Note/Collaborators Form Input, Textarea, Select Overrides in Light Theme */
+:root.light form[data-form="inviteForm"] input,
+:root.light form[data-form="inviteForm"] select,
+:root.light form[data-form="noteForm"] select,
+:root.light form[data-form="noteForm"] textarea {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+
+
 
 

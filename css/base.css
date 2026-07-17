@@ -36,15 +36,15 @@
 
 :root.light {
   color-scheme: light;
-  --bg: #F5F2EB;
-  --surface: #FCFAF2;
-  --surface-2: #ECE7DB;
-  --surface-3: #DFD9CD;
+  --bg: #ECC7AD;
+  --surface: #F7E4D6;
+  --surface-2: #DFBCA6;
+  --surface-3: #D0AB93;
   --ink: #2C221E;
   --muted: #8C7C71;
   --text-muted: #8C7C71;
   --line: rgba(44, 34, 30, 0.12);
-  --glass: rgba(245, 242, 235, 0.72);
+  --glass: rgba(236, 199, 173, 0.72);
   --shadow: 0 12px 32px rgba(44, 34, 30, 0.08);
   --overlay: rgba(44, 34, 30, 0.05);
   --overlay-soft: rgba(44, 34, 30, 0.02);

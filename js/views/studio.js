@@ -236,26 +236,26 @@ export function renderStudio(ctx) {
         // Schedule / Reschedule button
         if (ch.status === "draft" || ch.status === "scheduled") {
           actionButtons.push(
-            button(ch.status === "scheduled" ? "⏰" : makeCalendarIcon("icon icon-sm"), "btn btn-sm schedule-btn", { action: "openScheduleModal", id: ch.id, scheduledAt: ch.scheduledAt || "" })
+            button(ch.status === "scheduled" ? "⏰" : makeCalendarIcon("icon icon-sm"), "btn btn-sm schedule-btn", { action: "openScheduleModal", id: ch.id, scheduledAt: ch.scheduledAt || "", tooltip: ch.status === "scheduled" ? "Reschedule" : "Schedule" })
           );
         }
         // Publish Now button (for draft and scheduled)
         if (ch.status !== "published") {
           actionButtons.push(
-            button("▶", "btn btn-sm publish-now-btn", { action: "publishNow", id: ch.id })
+            button("▶", "btn btn-sm publish-now-btn", { action: "publishNow", id: ch.id, tooltip: "Publish Now" })
           );
         }
         // Cancel Schedule (for scheduled)
         if (ch.status === "scheduled") {
           actionButtons.push(
-            button("✕", "btn btn-sm danger", { action: "cancelSchedule", id: ch.id })
+            button("✕", "btn btn-sm danger", { action: "cancelSchedule", id: ch.id, tooltip: "Cancel Schedule" })
           );
         }
         
         actionButtons.push(
-          iconButton("", "btn btn-sm", { action: "editChapter", id: ch.id }, "icon-edit"),
-          iconButton("", "btn btn-sm", { action: "openChapter", index: String(i) }, "icon-book"),
-          iconButton("", "btn btn-sm danger", { action: "deleteChapter", id: ch.id }, "icon-trash")
+          iconButton("", "btn btn-sm", { action: "editChapter", id: ch.id, tooltip: "Edit Chapter" }, "icon-edit"),
+          iconButton("", "btn btn-sm", { action: "openChapter", index: String(i), tooltip: "Read Chapter" }, "icon-book"),
+          iconButton("", "btn btn-sm danger", { action: "deleteChapter", id: ch.id, tooltip: "Delete Chapter" }, "icon-trash")
         );
         
         return el("li", itemClass, [

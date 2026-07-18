@@ -510,3 +510,55 @@
   font-size: .8rem;
 }
 
+/* Light Theme overrides for Account Dropdown */
+:root.light .account-dropdown {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 12px 40px rgba(44, 34, 30, 0.08) !important;
+}
+
+:root.light .account-dropdown-header {
+  border-bottom-color: var(--line) !important;
+}
+
+:root.light .account-menu-item:hover {
+  background: rgba(44, 34, 30, 0.06) !important;
+}
+
+:root.light .account-menu-item.danger {
+  border-top-color: var(--line) !important;
+}
+
+/* ─── Two-Factor Authentication Styling ─── */
+.mfa-setup-modal ol li {
+  margin-bottom: 12px;
+}
+
+#mfaQrContainer {
+  transition: all 0.2s ease;
+}
+
+#mfaQrContainer svg {
+  display: block;
+  max-width: 100%;
+}
+
+#mfaSecretInput {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font-weight: 500;
+  text-align: center;
+}
+
+#mfaDeepLink {
+  transition: all 0.2s ease;
+}
+
+#mfaDeepLink:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(224, 86, 36, 0.2);
+}
+
+
+

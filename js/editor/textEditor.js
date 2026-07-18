@@ -26,7 +26,7 @@ function setButtonsLoading(isLoading, activeAction) {
   buttons.forEach(function (btn) {
     if (isLoading) {
       btn.disabled = true;
-      if (btn.dataset.action === activeAction) {
+      if (btn.dataset.action === activeAction || (activeAction === "saveChapterDraft" && btn.dataset.action === "revertToDraft")) {
         btn.dataset.originalText = btn.textContent;
         btn.textContent = activeAction === "publishChapter" ? "Publishing..." : "Saving...";
       }
@@ -320,12 +320,22 @@ export function renderTextEditor(ctx, story, chapter) {
     alignRightBtn
   ]);
 
-  const actionsRow = el("div", "editor-actions-row", [
-    button("Publish", "btn primary orange-glow-btn", { action: "publishChapter" }),
-    button([makeCalendarIcon(), " Schedule"], "btn schedule-btn", { action: "openScheduleModal" }),
-    button("Save Draft", "btn", { action: "saveChapterDraft" }),
-    button("Cancel", "btn danger", { action: "cancelEditChapter" })
-  ]);
+  const actionsButtons = [];
+  if (chapter.status === "published") {
+    actionsButtons.push(
+      button("Update Published", "btn primary orange-glow-btn", { action: "publishChapter" }),
+      button("Revert to Draft", "btn", { action: "revertToDraft" })
+    );
+  } else {
+    actionsButtons.push(
+      button("Publish", "btn primary orange-glow-btn", { action: "publishChapter" }),
+      button([makeCalendarIcon(), " Schedule"], "btn schedule-btn", { action: "openScheduleModal" }),
+      button("Save Draft", "btn", { action: "saveChapterDraft" })
+    );
+  }
+  actionsButtons.push(button("Cancel", "btn danger", { action: "cancelEditChapter" }));
+
+  const actionsRow = el("div", "editor-actions-row", actionsButtons);
 
   const editorPanel = el("section", "panel editor-panel", [
     el("div", "editor-header", [

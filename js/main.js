@@ -6,7 +6,7 @@
 
 import { state, ui } from "./state.js";
 import { log } from "./logger.js";
-import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient } from "./api.js";
+import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient, getSupabaseClient } from "./api.js";
 import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js";
 import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js";
 import { el, button, select, input, textarea, showConfirm, calculateStars } from "./components.js";
@@ -93,6 +93,10 @@ var signInBtn = document.getElementById("signInBtn");
 
 ui.currentView = getRoute();
 window.showConfirm = showConfirm;
+window.state = state;
+window.ui = ui;
+window.updateHeroNotificationUI = updateHeroNotificationUI;
+window.render = render;
 
 var ctx = {
   state: state,
@@ -183,13 +187,19 @@ async function bootstrap() {
 function loadAll() {
   var isAuthenticated = !!(state.user || state.accessToken);
   var canLoadReports = isAuthenticated && canModerateRole();
+  const client = getSupabaseClient();
+  var mfaPromise = (client && isAuthenticated)
+    ? client.auth.mfa.listFactors().catch(function () { return { data: { all: [] } }; })
+    : Promise.resolve({ data: { all: [] } });
+
   return Promise.all([
     api("/stories").catch(function () { return []; }),
     isAuthenticated ? api("/library/ids").catch(function () { return []; }) : Promise.resolve([]),
     canLoadReports ? api("/reports?status=open&limit=5&offset=0").catch(function () { return { items: [], total: 0 }; }) : Promise.resolve({ items: [], total: 0 }),
     isAuthenticated ? api("/notifications").catch(function () { return []; }) : Promise.resolve([]),
     api("/stats").catch(function () { return { published: 0, views: 0, followers: 0, open_reports: 0 }; }),
-    isAuthenticated ? api("/progress").catch(function () { return []; }) : Promise.resolve([])
+    isAuthenticated ? api("/progress").catch(function () { return []; }) : Promise.resolve([]),
+    mfaPromise
   ]).then(function (results) {
     state.stories = results[0];
     state.library = results[1];
@@ -201,6 +211,8 @@ function loadAll() {
     state.notifications = results[3];
     state.stats = results[4];
     state.progress = results[5] || [];
+    var mfaRes = results[6] || { data: { all: [] } };
+    state.mfaFactors = (mfaRes.data && mfaRes.data.all) || [];
     if (state.stories.length && !ui.currentStoryId) ui.currentStoryId = state.stories[0].id;
   });
 }
@@ -450,6 +462,7 @@ function handleViewClick(e) {
   var target = e.target.closest("[data-action]");
   if (!target) return;
   var action = target.dataset.action;
+  console.log("[DEBUG CLICK] Element clicked. Action:", action);
 
   if (action === "go") {
     window.location.hash = target.dataset.view;
@@ -488,6 +501,7 @@ function filteredStories() {
   var query = searchInput.value.trim().toLowerCase();
   var genre = genreFilter.value;
   var results = state.stories.filter(function (s) {
+    if (s.status !== "published") return false;
     var hay = [s.title, s.author, s.genre, s.description].join(" ").toLowerCase();
     var matchesSearch = !query || hay.indexOf(query) !== -1;
     var matchesGenre = genre === "all" || (s.genre && s.genre.split(",").map(function (g) { return g.trim().toLowerCase(); }).indexOf(genre.toLowerCase()) !== -1);

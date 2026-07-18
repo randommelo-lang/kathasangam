@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
+    extract::{Path, Query, State, ConnectInfo},
+    http::{StatusCode, HeaderMap},
     Json,
 };
+use std::net::SocketAddr;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -148,6 +149,22 @@ pub async fn list_stories(
         }
     }
 
+    // Visibility check: only allow draft stories if the user is the author or an accepted collaborator
+    results.retain(|s| {
+        if s.status.to_lowercase() == "published" {
+            return true;
+        }
+        if let Some(ref u) = auth {
+            if s.author_id == Some(u.user_id) {
+                return true;
+            }
+            if s.collaborators.iter().any(|c| c.user_id == u.user_id && c.status == "accepted") {
+                return true;
+            }
+        }
+        false
+    });
+
     Ok(Json(results))
 }
 
@@ -162,6 +179,22 @@ pub async fn get_story(
         .ok_or_else(|| AppError::not_found("Story not found."))?;
 
     let resp = build_story_response(&pool, &row, auth.as_ref()).await?;
+
+    // Check draft visibility
+    if resp.status.to_lowercase() == "draft" {
+        let mut allowed = false;
+        if let Some(ref u) = auth {
+            if resp.author_id == Some(u.user_id) {
+                allowed = true;
+            } else if resp.collaborators.iter().any(|c| c.user_id == u.user_id && c.status == "accepted") {
+                allowed = true;
+            }
+        }
+        if !allowed {
+            return Err(AppError::forbidden("You do not have permission to view this story."));
+        }
+    }
+
     Ok(Json(resp))
 }
 
@@ -718,4 +751,183 @@ fn random_cover() -> String {
     ];
     let idx = (chrono::Utc::now().timestamp_millis() as usize) % covers.len();
     covers[idx].to_string()
+}
+
+/// POST /api/stories/:id/like
+pub async fn like_story(
+    auth: AuthUser,
+    Path(story_id): Path<Uuid>,
+    State(pool): State<PgPool>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let story_status = sqlx::query_scalar::<_, String>(
+        "SELECT status FROM stories WHERE id = $1"
+    )
+    .bind(story_id)
+    .fetch_optional(&pool)
+    .await?;
+
+    if story_status.as_deref() != Some("published") {
+        return Err(AppError::bad_request("Story likes are only counted after publishing."));
+    }
+
+    let already_liked = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM story_likes WHERE user_id = $1 AND story_id = $2)"
+    )
+    .bind(auth.user_id)
+    .bind(story_id)
+    .fetch_one(&pool)
+    .await?;
+
+    let (liked, message) = if already_liked {
+        sqlx::query("DELETE FROM story_likes WHERE user_id = $1 AND story_id = $2")
+            .bind(auth.user_id)
+            .bind(story_id)
+            .execute(&pool)
+            .await?;
+        (false, "Story unliked.")
+    } else {
+        sqlx::query("INSERT INTO story_likes (user_id, story_id) VALUES ($1, $2)")
+            .bind(auth.user_id)
+            .bind(story_id)
+            .execute(&pool)
+            .await?;
+        (true, "Story liked!")
+    };
+
+    let updated_likes = sqlx::query_scalar::<_, i32>(
+        "SELECT likes FROM stories WHERE id = $1"
+    )
+    .bind(story_id)
+    .fetch_one(&pool)
+    .await?;
+
+    Ok(Json(serde_json::json!({
+        "liked": liked,
+        "likes": updated_likes,
+        "message": message
+    })))
+}
+
+/// GET /api/stories/:id/liked
+pub async fn check_liked(
+    auth: Option<AuthUser>,
+    Path(story_id): Path<Uuid>,
+    State(pool): State<PgPool>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let liked = if let Some(auth_user) = auth {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM story_likes WHERE user_id = $1 AND story_id = $2)"
+        )
+        .bind(auth_user.user_id)
+        .bind(story_id)
+        .fetch_one(&pool)
+        .await?
+    } else {
+        false
+    };
+
+    Ok(Json(serde_json::json!({ "liked": liked })))
+}
+
+/// POST /api/stories/:id/view
+pub async fn view_story(
+    auth: OptionalAuthUser,
+    Path(story_id): Path<Uuid>,
+    headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    State(pool): State<PgPool>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let story_status = sqlx::query_scalar::<_, String>(
+        "SELECT status FROM stories WHERE id = $1"
+    )
+    .bind(story_id)
+    .fetch_optional(&pool)
+    .await?;
+
+    if story_status.as_deref() != Some("published") {
+        let current_views = sqlx::query_scalar::<_, i32>(
+            "SELECT views FROM stories WHERE id = $1"
+        )
+        .bind(story_id)
+        .fetch_optional(&pool)
+        .await?
+        .unwrap_or(0);
+
+        return Ok(Json(serde_json::json!({
+            "viewed": false,
+            "views": current_views
+        })));
+    }
+
+    let mut ip_address = addr.ip().to_string();
+    if let Some(forwarded_for) = headers.get("x-forwarded-for") {
+        if let Ok(val) = forwarded_for.to_str() {
+            if let Some(first_ip) = val.split(',').next() {
+                let ip = first_ip.trim();
+                if !ip.is_empty() {
+                    ip_address = ip.to_string();
+                }
+            }
+        }
+    } else if let Some(real_ip) = headers.get("x-real-ip") {
+        if let Ok(val) = real_ip.to_str() {
+            let ip = val.trim();
+            if !ip.is_empty() {
+                ip_address = ip.to_string();
+            }
+        }
+    }
+
+    let already_viewed = if let Some(user_id) = auth.user_id {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS( \
+             SELECT 1 FROM story_views \
+             WHERE story_id = $1 \
+             AND (user_id = $2 OR ip_address = $3) \
+             AND viewed_at > NOW() - INTERVAL '24 hours')"
+        )
+        .bind(story_id)
+        .bind(user_id)
+        .bind(&ip_address)
+        .fetch_one(&pool)
+        .await?
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS( \
+             SELECT 1 FROM story_views \
+             WHERE story_id = $1 \
+             AND ip_address = $2 \
+             AND viewed_at > NOW() - INTERVAL '24 hours')"
+        )
+        .bind(story_id)
+        .bind(&ip_address)
+        .fetch_one(&pool)
+        .await?
+    };
+
+    let viewed = if !already_viewed {
+        sqlx::query(
+            "INSERT INTO story_views (story_id, user_id, ip_address) VALUES ($1, $2, $3)"
+        )
+        .bind(story_id)
+        .bind(auth.user_id)
+        .bind(&ip_address)
+        .execute(&pool)
+        .await?;
+        true
+    } else {
+        false
+    };
+
+    let updated_views = sqlx::query_scalar::<_, i32>(
+        "SELECT views FROM stories WHERE id = $1"
+    )
+    .bind(story_id)
+    .fetch_one(&pool)
+    .await?;
+
+    Ok(Json(serde_json::json!({
+        "viewed": viewed,
+        "views": updated_views
+    })))
 }

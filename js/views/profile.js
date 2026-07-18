@@ -1,5 +1,5 @@
 import { state, ui } from "../state.js";
-import { api, apiPost, apiPut } from "../api.js";
+import { api, apiPost, apiPut, getSupabaseClient } from "../api.js";
 import { el, button, input, textarea, select, formatNumber, svgEl } from "../components.js";
 import { storyCard, emptyState } from "./shared.js";
 
@@ -353,6 +353,10 @@ export function renderProfileSettings(context) {
       view.appendChild(grid);
     }
   } else {
+    if (state.mfaFactors === undefined) {
+      state.mfaFactors = [];
+    }
+
     var defaultTheme = (state.profile && state.profile.preferences && state.profile.preferences.reader_theme) || "light";
     var defaultMode = (state.profile && state.profile.preferences && state.profile.preferences.reader_mode) || "scroll";
     var defaultSize = (state.profile && state.profile.preferences && state.profile.preferences.reader_size) || 19;
@@ -600,6 +604,34 @@ export function renderProfileSettings(context) {
         ]),
         el("div", "settings-field-row", [
           button("Update Preferences", "btn primary btn-sm", { action: "updatePreferences" })
+        ])
+      ]),
+
+      el("div", "settings-group", [
+        el("h4", { style: "display: flex; align-items: center; gap: 8px; margin-bottom: 16px;" }, [
+          el("span", { class: "icon icon-lock", style: "font-family: inherit;" }),
+          document.createTextNode("Two-Factor Authentication (2FA)")
+        ]),
+        el("div", { style: "display: flex; flex-direction: column; gap: 20px;" }, [
+          // Email verification code
+          (function () {
+            var emailEnabled = (state.profile && state.profile.preferences && state.profile.preferences.two_factor_email_enabled) || false;
+
+            return el("div", { style: "padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,0.015);" }, [
+              el("h5", { style: "margin: 0 0 8px 0; font-size: 0.92rem; font-weight: 600;" }, "Email Verification Code (OTP)"),
+              el("p", { style: "margin: 0 0 8px 0; font-size: 0.85rem; font-weight: 500;" }, 
+                emailEnabled 
+                  ? "Status: 🟢 Enabled" 
+                  : "Status: 🔴 Disabled"
+              ),
+              el("p", "settings-hint", "Receive a 6-digit one-time code on your registered email address when logging in."),
+              el("div", { style: "margin-top: 12px;" }, [
+                emailEnabled
+                  ? button("Disable Email 2FA", "btn danger btn-sm", { action: "openEmailOtpDisable" })
+                  : button("Enable Email 2FA", "btn primary btn-sm", { action: "openEmailOtpSetup" })
+              ])
+            ]);
+          })()
         ])
       ]),
 

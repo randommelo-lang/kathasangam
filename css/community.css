@@ -1096,4 +1096,26 @@
   align-self: flex-start;
 }
 
+/* Light Theme overrides for Notification Dropdown */
+:root.light .notification-dropdown {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 12px 40px rgba(44, 34, 30, 0.08) !important;
+}
+
+:root.light .notification-header {
+  border-bottom-color: var(--line) !important;
+  color: var(--text) !important;
+}
+
+:root.light .notification-item {
+  border-bottom-color: rgba(44, 34, 30, 0.06) !important;
+  color: var(--text) !important;
+}
+
+:root.light .notification-item:hover {
+  background: rgba(44, 34, 30, 0.06) !important;
+}
+
+
 

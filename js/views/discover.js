@@ -82,7 +82,7 @@ export function renderDiscover(ctx) {
   }
 
   var stories = ctx.filteredStories();
-  var featured = ctx.state.stories.slice(0, 3);
+  var featured = ctx.state.stories.filter(function (s) { return s.status === "published"; }).slice(0, 3);
 
   // Hero Carousel
   var carousel = el("section", "hero-carousel");

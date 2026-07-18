@@ -156,6 +156,10 @@ export function handleStudioClick(ctx, action, target, e) {
     saveChapterFromEditorModule(ctx, "draft");
     return true;
   }
+  if (action === "revertToDraft") {
+    saveChapterFromEditorModule(ctx, "draft");
+    return true;
+  }
   if (action === "publishChapter") {
     saveChapterFromEditorModule(ctx, "published");
     return true;

@@ -1,3 +1,5 @@
+import { openMfaSetup, openMfaDisable, openEmailOtpSetup, openEmailOtpDisable } from "../auth.js";
+
 function setFormFeedback(container, message, type) {
   if (!container) return;
   var existing = container.querySelectorAll(".form-feedback");
@@ -36,6 +38,22 @@ export function handleProfileClick(ctx, action, target, e) {
     ctx.ui.currentView = target.dataset.value;
     window.location.hash = target.dataset.value;
     ctx.render();
+    return true;
+  }
+  if (action === "openMfaSetup") {
+    openMfaSetup(ctx);
+    return true;
+  }
+  if (action === "openMfaDisable") {
+    openMfaDisable(ctx);
+    return true;
+  }
+  if (action === "openEmailOtpSetup") {
+    openEmailOtpSetup(ctx);
+    return true;
+  }
+  if (action === "openEmailOtpDisable") {
+    openEmailOtpDisable(ctx);
     return true;
   }
   if (action === "updateUsername") {

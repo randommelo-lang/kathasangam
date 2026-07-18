@@ -5,6 +5,7 @@ import { el } from "./components.js";
 import { stopNotificationPolling } from "./notifications.js";
 
 let ctx = null;
+let signupEmail = "";
 
 function getAuthElements() {
   return {
@@ -13,6 +14,7 @@ function getAuthElements() {
     authModalClose: document.getElementById("authModalClose"),
     loginForm: document.getElementById("loginForm"),
     signupForm: document.getElementById("signupForm"),
+    signupOtpForm: document.getElementById("signupOtpForm"),
     authError: document.getElementById("authError"),
     authSuccess: document.getElementById("authSuccess"),
     signInBtn: document.getElementById("signInBtn")
@@ -35,6 +37,10 @@ export function closeAuthModal() {
   clearAuthMessages();
   if (els.loginForm) els.loginForm.reset();
   if (els.signupForm) els.signupForm.reset();
+  if (els.signupOtpForm) {
+    els.signupOtpForm.reset();
+    els.signupOtpForm.hidden = true;
+  }
   document.body.style.overflow = "";
 }
 
@@ -76,6 +82,11 @@ export function switchAuthTab(tab) {
   });
   if (els.loginForm) els.loginForm.hidden = tab !== "login";
   if (els.signupForm) els.signupForm.hidden = tab !== "signup";
+  if (els.signupOtpForm) els.signupOtpForm.hidden = true;
+  var mfaLoginForm = document.getElementById("mfaLoginForm");
+  if (mfaLoginForm) mfaLoginForm.hidden = true;
+  var emailOtpLoginForm = document.getElementById("emailOtpLoginForm");
+  if (emailOtpLoginForm) emailOtpLoginForm.hidden = true;
   clearAuthMessages();
 
   var title = document.getElementById("authModalTitle");
@@ -130,9 +141,83 @@ export async function handleLogin(e) {
 
     if (result.error) {
       console.error("[AUTH] Login failed:", result.error.message);
-      showAuthError(result.error.message);
+      var msg = result.error.message;
+      if (msg === "Email not confirmed") {
+        msg = "Please confirm your email address. Check your inbox for the confirmation link.";
+      }
+      showAuthError(msg);
       setAuthLoading(els.loginForm, false);
       return;
+    }
+
+    // Check if the user has enrolled and verified TOTP factors
+    var user = result.data.user;
+    var factors = (user && user.factors) || [];
+    var verifiedTotpFactor = factors.find(function (f) {
+      return f.factor_type === "totp" && f.status === "verified";
+    });
+
+    if (verifiedTotpFactor) {
+      log.debug("[AUTH] MFA TOTP factor detected. Initiating 2FA challenge.");
+      window.mfaChallengeFactorId = verifiedTotpFactor.id;
+      
+      // Hide standard login/signup forms, show MFA challenge form
+      if (els.loginForm) els.loginForm.hidden = true;
+      if (els.signupForm) els.signupForm.hidden = true;
+      var mfaForm = document.getElementById("mfaLoginForm");
+      if (mfaForm) {
+        mfaForm.hidden = false;
+        var codeInput = mfaForm.querySelector("input[name='code']");
+        if (codeInput) {
+          codeInput.value = "";
+          codeInput.focus();
+        }
+      }
+      setAuthLoading(els.loginForm, false);
+      return;
+    }
+
+    // Check if user has Email OTP 2FA enabled in their profile preferences
+    if (result.data.session) {
+      state.accessToken = result.data.session.access_token;
+      var profile = null;
+      try {
+        profile = await api("/profile");
+      } catch (profileErr) {
+        console.warn("[AUTH] Failed to fetch profile to check Email 2FA preference:", profileErr);
+      }
+
+      var emailOtpEnabled = (profile && profile.preferences && profile.preferences.two_factor_email_enabled) || false;
+      if (emailOtpEnabled) {
+        log.debug("[AUTH] Email OTP 2FA enabled. Initiating Email OTP challenge.");
+        window.email2faAddress = email;
+
+        // Sign out from the password session immediately
+        await supabaseClient.auth.signOut();
+
+        // Send the 6-digit OTP code to the email address
+        const { error: otpError } = await supabaseClient.auth.signInWithOtp({ email: email });
+        if (otpError) {
+          showAuthError(otpError.message);
+          setAuthLoading(els.loginForm, false);
+          return;
+        }
+
+        // Transition form views
+        if (els.loginForm) els.loginForm.hidden = true;
+        if (els.signupForm) els.signupForm.hidden = true;
+        var emailOtpForm = document.getElementById("emailOtpLoginForm");
+        if (emailOtpForm) {
+          emailOtpForm.hidden = false;
+          var codeInput = emailOtpForm.querySelector("input[name='code']");
+          if (codeInput) {
+            codeInput.value = "";
+            codeInput.focus();
+          }
+        }
+        setAuthLoading(els.loginForm, false);
+        return;
+      }
     }
 
     log.debug("[AUTH] Login successful, session received");
@@ -188,9 +273,20 @@ export async function handleSignup(e) {
     }
 
     if (result.data.user && !result.data.session) {
-      showAuthSuccess("Account created! Check your email to confirm your account.");
+      signupEmail = email;
+      els.signupForm.hidden = true;
+      if (els.signupOtpForm) {
+        els.signupOtpForm.hidden = false;
+        var setupCodeInput = els.signupOtpForm.querySelector('input[name="code"]');
+        if (setupCodeInput) setupCodeInput.value = "";
+      }
       setAuthLoading(els.signupForm, false);
-      els.signupForm.reset();
+      showAuthSuccess("A 6-digit verification code has been sent to your email.");
+      
+      var title = document.getElementById("authModalTitle");
+      var subtitle = document.querySelector(".auth-modal-subtitle");
+      if (title) title.textContent = "Verify Account";
+      if (subtitle) subtitle.textContent = "Confirm your email address";
     } else {
       closeAuthModal();
     }
@@ -200,10 +296,64 @@ export async function handleSignup(e) {
   }
 }
 
-export async function handleSignOut() {
+export async function handleSignupOtpSubmit(e) {
+  e.preventDefault();
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) return;
-  await supabaseClient.auth.signOut();
+
+  clearAuthMessages();
+  const els = getAuthElements();
+  if (!els.signupOtpForm) return;
+
+  var fd = new FormData(els.signupOtpForm);
+  var code = fd.get("code").trim();
+
+  if (!code) {
+    showAuthError("Please enter the verification code.");
+    return;
+  }
+
+  setAuthLoading(els.signupOtpForm, true);
+
+  try {
+    const { data, error } = await supabaseClient.auth.verifyOtp({
+      email: signupEmail,
+      token: code,
+      type: 'signup'
+    });
+
+    if (error) {
+      showAuthError("Verification failed: " + error.message);
+      setAuthLoading(els.signupOtpForm, false);
+      return;
+    }
+
+    showAuthSuccess("Email verified successfully! Logging you in...");
+    setTimeout(function () {
+      closeAuthModal();
+    }, 1500);
+  } catch (err) {
+    showAuthError("Something went wrong. Please try again.");
+    setAuthLoading(els.signupOtpForm, false);
+  }
+}
+
+export function handleSignupOtpCancel() {
+  const els = getAuthElements();
+  if (els.signupOtpForm) els.signupOtpForm.hidden = true;
+  switchAuthTab("signup");
+}
+
+export async function handleSignOut() {
+  const supabaseClient = getSupabaseClient();
+  if (supabaseClient) {
+    try {
+      await supabaseClient.auth.signOut();
+    } catch (err) {
+      console.warn("Supabase signOut error (ignoring):", err);
+    }
+  }
+  onAuthStateChange("SIGNED_OUT", null);
 }
 
 export async function changeUserRole(newRole) {
@@ -320,18 +470,30 @@ export function onAuthStateChange(event, session) {
   clearTokenCache();
   log.debug("[AUTH] onAuthStateChange event:", event);
   if (session && session.user) {
+    if (state.user && state.user.id === session.user.id && state.profile) {
+      log.debug("[AUTH] User already logged in, skipping redundant profile refresh");
+      state.user = session.user;
+      state.accessToken = session.access_token;
+      updateAuthUI();
+      window.kathasangam_loaded = true;
+      return;
+    }
+
     log.debug("[AUTH] User logged in:", session.user.email);
     state.user = session.user;
     state.accessToken = session.access_token;
+    window.kathasangam_loaded = false;
     fetchProfile().then(function () {
       updateAuthUI();
       if (ctx) return ctx.loadAll();
     }).then(function () {
       if (ctx) ctx.hydrateGenres();
       if (ctx) ctx.render();
+      window.kathasangam_loaded = true;
     }).catch(function (err) {
       console.warn("Failed to refresh authenticated data:", err);
       if (ctx) ctx.render();
+      window.kathasangam_loaded = true;
     });
   } else {
     log.debug("[AUTH] User logged out");
@@ -614,6 +776,76 @@ export function initAuthModule(context) {
   const els = getAuthElements();
   if (els.loginForm) els.loginForm.addEventListener("submit", handleLogin);
   if (els.signupForm) els.signupForm.addEventListener("submit", handleSignup);
+  if (els.signupOtpForm) els.signupOtpForm.addEventListener("submit", handleSignupOtpSubmit);
+  var signupOtpCancel = document.getElementById("signupOtpCancelBtn");
+  if (signupOtpCancel) signupOtpCancel.addEventListener("click", handleSignupOtpCancel);
+
+  // 2FA login form submission and cancel handlers
+  var mfaLoginForm = document.getElementById("mfaLoginForm");
+  var mfaLoginCancel = document.getElementById("mfaLoginCancelBtn");
+  if (mfaLoginForm) mfaLoginForm.addEventListener("submit", handleMfaLoginSubmit);
+  if (mfaLoginCancel) mfaLoginCancel.addEventListener("click", cancelMfaLogin);
+
+  // 2FA Setup Modal cancel handlers
+  var setupModal = document.getElementById("mfaSetupModal");
+  var setupClose = document.getElementById("mfaSetupClose");
+  var setupCancel = document.getElementById("mfaSetupCancelBtn");
+  if (setupClose) setupClose.addEventListener("click", function() { setupModal.hidden = true; });
+  if (setupCancel) setupCancel.addEventListener("click", function() { setupModal.hidden = true; });
+
+  var setupForm = document.getElementById("mfaSetupForm");
+  if (setupForm) setupForm.addEventListener("submit", handleMfaSetupSubmit);
+
+  // 2FA Disable Modal cancel handlers
+  var disableModal = document.getElementById("mfaDisableModal");
+  var disableClose = document.getElementById("mfaDisableClose");
+  var disableCancel = document.getElementById("mfaDisableCancelBtn");
+  if (disableClose) disableClose.addEventListener("click", function() { disableModal.hidden = true; });
+  if (disableCancel) disableCancel.addEventListener("click", function() { disableModal.hidden = true; });
+
+  var disableForm = document.getElementById("mfaDisableForm");
+  if (disableForm) disableForm.addEventListener("submit", handleMfaDisableSubmit);
+
+  // Copy Setup Key button
+  var copyBtn = document.getElementById("mfaCopyKeyBtn");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", function() {
+      var secretInput = document.getElementById("mfaSecretInput");
+      if (secretInput) {
+        secretInput.select();
+        navigator.clipboard.writeText(secretInput.value).then(function() {
+          copyBtn.textContent = "Copied!";
+          setTimeout(function() { copyBtn.textContent = "Copy"; }, 2000);
+        });
+      }
+    });
+  }
+
+  // Email OTP login form submission and cancel handlers
+  var emailOtpLoginForm = document.getElementById("emailOtpLoginForm");
+  var emailOtpLoginCancel = document.getElementById("emailOtpLoginCancelBtn");
+  if (emailOtpLoginForm) emailOtpLoginForm.addEventListener("submit", handleEmailOtpLoginSubmit);
+  if (emailOtpLoginCancel) emailOtpLoginCancel.addEventListener("click", cancelEmailOtpLogin);
+
+  // Email OTP Setup Modal cancel handlers
+  var emailOtpSetupModal = document.getElementById("emailOtpSetupModal");
+  var emailOtpSetupClose = document.getElementById("emailOtpSetupClose");
+  var emailOtpSetupCancel = document.getElementById("emailOtpSetupCancelBtn");
+  if (emailOtpSetupClose) emailOtpSetupClose.addEventListener("click", function() { emailOtpSetupModal.hidden = true; });
+  if (emailOtpSetupCancel) emailOtpSetupCancel.addEventListener("click", function() { emailOtpSetupModal.hidden = true; });
+
+  var emailOtpSetupForm = document.getElementById("emailOtpSetupForm");
+  if (emailOtpSetupForm) emailOtpSetupForm.addEventListener("submit", handleEmailOtpSetupSubmit);
+
+  // Email OTP Disable Modal cancel handlers
+  var emailOtpDisableModal = document.getElementById("emailOtpDisableModal");
+  var emailOtpDisableClose = document.getElementById("emailOtpDisableClose");
+  var emailOtpDisableCancel = document.getElementById("emailOtpDisableCancelBtn");
+  if (emailOtpDisableClose) emailOtpDisableClose.addEventListener("click", function() { emailOtpDisableModal.hidden = true; });
+  if (emailOtpDisableCancel) emailOtpDisableCancel.addEventListener("click", function() { emailOtpDisableModal.hidden = true; });
+
+  var emailOtpDisableForm = document.getElementById("emailOtpDisableForm");
+  if (emailOtpDisableForm) emailOtpDisableForm.addEventListener("submit", handleEmailOtpDisableSubmit);
 
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) {
@@ -643,9 +875,590 @@ export function initAuthModule(context) {
     } else {
       log.debug("[AUTH] No existing session on startup");
       updateAuthUI();
+      window.kathasangam_loaded = true;
     }
   }).catch(function (err) {
     console.error("[AUTH] Failed to get session on startup:", err.message);
     updateAuthUI();
+    window.kathasangam_loaded = true;
   });
+}
+
+// ─── Two-Factor Authentication Helpers ───
+
+export function cancelMfaLogin() {
+  var mfaForm = document.getElementById("mfaLoginForm");
+  const els = getAuthElements();
+  if (mfaForm) mfaForm.hidden = true;
+  if (els.loginForm) {
+    els.loginForm.hidden = false;
+    setAuthLoading(els.loginForm, false);
+  }
+}
+
+export async function handleMfaLoginSubmit(e) {
+  e.preventDefault();
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) return;
+
+  var mfaForm = document.getElementById("mfaLoginForm");
+  if (!mfaForm) return;
+
+  var fd = new FormData(mfaForm);
+  var code = fd.get("code").trim();
+  if (!code || code.length !== 6) {
+    showAuthError("Please enter a valid 6-digit code.");
+    return;
+  }
+
+  setAuthLoading(mfaForm, true);
+  clearAuthMessages();
+
+  try {
+    const factorId = window.mfaChallengeFactorId;
+    if (!factorId) {
+      showAuthError("Session expired. Please log in again.");
+      cancelMfaLogin();
+      return;
+    }
+
+    const { data: challengeData, error: challengeError } = await supabaseClient.auth.mfa.challenge({ factorId });
+    if (challengeError) {
+      showAuthError(challengeError.message);
+      setAuthLoading(mfaForm, false);
+      return;
+    }
+
+    const { data: verifyData, error: verifyError } = await supabaseClient.auth.mfa.verify({
+      factorId,
+      challengeId: challengeData.id,
+      code: code
+    });
+
+    if (verifyError) {
+      showAuthError(verifyError.message);
+      setAuthLoading(mfaForm, false);
+      return;
+    }
+
+    log.debug("[AUTH] MFA verification successful, session upgraded to aal2");
+    mfaForm.hidden = true;
+    closeAuthModal();
+  } catch (err) {
+    console.error("[AUTH] MFA login error:", err);
+    showAuthError("Failed to verify code. Please try again.");
+    setAuthLoading(mfaForm, false);
+  }
+}
+
+export async function openMfaSetup(ctxInstance) {
+  console.log("[DEBUG 2FA] openMfaSetup called");
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) {
+    console.warn("[DEBUG 2FA] supabaseClient is null in openMfaSetup");
+    return;
+  }
+
+  var modal = document.getElementById("mfaSetupModal");
+  if (!modal) {
+    console.warn("[DEBUG 2FA] mfaSetupModal not found in openMfaSetup");
+    return;
+  }
+
+  var qrContainer = document.getElementById("mfaQrContainer");
+  var secretInput = document.getElementById("mfaSecretInput");
+  var setupCodeInput = document.getElementById("mfaSetupCode");
+  var feedback = document.getElementById("mfaSetupFeedback");
+  var deepLink = document.getElementById("mfaDeepLink");
+
+  if (feedback) {
+    feedback.style.display = "none";
+    feedback.textContent = "";
+  }
+  if (setupCodeInput) setupCodeInput.value = "";
+
+  try {
+    const { data, error } = await supabaseClient.auth.mfa.enroll({
+      factorType: 'totp',
+      issuer: 'KathaSangam',
+      friendlyName: state.user ? state.user.email : 'KathaSangam User'
+    });
+
+    if (error) {
+      ctxInstance.notify("Failed to initiate 2FA: " + error.message);
+      return;
+    }
+
+    window.mfaEnrollFactorId = data.id;
+
+    if (qrContainer) {
+      qrContainer.innerHTML = data.totp.qr_code;
+      var svg = qrContainer.querySelector("svg");
+      if (svg) {
+        svg.setAttribute("width", "160");
+        svg.setAttribute("height", "160");
+      }
+    }
+
+    if (secretInput) {
+      secretInput.value = data.totp.secret;
+    }
+
+    if (deepLink) {
+      var email = state.user ? encodeURIComponent(state.user.email) : "user";
+      var issuer = encodeURIComponent("KathaSangam");
+      var secret = data.totp.secret;
+      var link = "otpauth://totp/" + issuer + ":" + email + "?secret=" + secret + "&issuer=" + issuer;
+      deepLink.href = link;
+    }
+
+    modal.hidden = false;
+  } catch (err) {
+    console.error("MFA Setup error:", err);
+    ctxInstance.notify("Failed to setup 2FA.");
+  }
+}
+
+function showMfaSetupFeedback(msg, type) {
+  var feedback = document.getElementById("mfaSetupFeedback");
+  if (!feedback) return;
+  feedback.textContent = msg;
+  feedback.className = "form-feedback " + (type || "info");
+  feedback.style.display = msg ? "" : "none";
+}
+
+export async function handleMfaSetupSubmit(e) {
+  e.preventDefault();
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) return;
+
+  var codeInput = document.getElementById("mfaSetupCode");
+  var code = codeInput ? codeInput.value.trim() : "";
+
+  if (!code || code.length !== 6) {
+    showMfaSetupFeedback("Please enter a valid 6-digit code.", "error");
+    return;
+  }
+
+  const factorId = window.mfaEnrollFactorId;
+  if (!factorId) {
+    showMfaSetupFeedback("Session expired. Please restart setup.", "error");
+    return;
+  }
+
+  showMfaSetupFeedback("Verifying...", "info");
+
+  try {
+    const { data: challengeData, error: challengeError } = await supabaseClient.auth.mfa.challenge({ factorId });
+    if (challengeError) {
+      showMfaSetupFeedback(challengeError.message, "error");
+      return;
+    }
+
+    const { data: verifyData, error: verifyError } = await supabaseClient.auth.mfa.verify({
+      factorId,
+      challengeId: challengeData.id,
+      code: code
+    });
+
+    if (verifyError) {
+      showMfaSetupFeedback(verifyError.message, "error");
+      return;
+    }
+
+    showMfaSetupFeedback("2FA successfully enabled!", "success");
+    
+    supabaseClient.auth.mfa.listFactors().then(function (res) {
+      state.mfaFactors = (res.data && res.data.all) || [];
+      if (ctx) {
+        ctx.notify("Two-Factor Authentication enabled.");
+        ctx.render();
+      }
+    });
+
+    setTimeout(function () {
+      var modal = document.getElementById("mfaSetupModal");
+      if (modal) modal.hidden = true;
+    }, 1500);
+
+  } catch (err) {
+    console.error("MFA Verify error:", err);
+    showMfaSetupFeedback("Verification failed. Please try again.", "error");
+  }
+}
+
+export async function openMfaDisable(ctxInstance) {
+  var modal = document.getElementById("mfaDisableModal");
+  if (!modal) return;
+
+  var codeInput = document.getElementById("mfaDisableCode");
+  var feedback = document.getElementById("mfaDisableFeedback");
+
+  if (feedback) {
+    feedback.style.display = "none";
+    feedback.textContent = "";
+  }
+  if (codeInput) codeInput.value = "";
+
+  const totpFactor = state.mfaFactors && state.mfaFactors.find(function (f) {
+    return f.factor_type === "totp" && f.status === "verified";
+  });
+
+  if (!totpFactor) {
+    ctxInstance.notify("2FA is not enabled.");
+    return;
+  }
+
+  window.mfaDisableFactorId = totpFactor.id;
+  modal.hidden = false;
+}
+
+function showMfaDisableFeedback(msg, type) {
+  var feedback = document.getElementById("mfaDisableFeedback");
+  if (!feedback) return;
+  feedback.textContent = msg;
+  feedback.className = "form-feedback " + (type || "info");
+  feedback.style.display = msg ? "" : "none";
+}
+
+export async function handleMfaDisableSubmit(e) {
+  e.preventDefault();
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) return;
+
+  var codeInput = document.getElementById("mfaDisableCode");
+  var code = codeInput ? codeInput.value.trim() : "";
+
+  if (!code || code.length !== 6) {
+    showMfaDisableFeedback("Please enter a valid 6-digit code.", "error");
+    return;
+  }
+
+  const factorId = window.mfaDisableFactorId;
+  if (!factorId) {
+    showMfaDisableFeedback("Session expired.", "error");
+    return;
+  }
+
+  showMfaDisableFeedback("Verifying...", "info");
+
+  try {
+    const { data: challengeData, error: challengeError } = await supabaseClient.auth.mfa.challenge({ factorId });
+    if (challengeError) {
+      showMfaDisableFeedback(challengeError.message, "error");
+      return;
+    }
+
+    const { data: verifyData, error: verifyError } = await supabaseClient.auth.mfa.verify({
+      factorId,
+      challengeId: challengeData.id,
+      code: code
+    });
+
+    if (verifyError) {
+      showMfaDisableFeedback(verifyError.message, "error");
+      return;
+    }
+
+    const { error: unenrollError } = await supabaseClient.auth.mfa.unenroll({ factorId });
+    if (unenrollError) {
+      showMfaDisableFeedback(unenrollError.message, "error");
+      return;
+    }
+
+    showMfaDisableFeedback("2FA successfully disabled.", "success");
+
+    supabaseClient.auth.mfa.listFactors().then(function (res) {
+      state.mfaFactors = (res.data && res.data.all) || [];
+      if (ctx) {
+        ctx.notify("Two-Factor Authentication disabled.");
+        ctx.render();
+      }
+    });
+
+    setTimeout(function () {
+      var modal = document.getElementById("mfaDisableModal");
+      if (modal) modal.hidden = true;
+    }, 1500);
+
+  } catch (err) {
+    console.error("MFA Disable error:", err);
+    showMfaDisableFeedback("Verification failed. Please try again.", "error");
+  }
+}
+
+// ─── Email OTP Authentication Helpers ───
+
+export function cancelEmailOtpLogin() {
+  var emailForm = document.getElementById("emailOtpLoginForm");
+  const els = getAuthElements();
+  if (emailForm) emailForm.hidden = true;
+  if (els.loginForm) {
+    els.loginForm.hidden = false;
+    setAuthLoading(els.loginForm, false);
+  }
+}
+
+export async function handleEmailOtpLoginSubmit(e) {
+  e.preventDefault();
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) return;
+
+  var emailForm = document.getElementById("emailOtpLoginForm");
+  if (!emailForm) return;
+
+  var fd = new FormData(emailForm);
+  var code = fd.get("code").trim();
+  if (!code || code.length !== 6) {
+    showAuthError("Please enter a valid 6-digit code.");
+    return;
+  }
+
+  setAuthLoading(emailForm, true);
+  clearAuthMessages();
+
+  try {
+    const email = window.email2faAddress;
+    if (!email) {
+      showAuthError("Session expired. Please log in again.");
+      cancelEmailOtpLogin();
+      return;
+    }
+
+    const { data, error } = await supabaseClient.auth.verifyOtp({
+      email: email,
+      token: code,
+      type: 'email'
+    });
+
+    if (error) {
+      showAuthError(error.message);
+      setAuthLoading(emailForm, false);
+      return;
+    }
+
+    log.debug("[AUTH] Email OTP login verification successful");
+    emailForm.hidden = true;
+    closeAuthModal();
+  } catch (err) {
+    console.error("[AUTH] Email OTP login error:", err);
+    showAuthError("Failed to verify code. Please try again.");
+    setAuthLoading(emailForm, false);
+  }
+}
+
+export async function openEmailOtpSetup(ctxInstance) {
+  console.log("[DEBUG EMAIL 2FA] openEmailOtpSetup called");
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) {
+    console.warn("[DEBUG EMAIL 2FA] supabaseClient is null in openEmailOtpSetup");
+    return;
+  }
+
+  if (!state.user || !state.user.email) {
+    console.warn("[DEBUG EMAIL 2FA] state.user or state.user.email is missing in openEmailOtpSetup:", state.user);
+    ctxInstance.notify("Please log in to configure security settings.");
+    return;
+  }
+
+  var modal = document.getElementById("emailOtpSetupModal");
+  if (!modal) {
+    console.warn("[DEBUG EMAIL 2FA] emailOtpSetupModal not found in openEmailOtpSetup");
+    return;
+  }
+
+  var setupCodeInput = document.getElementById("emailOtpSetupCode");
+  var feedback = document.getElementById("emailOtpSetupFeedback");
+
+  if (feedback) {
+    feedback.style.display = "none";
+    feedback.textContent = "";
+  }
+  if (setupCodeInput) setupCodeInput.value = "";
+
+  ctxInstance.notify("Sending verification code to your email...");
+
+  try {
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email: state.user.email
+    });
+
+    if (error) {
+      ctxInstance.notify("Failed to send code: " + error.message);
+      return;
+    }
+
+    modal.hidden = false;
+  } catch (err) {
+    console.error("Email OTP setup error:", err);
+    ctxInstance.notify("Failed to initiate Email 2FA.");
+  }
+}
+
+function showEmailOtpSetupFeedback(msg, type) {
+  var feedback = document.getElementById("emailOtpSetupFeedback");
+  if (!feedback) return;
+  feedback.textContent = msg;
+  feedback.className = "form-feedback " + (type || "info");
+  feedback.style.display = msg ? "" : "none";
+}
+
+export async function handleEmailOtpSetupSubmit(e) {
+  e.preventDefault();
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) return;
+
+  var codeInput = document.getElementById("emailOtpSetupCode");
+  var code = codeInput ? codeInput.value.trim() : "";
+
+  if (!code || code.length !== 6) {
+    showEmailOtpSetupFeedback("Please enter a valid 6-digit code.", "error");
+    return;
+  }
+
+  showEmailOtpSetupFeedback("Verifying...", "info");
+
+  try {
+    const { data, error } = await supabaseClient.auth.verifyOtp({
+      email: state.user.email,
+      token: code,
+      type: 'email'
+    });
+
+    if (error) {
+      showEmailOtpSetupFeedback(error.message, "error");
+      return;
+    }
+
+    showEmailOtpSetupFeedback("Code verified successfully! Saving preference...", "info");
+
+    var prefs = (state.profile && state.profile.preferences) || {};
+    prefs.two_factor_email_enabled = true;
+
+    await apiPut("/profile", { preferences: prefs });
+
+    showEmailOtpSetupFeedback("Email 2FA successfully enabled!", "success");
+    
+    if (state.profile) {
+      state.profile.preferences = prefs;
+    }
+
+    if (ctx) {
+      ctx.notify("Email 2FA enabled.");
+      ctx.render();
+    }
+
+    setTimeout(function () {
+      var modal = document.getElementById("emailOtpSetupModal");
+      if (modal) modal.hidden = true;
+    }, 1500);
+
+  } catch (err) {
+    console.error("Email OTP setup verification error:", err);
+    showEmailOtpSetupFeedback("Verification failed. Please try again.", "error");
+  }
+}
+
+export async function openEmailOtpDisable(ctxInstance) {
+  if (!state.user || !state.user.email) {
+    ctxInstance.notify("Session expired.");
+    return;
+  }
+
+  var modal = document.getElementById("emailOtpDisableModal");
+  if (!modal) return;
+
+  var codeInput = document.getElementById("emailOtpDisableCode");
+  var feedback = document.getElementById("emailOtpDisableFeedback");
+
+  if (feedback) {
+    feedback.style.display = "none";
+    feedback.textContent = "";
+  }
+  if (codeInput) codeInput.value = "";
+
+  ctxInstance.notify("Sending verification code to your email...");
+
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) return;
+
+  try {
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email: state.user.email
+    });
+
+    if (error) {
+      ctxInstance.notify("Failed to send code: " + error.message);
+      return;
+    }
+
+    modal.hidden = false;
+  } catch (err) {
+    console.error("Email OTP disable error:", err);
+    ctxInstance.notify("Failed to send code. Please try again.");
+  }
+}
+
+function showEmailOtpDisableFeedback(msg, type) {
+  var feedback = document.getElementById("emailOtpDisableFeedback");
+  if (!feedback) return;
+  feedback.textContent = msg;
+  feedback.className = "form-feedback " + (type || "info");
+  feedback.style.display = msg ? "" : "none";
+}
+
+export async function handleEmailOtpDisableSubmit(e) {
+  e.preventDefault();
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) return;
+
+  var codeInput = document.getElementById("emailOtpDisableCode");
+  var code = codeInput ? codeInput.value.trim() : "";
+
+  if (!code || code.length !== 6) {
+    showEmailOtpDisableFeedback("Please enter a valid 6-digit code.", "error");
+    return;
+  }
+
+  showEmailOtpDisableFeedback("Verifying...", "info");
+
+  try {
+    const { error } = await supabaseClient.auth.verifyOtp({
+      email: state.user.email,
+      token: code,
+      type: 'email'
+    });
+
+    if (error) {
+      showEmailOtpDisableFeedback(error.message, "error");
+      return;
+    }
+
+    showEmailOtpDisableFeedback("Code verified! Disabling Email 2FA...", "info");
+
+    var prefs = (state.profile && state.profile.preferences) || {};
+    prefs.two_factor_email_enabled = false;
+
+    await apiPut("/profile", { preferences: prefs });
+
+    showEmailOtpDisableFeedback("Email 2FA successfully disabled.", "success");
+
+    if (state.profile) {
+      state.profile.preferences = prefs;
+    }
+
+    if (ctx) {
+      ctx.notify("Email 2FA disabled.");
+      ctx.render();
+    }
+
+    setTimeout(function () {
+      var modal = document.getElementById("emailOtpDisableModal");
+      if (modal) modal.hidden = true;
+    }, 1500);
+
+  } catch (err) {
+    console.error("Email OTP Disable error:", err);
+    showEmailOtpDisableFeedback("Verification failed. Please try again.", "error");
+  }
 }

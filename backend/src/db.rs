@@ -20,6 +20,7 @@ pub struct JwtClaims {
     pub exp: i64,
     pub email: Option<String>,
     pub user_metadata: Option<serde_json::Value>,
+    pub aal: Option<String>,
 }
 
 pub struct AuthUser {

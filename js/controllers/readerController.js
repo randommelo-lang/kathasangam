@@ -20,6 +20,16 @@ export function handleReaderClick(ctx, action, target, e) {
   if (action === "openReader") {
     var storyId = target.dataset.id;
     var story = ctx.state.stories.find(function (s) { return s.id === storyId; });
+    
+    // Increment unique view count
+    ctx.apiPost("/stories/" + storyId + "/view")
+      .then(res => {
+        if (res.viewed && story) {
+          story.views = res.views;
+        }
+      })
+      .catch(err => console.warn("Failed to record unique view:", err));
+
     var chapterIdx = 0;
     var pageIdx = 0;
     var progData = ctx.getStoryReadingProgress(storyId);

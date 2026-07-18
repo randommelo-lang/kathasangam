@@ -46,6 +46,7 @@ export function renderStoryDetails(ctx) {
   }
 
   var isBookmarked = ctx.state.bookmarkIds && ctx.state.bookmarkIds.indexOf(story.id) !== -1;
+  var isLiked = ctx.state.likedStoryIds && ctx.state.likedStoryIds.indexOf(story.id) !== -1;
 
   if (ctx.state.user && ctx.state.bookmarkIds === null) {
     ctx.api("/bookmarks/ids")
@@ -56,6 +57,18 @@ export function renderStoryDetails(ctx) {
       .catch(err => console.error("Error loading bookmark IDs:", err));
   }
 
+  if (ctx.state.user && ctx.state.likedStoryIds === null) {
+    ctx.state.likedStoryIds = [];
+    ctx.api("/stories/" + story.id + "/liked")
+      .then(res => {
+        if (res.liked) {
+          ctx.state.likedStoryIds = [story.id];
+          ctx.render();
+        }
+      })
+      .catch(err => console.error("Error checking liked status:", err));
+  }
+
   var bookmarkBtn = el("button", {
     class: "btn" + (isBookmarked ? " active" : ""),
     style: "display: flex; align-items: center; gap: 6px;" + (isBookmarked ? " color: var(--accent);" : ""),
@@ -64,6 +77,16 @@ export function renderStoryDetails(ctx) {
   }, [
     el("span", { class: "icon icon-bookmark", style: "width: 16px; height: 16px;" }),
     isBookmarked ? "Bookmarked" : "Bookmark"
+  ]);
+
+  var likeBtn = el("button", {
+    class: "btn" + (isLiked ? " active" : ""),
+    style: "display: flex; align-items: center; gap: 6px;" + (isLiked ? " color: var(--accent);" : ""),
+    "data-action": "likeStory",
+    "data-story-id": story.id
+  }, [
+    el("span", { class: "icon icon-heart", style: "width: 16px; height: 16px;" }),
+    isLiked ? "Liked" : "Like"
   ]);
 
   var playlistBtn = el("button", {
@@ -93,11 +116,13 @@ export function renderStoryDetails(ctx) {
       ]),
       el("div", "story-details-stats", [
         el("span", "stat-item", [el("strong", null, formatNumber(story.views)), " reads"]),
+        el("span", "stat-item", [el("strong", null, formatNumber(story.likes || 0)), " likes"]),
         el("span", "stat-item", [el("strong", null, formatNumber(story.followers)), " followers"]),
         el("span", "stat-item", [el("strong", null, story.chapters ? story.chapters.length : 0), " chapters"])
       ]),
       el("div", "button-row details-action-row", [
         button(readBtnText, "btn primary orange-glow-btn", { action: "openReader", id: story.id }),
+        likeBtn,
         bookmarkBtn,
         playlistBtn
       ])

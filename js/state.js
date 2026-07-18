@@ -13,6 +13,7 @@ export const state = {
   progress: [],
   bookmarks: null,
   bookmarkIds: null,
+  likedStoryIds: null,
   readingLists: null
 };
 

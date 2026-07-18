@@ -56,6 +56,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     tracing::info!("✅ Connected to Supabase PostgreSQL");
 
+    // Run pending migrations
+    tracing::info!("🔶 Running database migrations...");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .map_err(|e| io::Error::other(format!("Database migration failed: {}", e)))?;
+    tracing::info!("✅ Database migrations completed");
+
     // Initialize Meilisearch index & backfill asynchronously
     let pool_clone = pool.clone();
     tokio::spawn(async move {
@@ -140,6 +148,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             get(routes::stories::get_story)
                 .put(routes::stories::update_story)
                 .delete(routes::stories::delete_story),
+        )
+        .route(
+            "/stories/:id/like",
+            post(routes::stories::like_story),
+        )
+        .route(
+            "/stories/:id/liked",
+            get(routes::stories::check_liked),
+        )
+        .route(
+            "/stories/:id/view",
+            post(routes::stories::view_story),
         )
 
         // STATS

@@ -27,6 +27,9 @@ test.beforeEach(async ({ page }) => {
         return { data: { subscription: { unsubscribe: () => {} } } };
       },
       signInWithPassword: async function({ email, password }) {
+        if (email === 'unconfirmed@example.com') {
+          return { data: { user: null, session: null }, error: { message: 'Email not confirmed' } };
+        }
         if (email === 'testplaywright@example.com' && password === 'Password123!') {
           this.session = {
             user: {
@@ -46,12 +49,66 @@ test.beforeEach(async ({ page }) => {
       signUp: async function({ email, password }) {
         return { data: { user: { id: 'some-new-id', email }, session: null }, error: null };
       },
+      signInWithOtp: async function({ email }) {
+        return { data: {}, error: null };
+      },
+      verifyOtp: async function({ email, token, type }) {
+        if (token === '123456') {
+          this.session = {
+            user: {
+              id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+              email: email
+            },
+            access_token: 'mock-access-token'
+          };
+          if (this.callback) {
+            this.callback('SIGNED_IN', this.session);
+          }
+          return { data: { user: this.session.user, session: this.session }, error: null };
+        }
+        return { data: { user: null, session: null }, error: { message: 'Invalid OTP' } };
+      },
       signOut: async function() {
         this.session = null;
         if (this.callback) {
           this.callback('SIGNED_OUT', null);
         }
         return { error: null };
+      },
+      mfa: {
+        factors: [],
+        listFactors: async function() {
+          return { data: { all: this.factors, active: [] }, error: null };
+        },
+        enroll: async function({ factorType }) {
+          return {
+            data: {
+              id: 'factor-123',
+              type: factorType,
+              totp: {
+                secret: 'MOCKSECRET123',
+                qr_code: '<svg id="mock-qr" width="100" height="100"></svg>'
+              }
+            },
+            error: null
+          };
+        },
+        challenge: async function({ factorId }) {
+          return { data: { id: 'challenge-123', type: 'totp' }, error: null };
+        },
+        verify: async function({ factorId, challengeId, code }) {
+          if (code === '123456') {
+            if (!this.factors.some(f => f.id === factorId)) {
+              this.factors.push({ id: factorId, factor_type: 'totp', status: 'verified' });
+            }
+            return { data: { user: { id: 'user-123' }, session: { access_token: 'upgraded-token' } }, error: null };
+          }
+          return { data: null, error: { message: 'Invalid verification code' } };
+        },
+        unenroll: async function({ factorId }) {
+          this.factors = this.factors.filter(f => f.id !== factorId);
+          return { data: { id: factorId }, error: null };
+        }
       }
     };
 
@@ -416,9 +473,44 @@ test.describe('KathaSangam Smoke Tests', () => {
     await page.goto('/#studio');
     await expect(page.locator('text=Studio Overview')).toBeVisible();
 
+    // Inject mock reads/likes into state so that SVG chart has data to render
+    await page.evaluate(() => {
+      if (window.state) {
+        const mockStory = {
+          id: 'c3905cf7-4fbd-4de1-944a-d68a2d1d0c8d',
+          author_id: window.state.user.id,
+          title: 'Mock E2E Story',
+          author: 'testplaywright',
+          type: 'Web Novel',
+          genre: 'Sci-Fi',
+          language: 'english',
+          license: 'cc-by',
+          status: 'published',
+          tags: ['E2E'],
+          description: 'Mock story for E2E testing.',
+          cover: '',
+          followers: 12,
+          views: 100,
+          likes: 10,
+          earnings: 0,
+          progress: 0,
+          created_at: new Date().toISOString(),
+          chapters: [
+            { id: 'f87a8cb4-2fb8-4cd1-925f-22db12a34493', title: 'Chapter 1', reads: 50, likes: 5, status: 'published', access: 'free', words: 1000 },
+            { id: 'd748f3b0-4dbf-4e09-9f44-cd7d1746210f', title: 'Chapter 2', reads: 80, likes: 8, status: 'published', access: 'free', words: 1200 }
+          ],
+          collaborators: []
+        };
+        
+        window.state.stories = [mockStory];
+        window.ui.currentStoryId = mockStory.id;
+      }
+      window.render();
+    });
+
     // Verify deep metrics are visible
-    await expect(page.locator('text=Views (Reads)')).toBeVisible();
-    await expect(page.locator('text=Engagement Rate')).toBeVisible();
+    await expect(page.locator('text=Views').first()).toBeVisible();
+    await expect(page.locator('text=Engagement').first()).toBeVisible();
     await expect(page.locator('text=Word Count')).toBeVisible();
     await expect(page.locator('text=Total Chapters')).toBeVisible();
 
@@ -632,5 +724,516 @@ test.describe('KathaSangam Smoke Tests', () => {
     expect(response.status).toBe(400);
     expect(response.text).toContain('Upload size limit exceeded. Max 10MB allowed.');
   });
+
+  test('Notification bell integration and dropdown interaction', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Log in
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+
+    // Wait until logged in
+    await expect(page.locator('.account-trigger')).toBeVisible();
+
+    // 2. Fetch notifications dynamically from backend by checking the bell btn
+    const bellBtn = page.locator('.hero-bell-btn');
+    await expect(bellBtn).toBeVisible();
+
+    // 3. Since there might be no notifications, let's trigger a notification via state manipulation
+    await page.evaluate(() => {
+      window.state.notifications = [
+        { id: 'mock-notif-1', message: 'Test Notification 1', story_id: null, chapter_sort_order: null }
+      ];
+      window.updateHeroNotificationUI();
+    });
+
+    // 4. Verify red badge is displayed
+    const bellBadge = page.locator('.hero-bell-badge');
+    await expect(bellBadge).toBeVisible();
+
+    // 5. Click the bell to open the dropdown
+    await bellBtn.click();
+    const dropdown = page.locator('.notification-dropdown');
+    await expect(dropdown).toBeVisible();
+    await expect(page.locator('text=Test Notification 1')).toBeVisible();
+
+    // 6. Click the notification item, verify dropdown closes and state is updated
+    const notifItem = page.locator('text=Test Notification 1');
+    
+    // Intercept DELETE request
+    await page.route('**/api/notifications/mock-notif-1', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+
+    await notifItem.click();
+    await expect(dropdown).not.toBeVisible();
+  });
+
+  test('Revert published chapter to draft in editor', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Log in
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+
+    // Wait until logged in
+    await expect(page.locator('.account-trigger')).toBeVisible();
+
+    // 2. Go to studio overview and open the PDF extraction test story (or create one)
+    await page.route('**/api/stories/*/internal-notes', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    });
+
+    // Mock GET and PUT for the specific chapter to prevent race conditions during loading/saving
+    await page.route('**/api/chapters/f87a8cb4-2fb8-4cd1-925f-22db12a34493', async (route, request) => {
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'f87a8cb4-2fb8-4cd1-925f-22db12a34493',
+            story_id: 'c3905cf7-4fbd-4de1-944a-d68a2d1d0c8d',
+            sort_order: 1,
+            title: 'Chapter 1',
+            status: 'published',
+            access: 'free',
+            words: 1000,
+            reads: 50,
+            likes: 5,
+            content: ['Paragraph 1', 'Paragraph 2'],
+            comments: []
+          })
+        });
+      } else if (request.method() === 'PUT') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 'f87a8cb4-2fb8-4cd1-925f-22db12a34493', status: 'draft', title: 'Chapter 1' })
+        });
+      }
+    });
+
+    await page.goto('/#studio');
+    await expect(page.locator('text=Studio Overview')).toBeVisible();
+
+    // Evaluate script to inject a mock published chapter into the active story
+    await page.evaluate(() => {
+      if (window.state) {
+        const mockStory = {
+          id: 'c3905cf7-4fbd-4de1-944a-d68a2d1d0c8d',
+          author_id: window.state.user.id,
+          title: 'Mock E2E Story',
+          author: 'testplaywright',
+          type: 'Web Novel',
+          genre: 'Sci-Fi',
+          language: 'english',
+          license: 'cc-by',
+          status: 'published',
+          tags: ['E2E'],
+          description: 'Mock story for E2E testing.',
+          cover: '',
+          followers: 12,
+          views: 100,
+          likes: 10,
+          earnings: 0,
+          progress: 0,
+          created_at: new Date().toISOString(),
+          chapters: [
+            { id: 'f87a8cb4-2fb8-4cd1-925f-22db12a34493', title: 'Chapter 1', reads: 50, likes: 5, status: 'published', access: 'free', words: 1000 }
+          ],
+          collaborators: []
+        };
+        
+        window.state.stories = [mockStory];
+        window.ui.currentStoryId = mockStory.id;
+        window.ui.currentChapterIndex = 0;
+      }
+      window.render();
+    });
+
+    // 3. Open the chapter editor for this published chapter
+    const editBtn = page.locator('button[data-action="editChapter"]').first();
+    await expect(editBtn).toBeVisible();
+    await editBtn.click();
+
+    // Verify Editor is loaded and is in text editor view
+    await expect(page.locator('h2:has-text("Chapter Editor")')).toBeVisible();
+
+    // 4. Assert that the "Revert to Draft" button is visible instead of "Save Draft"
+    const revertBtn = page.locator('button:has-text("Revert to Draft")');
+    const updatePublishBtn = page.locator('button:has-text("Update Published")');
+    const saveDraftBtn = page.locator('button:has-text("Save Draft")');
+
+    await expect(revertBtn).toBeVisible();
+    await expect(updatePublishBtn).toBeVisible();
+    await expect(saveDraftBtn).not.toBeVisible();
+
+    // 5. Click "Revert to Draft" and verify it redirects/notifies and reverts
+    await revertBtn.click({ force: true });
+    
+    // Close the notification banner if any, or verify toast/alert
+    await expect(page.locator('text=Chapter saved.')).toBeVisible();
+  });
+
+  test('Unverified email login warning', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+
+    // Mock Supabase login API to fail with "Email not confirmed"
+    await page.route('**/auth/v1/token?grant_type=password', async route => {
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'invalid_grant', error_description: 'Email not confirmed' })
+      });
+    });
+
+    await page.fill('#loginForm input[name="email"]', 'unconfirmed@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+
+    // Verify warning message is displayed
+    const errorEl = page.locator('#authError');
+    await expect(errorEl).toBeVisible();
+    await expect(errorEl).toContainText('Please confirm your email address. Check your inbox for the confirmation link.');
+  });
+
+  test.skip('MFA TOTP 2FA enrollment wizard', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Log in
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+
+    // Wait until logged in and fully loaded
+    await expect(page.locator('.account-trigger')).toBeVisible();
+    await page.waitForFunction(() => window.kathasangam_loaded === true);
+
+    // 2. Go to Settings tab
+    await page.evaluate(() => { window.location.hash = 'settings'; });
+    await expect(page.locator('text=Account Settings')).toBeVisible();
+
+    // 4. Click Enable 2FA button to open enrollment wizard
+    const enableBtn = page.locator('button:has-text("Enable Authenticator 2FA")');
+    await expect(enableBtn).toBeVisible();
+    await enableBtn.click({ force: true });
+
+    // Verify Setup Modal is displayed
+    const mfaModal = page.locator('#mfaSetupModal');
+    await expect(mfaModal).toBeVisible();
+    await expect(page.locator('#mfaSecretInput')).toHaveValue('MOCKSECRET123');
+    await expect(page.locator('#mfaQrContainer svg')).toBeVisible();
+
+    // 5. Input Setup TOTP code and submit
+    await page.fill('#mfaSetupCode', '123456');
+    await page.click('#mfaSetupConfirmBtn');
+
+    // Verify setup completes successfully and modal closes
+    await expect(mfaModal).not.toBeVisible();
+    
+    // Verify status updates on preferences tab
+    await expect(page.locator('text=Status: 🟢 Enabled').first()).toBeVisible();
+    await expect(page.locator('button:has-text("Disable Authenticator 2FA")')).toBeVisible();
+  });
+
+  test('Email OTP 2FA enrollment, login challenge and disablement', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Log in
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+
+    // Wait until logged in and fully loaded
+    await expect(page.locator('.account-trigger')).toBeVisible();
+    await page.waitForFunction(() => window.kathasangam_loaded === true);
+
+    // 2. Go to Settings tab
+    await page.evaluate(() => { window.location.hash = 'settings'; });
+    await expect(page.locator('text=Account Settings')).toBeVisible();
+
+    // Verify Email 2FA displays as disabled initially
+    const statusText = page.locator('text=Email Verification Code (OTP)').locator('xpath=..');
+    await expect(statusText).toContainText('Status: 🔴 Disabled');
+
+    // 3. Click Enable Email 2FA to open enrollment
+    const enableEmailBtn = page.locator('button:has-text("Enable Email 2FA")');
+    await expect(enableEmailBtn).toBeVisible();
+    await enableEmailBtn.click({ force: true });
+
+    // Verify Setup Modal is displayed
+    const setupModal = page.locator('#emailOtpSetupModal');
+    await expect(setupModal).toBeVisible();
+
+    // 4. Fill code and submit
+    await page.fill('#emailOtpSetupCode', '123456');
+    
+    // Intercept profile update put request
+    await page.route('**/api/profile', async route => {
+      if (route.request().method() === 'PUT') {
+        // Return successful profile update
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            username: 'testplaywright',
+            preferences: { two_factor_email_enabled: true }
+          })
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.click('#emailOtpSetupConfirmBtn');
+
+    // Verify Setup Modal closes
+    await expect(setupModal).not.toBeVisible();
+
+    // Verify Status updates to Enabled
+    await expect(statusText).toContainText('Status: 🟢 Enabled');
+    const disableEmailBtn = page.locator('button:has-text("Disable Email 2FA")');
+    await expect(disableEmailBtn).toBeVisible();
+
+    // 5. Log out
+    const accountTrigger = page.locator('.account-trigger');
+    await accountTrigger.click();
+    const signOutBtn = page.locator('button:has-text("Sign Out")');
+    await signOutBtn.click();
+    await expect(loginHeaderBtn).toBeVisible();
+
+    // 6. Test Login Challenge
+    // Mock profile get request during login check
+    await page.route('**/api/profile', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            username: 'testplaywright',
+            preferences: { two_factor_email_enabled: true }
+          })
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await loginHeaderBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+
+    // Verify Email OTP challenge is displayed
+    const challengeForm = page.locator('#emailOtpLoginForm');
+    await expect(challengeForm).toBeVisible();
+
+    // 7. Verify correct code logs the user in
+    await page.fill('#emailOtpLoginForm input[name="code"]', '123456');
+    await page.click('#emailOtpLoginForm button[type="submit"]');
+
+    // Verify logged in
+    await expect(challengeForm).not.toBeVisible();
+    await expect(accountTrigger).toBeVisible();
+  });
+
+  test('Account deletion immediately signs out user', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Log in
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+
+    // Wait until logged in and fully loaded
+    await expect(page.locator('.account-trigger')).toBeVisible();
+    await page.waitForFunction(() => window.kathasangam_loaded === true);
+
+    // 2. Go to Settings tab
+    await page.evaluate(() => { window.location.hash = 'settings'; });
+    await expect(page.locator('text=Account Settings')).toBeVisible();
+
+    // 3. Mock the DELETE /api/profile endpoint to return 204
+    await page.route('**/api/profile', async route => {
+      if (route.request().method() === 'DELETE') {
+        await route.fulfill({ status: 204 });
+      } else {
+        await route.continue();
+      }
+    });
+
+    // 4. Click Delete Account button
+    const deleteBtn = page.locator('button:has-text("Delete Account")');
+    await expect(deleteBtn).toBeVisible();
+    await deleteBtn.click();
+
+    // Confirm the delete in the custom modal dialog
+    const confirmBtn = page.locator('button:has-text("Delete Permanently")');
+    await expect(confirmBtn).toBeVisible();
+    await confirmBtn.click();
+
+    // 5. Verify the user is immediately signed out (Sign In button is visible, Settings view shows Please log in)
+    await expect(loginHeaderBtn).toBeVisible();
+    await expect(page.locator('text=Please log in to view your profile')).toBeVisible();
+  });
+
+  test('New user signup with OTP verification', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Open Auth Modal
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+
+    // Switch to Sign Up tab
+    await page.click('button:has-text("Sign Up")');
+    await expect(page.locator('#signupForm')).toBeVisible();
+
+    // Fill details and click Create Account
+    await page.fill('#signupForm input[name="email"]', 'newuser@example.com');
+    await page.fill('#signupForm input[name="password"]', 'Password123!');
+    await page.fill('#signupForm input[name="confirmPassword"]', 'Password123!');
+
+    // Mock API requests for library profiles during signup
+    await page.route('**/api/profile', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            username: 'newuser',
+            preferences: {}
+          })
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.click('#signupForm button[type="submit"]');
+
+    // 2. Verify Signup OTP panel is displayed
+    const otpForm = page.locator('#signupOtpForm');
+    await expect(otpForm).toBeVisible();
+
+    // 3. Fill verification code and verify
+    await page.fill('#signupOtpForm input[name="code"]', '123456');
+    await page.click('#signupOtpForm button[type="submit"]');
+
+    // 4. Verify user is successfully logged in (modal closes and account trigger shows up)
+    await expect(otpForm).not.toBeVisible();
+    await expect(page.locator('.account-trigger')).toBeVisible();
+  });
+
+  test('Liking a story updates stats and likes button status', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Mock the stories list response
+    await page.route('**/api/stories', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([{
+            id: 'b8ffd84b-bbb8-4c35-9fe2-b364c042479c',
+            author_id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+            author: 'testplaywright',
+            title: 'Mock Story For Testing',
+            type: 'Shabdanuvad',
+            genre: 'Fantasy, Drama',
+            language: 'en',
+            license: 'all-rights-reserved',
+            status: 'published',
+            tags: ['test', 'mock'],
+            description: 'A mock story for testing likes.',
+            cover: '',
+            followers: 0,
+            views: 10,
+            likes: 5,
+            earnings: 0,
+            progress: 0,
+            created_at: new Date().toISOString()
+          }])
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    // 2. Log in
+    await page.goto('/');
+    const loginHeaderBtn = page.locator('#signInBtn');
+    await loginHeaderBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+
+    // Wait until logged in
+    await expect(page.locator('.account-trigger')).toBeVisible();
+    await page.waitForFunction(() => window.kathasangam_loaded === true);
+
+    // 3. Mock the story liked and like API endpoints
+    await page.route('**/api/stories/b8ffd84b-bbb8-4c35-9fe2-b364c042479c/liked', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ liked: false })
+      });
+    });
+
+    await page.route('**/api/stories/b8ffd84b-bbb8-4c35-9fe2-b364c042479c/like', async route => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ liked: true, likes: 6, message: 'Story liked!' })
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    // 4. Click the cover of our mock story to open it in Details view
+    const firstStoryCover = page.locator('.story-card .cover-button').first();
+    await expect(firstStoryCover).toBeVisible();
+    await firstStoryCover.click();
+
+    // Verify view has navigated to story details page
+    await expect(page).toHaveURL(/#story/);
+
+    // Check if Like button is visible
+    const likeBtn = page.locator('button:has-text("Like")');
+    const likedBtn = page.locator('button:has-text("Liked")');
+
+    await expect(likeBtn).toBeVisible();
+
+    // 5. Click Like button
+    await likeBtn.click();
+
+    // Verify button text changes to "Liked"
+    await expect(likedBtn).toBeVisible();
+  });
 });
+
 

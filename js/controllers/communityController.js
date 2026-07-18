@@ -35,6 +35,40 @@ export function handleCommunityClick(ctx, action, target, e) {
     return true;
   }
 
+  if (action === "likeStory") {
+    if (!ctx.state.user) {
+      ctx.openAuthModal();
+      return true;
+    }
+    const storyId = target.dataset.storyId;
+    if (!storyId) return true;
+
+    ctx.apiPost("/stories/" + storyId + "/like")
+      .then(res => {
+        ctx.state.likedStoryIds = ctx.state.likedStoryIds || [];
+        const index = ctx.state.likedStoryIds.indexOf(storyId);
+        if (res.liked) {
+          if (index === -1) ctx.state.likedStoryIds.push(storyId);
+          ctx.notify("Story liked!");
+        } else {
+          if (index !== -1) ctx.state.likedStoryIds.splice(index, 1);
+          ctx.notify("Story unliked.");
+        }
+        if (ctx.state.stories) {
+          const story = ctx.state.stories.find(function (s) { return s.id === storyId; });
+          if (story) {
+            story.likes = res.likes;
+          }
+        }
+        ctx.render();
+      })
+      .catch(err => {
+        console.error("Like toggle failed:", err);
+        ctx.notify("Error toggling like: " + (err.message || err));
+      });
+    return true;
+  }
+
   if (action === "openAddToReadingListModal") {
     if (!ctx.state.user) {
       ctx.openAuthModal();

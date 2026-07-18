@@ -124,6 +124,45 @@
         </label>
         <button type="submit" class="btn primary auth-submit-btn">Create Account</button>
       </form>
+
+      <!-- 2FA Login Challenge Form -->
+      <form id="mfaLoginForm" class="auth-form" hidden>
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          Two-Factor Authentication is enabled for your account. Please enter the 6-digit verification code from your authenticator app.
+        </p>
+        <label class="field">
+          <span>Verification Code</span>
+          <input type="text" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Verify & Log In</button>
+        <button type="button" id="mfaLoginCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
+      </form>
+
+      <!-- Email OTP Login Challenge Form -->
+      <form id="emailOtpLoginForm" class="auth-form" hidden>
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          Two-Factor Authentication is enabled for your account. Please enter the 6-digit one-time code sent to your registered email address.
+        </p>
+        <label class="field">
+          <span>One-Time Passcode (OTP)</span>
+          <input type="text" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Verify & Log In</button>
+        <button type="button" id="emailOtpLoginCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
+      </form>
+
+      <!-- Signup OTP Verification Form -->
+      <form id="signupOtpForm" class="auth-form" hidden>
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          A 6-digit verification code has been sent to your email address. Please enter the code below to confirm and activate your account.
+        </p>
+        <label class="field">
+          <span>Verification Code</span>
+          <input type="text" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Verify & Activate</button>
+        <button type="button" id="signupOtpCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
+      </form>
     </div>
   </div>
 
@@ -294,6 +333,132 @@
         <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
           <button type="button" id="scheduleCancelBtn" class="btn">Cancel</button>
           <button type="submit" id="scheduleConfirmBtn" class="btn primary orange-glow-btn"><svg class="icon calendar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: middle; display: inline-block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>Confirm Schedule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Two-Factor Authentication Setup Modal ─── -->
+  <div id="mfaSetupModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal mfa-setup-modal" role="dialog" aria-labelledby="mfaSetupTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="mfaSetupClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🔒</span>
+        <h2 id="mfaSetupTitle" class="auth-modal-title">Enable 2FA</h2>
+        <p id="mfaSetupSubtitle" class="auth-modal-subtitle">Secure your account with Time-based One-time Passwords (TOTP)</p>
+      </div>
+
+      <div class="mfa-setup-body" style="color: var(--ink); font-size: 0.92rem; line-height: 1.5;">
+        <ol style="padding-left: 20px; margin: 0 0 20px 0;">
+          <li>Scan the QR code below using your authenticator app (Google Authenticator, Authy, etc.):</li>
+          <div id="mfaQrContainer" style="display: flex; justify-content: center; margin: 15px 0; background: white; padding: 15px; border-radius: 8px; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);"></div>
+          <li>Or copy and enter this setup key manually if you're on a mobile device:</li>
+          <div style="display: flex; gap: 8px; margin: 10px 0 15px 0;">
+            <input type="text" id="mfaSecretInput" readonly style="flex: 1; padding: 8px 12px; font-family: monospace; font-size: 0.85rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+            <button type="button" id="mfaCopyKeyBtn" class="btn btn-sm">Copy</button>
+          </div>
+          <div id="mfaDeepLinkWrapper" style="margin-bottom: 20px; text-align: center;">
+            <a id="mfaDeepLink" href="#" class="btn primary btn-sm" style="display: inline-block; width: 100%; text-decoration: none; text-align: center; color: white;">📱 Open Authenticator App</a>
+          </div>
+          <li>Enter the 6-digit verification code generated by your app:</li>
+        </ol>
+
+        <form id="mfaSetupForm" data-form="mfaSetupForm">
+          <label class="field">
+            <span>Verification Code</span>
+            <input type="text" id="mfaSetupCode" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.4rem; letter-spacing: 0.4rem; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+          </label>
+
+          <div id="mfaSetupFeedback" class="form-feedback" style="display: none; margin-top: 12px;"></div>
+
+          <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+            <button type="button" id="mfaSetupCancelBtn" class="btn">Cancel</button>
+            <button type="submit" id="mfaSetupConfirmBtn" class="btn primary orange-glow-btn">Verify & Enable</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Two-Factor Authentication Disable Modal ─── -->
+  <div id="mfaDisableModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal mfa-disable-modal" role="dialog" aria-labelledby="mfaDisableTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="mfaDisableClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🔓</span>
+        <h2 id="mfaDisableTitle" class="auth-modal-title">Disable 2FA</h2>
+        <p id="mfaDisableSubtitle" class="auth-modal-subtitle">Enter your 6-digit authenticator code to confirm disabling Two-Factor Authentication.</p>
+      </div>
+
+      <form id="mfaDisableForm" data-form="mfaDisableForm">
+        <label class="field">
+          <span>Verification Code</span>
+          <input type="text" id="mfaDisableCode" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.4rem; letter-spacing: 0.4rem; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+
+        <div id="mfaDisableFeedback" class="form-feedback" style="display: none; margin-top: 12px;"></div>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+          <button type="button" id="mfaDisableCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="mfaDisableConfirmBtn" class="btn danger">Verify & Disable</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Email OTP Setup Modal ─── -->
+  <div id="emailOtpSetupModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal email-otp-setup-modal" role="dialog" aria-labelledby="emailOtpSetupTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="emailOtpSetupClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">✉️</span>
+        <h2 id="emailOtpSetupTitle" class="auth-modal-title">Enable Email 2FA</h2>
+        <p id="emailOtpSetupSubtitle" class="auth-modal-subtitle">Secure your account with one-time verification codes sent to your email.</p>
+      </div>
+
+      <div class="email-otp-setup-body" style="color: var(--ink); font-size: 0.92rem; line-height: 1.5;">
+        <p style="margin-bottom: 20px;">
+          We will send a 6-digit verification code to your registered email address. Enter the code below to enable Email Two-Factor Authentication.
+        </p>
+
+        <form id="emailOtpSetupForm" data-form="emailOtpSetupForm">
+          <label class="field">
+            <span>Verification Code</span>
+            <input type="text" id="emailOtpSetupCode" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.4rem; letter-spacing: 0.4rem; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+          </label>
+
+          <div id="emailOtpSetupFeedback" class="form-feedback" style="display: none; margin-top: 12px;"></div>
+
+          <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+            <button type="button" id="emailOtpSetupCancelBtn" class="btn">Cancel</button>
+            <button type="submit" id="emailOtpSetupConfirmBtn" class="btn primary orange-glow-btn">Verify & Enable</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Email OTP Disable Modal ─── -->
+  <div id="emailOtpDisableModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal email-otp-disable-modal" role="dialog" aria-labelledby="emailOtpDisableTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="emailOtpDisableClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🔓</span>
+        <h2 id="emailOtpDisableTitle" class="auth-modal-title">Disable Email 2FA</h2>
+        <p id="emailOtpDisableSubtitle" class="auth-modal-subtitle">Enter the 6-digit one-time code sent to your email to confirm disabling Email 2FA.</p>
+      </div>
+
+      <form id="emailOtpDisableForm" data-form="emailOtpDisableForm">
+        <label class="field">
+          <span>Verification Code</span>
+          <input type="text" id="emailOtpDisableCode" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.4rem; letter-spacing: 0.4rem; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+
+        <div id="emailOtpDisableFeedback" class="form-feedback" style="display: none; margin-top: 12px;"></div>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+          <button type="button" id="emailOtpDisableCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="emailOtpDisableConfirmBtn" class="btn danger">Verify & Disable</button>
         </div>
       </form>
     </div>

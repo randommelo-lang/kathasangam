@@ -6,6 +6,7 @@ import { stopNotificationPolling } from "./notifications.js";
 
 let ctx = null;
 let signupEmail = "";
+let recoveryEmail = "";
 
 function getAuthElements() {
   return {
@@ -19,9 +20,11 @@ function getAuthElements() {
     authSuccess: document.getElementById("authSuccess"),
     signInBtn: document.getElementById("signInBtn"),
     forgotPasswordForm: document.getElementById("forgotPasswordForm"),
+    forgotPasswordOtpForm: document.getElementById("forgotPasswordOtpForm"),
     resetPasswordForm: document.getElementById("resetPasswordForm"),
     forgotPasswordLink: document.getElementById("forgotPasswordLink"),
     forgotPasswordCancelBtn: document.getElementById("forgotPasswordCancelBtn"),
+    forgotPasswordOtpCancelBtn: document.getElementById("forgotPasswordOtpCancelBtn"),
     resetPasswordCancelBtn: document.getElementById("resetPasswordCancelBtn")
   };
 }
@@ -49,6 +52,10 @@ export function closeAuthModal() {
   if (els.forgotPasswordForm) {
     els.forgotPasswordForm.reset();
     els.forgotPasswordForm.hidden = true;
+  }
+  if (els.forgotPasswordOtpForm) {
+    els.forgotPasswordOtpForm.reset();
+    els.forgotPasswordOtpForm.hidden = true;
   }
   if (els.resetPasswordForm) {
     els.resetPasswordForm.reset();
@@ -102,6 +109,7 @@ export function switchAuthTab(tab) {
   if (els.signupForm) els.signupForm.hidden = tab !== "signup";
   if (els.signupOtpForm) els.signupOtpForm.hidden = tab !== "signup-otp";
   if (els.forgotPasswordForm) els.forgotPasswordForm.hidden = tab !== "forgot";
+  if (els.forgotPasswordOtpForm) els.forgotPasswordOtpForm.hidden = tab !== "forgot-otp";
   if (els.resetPasswordForm) els.resetPasswordForm.hidden = tab !== "reset";
 
   var mfaLoginForm = document.getElementById("mfaLoginForm");
@@ -121,6 +129,9 @@ export function switchAuthTab(tab) {
   } else if (tab === "forgot") {
     if (title) title.textContent = "Forgot Password";
     if (subtitle) subtitle.textContent = "Recover access to your account";
+  } else if (tab === "forgot-otp") {
+    if (title) title.textContent = "Verify Recovery Code";
+    if (subtitle) subtitle.textContent = "Confirm code to reset your password";
   } else if (tab === "reset") {
     if (title) title.textContent = "Reset Password";
     if (subtitle) subtitle.textContent = "Choose a new password for your account";
@@ -416,13 +427,64 @@ export async function handleForgotPassword(e) {
       return;
     }
 
-    showAuthSuccess("Password reset email sent! Check your inbox for the recovery link.");
+    recoveryEmail = email;
     els.forgotPasswordForm.reset();
+    switchAuthTab("forgot-otp");
+    showAuthSuccess("A 6-digit recovery code has been sent to your email!");
   } catch (err) {
     console.error("[AUTH] Unexpected error requesting password reset:", err);
     showAuthError(err.message || "An unexpected error occurred.");
   } finally {
     setAuthLoading(els.forgotPasswordForm, false);
+  }
+}
+
+export function handleForgotPasswordOtpCancel() {
+  switchAuthTab("forgot");
+}
+
+export async function handleForgotPasswordOtpSubmit(e) {
+  e.preventDefault();
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) {
+    showAuthError("Supabase not configured. Config could not be loaded.");
+    return;
+  }
+  clearAuthMessages();
+  const els = getAuthElements();
+  var fd = new FormData(els.forgotPasswordOtpForm);
+  var code = fd.get("code").trim();
+
+  if (!code) {
+    showAuthError("Please enter the recovery code.");
+    return;
+  }
+
+  setAuthLoading(els.forgotPasswordOtpForm, true);
+  log.debug("[AUTH] Verifying recovery OTP for:", recoveryEmail);
+
+  try {
+    const { error } = await supabaseClient.auth.verifyOtp({
+      email: recoveryEmail,
+      token: code,
+      type: "recovery"
+    });
+
+    if (error) {
+      console.error("[AUTH] Recovery verification failed:", error.message);
+      showAuthError(error.message);
+      setAuthLoading(els.forgotPasswordOtpForm, false);
+      return;
+    }
+
+    els.forgotPasswordOtpForm.reset();
+    switchAuthTab("reset");
+    showAuthSuccess("Code verified successfully! Please enter your new password below.");
+  } catch (err) {
+    console.error("[AUTH] Unexpected error verifying recovery code:", err);
+    showAuthError(err.message || "An unexpected error occurred.");
+  } finally {
+    setAuthLoading(els.forgotPasswordOtpForm, false);
   }
 }
 
@@ -924,6 +986,8 @@ export function initAuthModule(context) {
   if (els.forgotPasswordLink) els.forgotPasswordLink.addEventListener("click", handleForgotPasswordLinkClick);
   if (els.forgotPasswordForm) els.forgotPasswordForm.addEventListener("submit", handleForgotPassword);
   if (els.forgotPasswordCancelBtn) els.forgotPasswordCancelBtn.addEventListener("click", handleForgotPasswordCancel);
+  if (els.forgotPasswordOtpForm) els.forgotPasswordOtpForm.addEventListener("submit", handleForgotPasswordOtpSubmit);
+  if (els.forgotPasswordOtpCancelBtn) els.forgotPasswordOtpCancelBtn.addEventListener("click", handleForgotPasswordOtpCancel);
   if (els.resetPasswordForm) els.resetPasswordForm.addEventListener("submit", handleResetPassword);
   if (els.resetPasswordCancelBtn) els.resetPasswordCancelBtn.addEventListener("click", handleResetPasswordCancel);
 

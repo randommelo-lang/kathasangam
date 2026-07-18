@@ -170,14 +170,27 @@
       <!-- Forgot Password Form -->
       <form id="forgotPasswordForm" class="auth-form" hidden autocomplete="on">
         <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
-          Enter your email address and we'll send you a recovery link to reset your password.
+          Enter your email address and we'll send you a 6-digit recovery code to reset your password.
         </p>
         <label class="field">
           <span>Email</span>
           <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
         </label>
-        <button type="submit" class="btn primary auth-submit-btn">Send Recovery Email</button>
+        <button type="submit" class="btn primary auth-submit-btn">Send Recovery Code</button>
         <button type="button" id="forgotPasswordCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Back to Log In</button>
+      </form>
+
+      <!-- Forgot Password OTP Verification Form -->
+      <form id="forgotPasswordOtpForm" class="auth-form" hidden autocomplete="off">
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          A 6-digit recovery code has been sent to your email address. Please enter the code below to reset your password.
+        </p>
+        <label class="field">
+          <span>Recovery Code</span>
+          <input type="text" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Verify Code</button>
+        <button type="button" id="forgotPasswordOtpCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
       </form>
 
       <!-- Reset Password Form -->

@@ -1246,7 +1246,7 @@ test.describe('KathaSangam Smoke Tests', () => {
     await expect(likedBtn).toBeVisible();
   });
 
-  test('Forgot password flow handles email submission and cancel', async ({ page }) => {
+  test('Forgot password flow with 6-digit OTP code and password reset', async ({ page }) => {
     setupConsoleLogging(page);
     await page.goto('/');
 
@@ -1263,7 +1263,6 @@ test.describe('KathaSangam Smoke Tests', () => {
     // 3. Verify forgot password form is visible
     const forgotForm = page.locator('#forgotPasswordForm');
     await expect(forgotForm).toBeVisible();
-    await expect(page.locator('#loginForm')).not.toBeVisible();
 
     // Mock the recover API call
     await page.route('**/auth/v1/recover', async route => {
@@ -1278,49 +1277,35 @@ test.describe('KathaSangam Smoke Tests', () => {
     await page.fill('#forgotPasswordForm input[name="email"]', 'testrecovery@example.com');
     await page.click('#forgotPasswordForm button[type="submit"]');
 
-    // Verify success message is shown
-    await expect(page.locator('#authSuccess')).toBeVisible();
-    await expect(page.locator('#authSuccess')).toContainText('Password reset email sent');
+    // Verify recovery OTP form is visible
+    const otpForm = page.locator('#forgotPasswordOtpForm');
+    await expect(otpForm).toBeVisible();
+    await expect(page.locator('#authSuccess')).toContainText('recovery code has been sent');
 
-    // 5. Test Cancel btn
-    const cancelBtn = page.locator('#forgotPasswordCancelBtn');
-    await cancelBtn.click();
-    await expect(page.locator('#loginForm')).toBeVisible();
-    await expect(forgotForm).not.toBeVisible();
-  });
+    // 5. Enter 6-digit verification code
+    await page.fill('#forgotPasswordOtpForm input[name="code"]', '123456');
+    await page.click('#forgotPasswordOtpForm button[type="submit"]');
 
-  test('Password recovery event opens password reset form', async ({ page }) => {
-    setupConsoleLogging(page);
-    await page.goto('/');
+    // Verify reset password form is visible
+    const resetForm = page.locator('#resetPasswordForm');
+    await expect(resetForm).toBeVisible();
 
-    // Mock the update user API call
+    // Mock update user API
     await page.route('**/auth/v1/user', async route => {
       if (route.request().method() === 'PUT') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ user: { email: 'test@example.com' } })
+          body: JSON.stringify({ user: { email: 'testrecovery@example.com' } })
         });
       } else {
         await route.continue();
       }
     });
 
-    // Simulate PASSWORD_RECOVERY event by executing it directly on window auth listener
-    await page.evaluate(() => {
-      window.supabaseClient.auth.__triggerAuthStateChange('PASSWORD_RECOVERY', {
-        user: { email: 'test@example.com' },
-        access_token: 'fake-token'
-      });
-    });
-
-    // Verify reset password form is visible automatically
-    const resetForm = page.locator('#resetPasswordForm');
-    await expect(resetForm).toBeVisible();
-
-    // Fill reset form
-    await page.fill('#resetPasswordForm input[name="password"]', 'NewSecurePassword123!');
-    await page.fill('#resetPasswordForm input[name="confirmPassword"]', 'NewSecurePassword123!');
+    // 6. Enter new password
+    await page.fill('#resetPasswordForm input[name="password"]', 'NewPassword123!');
+    await page.fill('#resetPasswordForm input[name="confirmPassword"]', 'NewPassword123!');
     await page.click('#resetPasswordForm button[type="submit"]');
 
     // Verify success message

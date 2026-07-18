@@ -277,6 +277,14 @@
   box-shadow: 0 2px 8px rgba(229, 124, 51, .25);
 }
 
+#forgotPasswordLink {
+  transition: opacity 0.2s ease;
+}
+#forgotPasswordLink:hover {
+  opacity: 0.8;
+  text-decoration: underline !important;
+}
+
 /* ─── Auth Forms ─── */
 .auth-form {
   display: grid;

@@ -17,7 +17,12 @@ function getAuthElements() {
     signupOtpForm: document.getElementById("signupOtpForm"),
     authError: document.getElementById("authError"),
     authSuccess: document.getElementById("authSuccess"),
-    signInBtn: document.getElementById("signInBtn")
+    signInBtn: document.getElementById("signInBtn"),
+    forgotPasswordForm: document.getElementById("forgotPasswordForm"),
+    resetPasswordForm: document.getElementById("resetPasswordForm"),
+    forgotPasswordLink: document.getElementById("forgotPasswordLink"),
+    forgotPasswordCancelBtn: document.getElementById("forgotPasswordCancelBtn"),
+    resetPasswordCancelBtn: document.getElementById("resetPasswordCancelBtn")
   };
 }
 
@@ -40,6 +45,14 @@ export function closeAuthModal() {
   if (els.signupOtpForm) {
     els.signupOtpForm.reset();
     els.signupOtpForm.hidden = true;
+  }
+  if (els.forgotPasswordForm) {
+    els.forgotPasswordForm.reset();
+    els.forgotPasswordForm.hidden = true;
+  }
+  if (els.resetPasswordForm) {
+    els.resetPasswordForm.reset();
+    els.resetPasswordForm.hidden = true;
   }
   document.body.style.overflow = "";
 }
@@ -76,13 +89,21 @@ export function showAuthSuccess(msg) {
 
 export function switchAuthTab(tab) {
   const els = getAuthElements();
+  var tabsContainer = document.querySelector(".auth-tabs");
+  if (tabsContainer) {
+    tabsContainer.style.display = (tab === "login" || tab === "signup") ? "flex" : "none";
+  }
+
   var tabs = document.querySelectorAll("[data-auth-tab]");
   tabs.forEach(function (t) {
     t.classList.toggle("active", t.dataset.authTab === tab);
   });
   if (els.loginForm) els.loginForm.hidden = tab !== "login";
   if (els.signupForm) els.signupForm.hidden = tab !== "signup";
-  if (els.signupOtpForm) els.signupOtpForm.hidden = true;
+  if (els.signupOtpForm) els.signupOtpForm.hidden = tab !== "signup-otp";
+  if (els.forgotPasswordForm) els.forgotPasswordForm.hidden = tab !== "forgot";
+  if (els.resetPasswordForm) els.resetPasswordForm.hidden = tab !== "reset";
+
   var mfaLoginForm = document.getElementById("mfaLoginForm");
   if (mfaLoginForm) mfaLoginForm.hidden = true;
   var emailOtpLoginForm = document.getElementById("emailOtpLoginForm");
@@ -94,9 +115,15 @@ export function switchAuthTab(tab) {
   if (tab === "login") {
     if (title) title.textContent = "Welcome back";
     if (subtitle) subtitle.textContent = "Log in to your KathaSangam account";
-  } else {
+  } else if (tab === "signup") {
     if (title) title.textContent = "Create account";
     if (subtitle) subtitle.textContent = "Join KathaSangam and start your story";
+  } else if (tab === "forgot") {
+    if (title) title.textContent = "Forgot Password";
+    if (subtitle) subtitle.textContent = "Recover access to your account";
+  } else if (tab === "reset") {
+    if (title) title.textContent = "Reset Password";
+    if (subtitle) subtitle.textContent = "Choose a new password for your account";
   }
 }
 
@@ -344,6 +371,112 @@ export function handleSignupOtpCancel() {
   switchAuthTab("signup");
 }
 
+export function handleForgotPasswordLinkClick(e) {
+  e.preventDefault();
+  switchAuthTab("forgot");
+}
+
+export function handleForgotPasswordCancel() {
+  switchAuthTab("login");
+}
+
+export function handleResetPasswordCancel() {
+  closeAuthModal();
+}
+
+export async function handleForgotPassword(e) {
+  e.preventDefault();
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) {
+    showAuthError("Supabase not configured. Config could not be loaded.");
+    return;
+  }
+  clearAuthMessages();
+  const els = getAuthElements();
+  var fd = new FormData(els.forgotPasswordForm);
+  var email = fd.get("email").trim();
+
+  if (!email) {
+    showAuthError("Please fill in email field.");
+    return;
+  }
+
+  setAuthLoading(els.forgotPasswordForm, true);
+  log.debug("[AUTH] Requesting password reset for:", email);
+
+  try {
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/'
+    });
+
+    if (error) {
+      console.error("[AUTH] Password reset request failed:", error.message);
+      showAuthError(error.message);
+      setAuthLoading(els.forgotPasswordForm, false);
+      return;
+    }
+
+    showAuthSuccess("Password reset email sent! Check your inbox for the recovery link.");
+    els.forgotPasswordForm.reset();
+  } catch (err) {
+    console.error("[AUTH] Unexpected error requesting password reset:", err);
+    showAuthError(err.message || "An unexpected error occurred.");
+  } finally {
+    setAuthLoading(els.forgotPasswordForm, false);
+  }
+}
+
+export async function handleResetPassword(e) {
+  e.preventDefault();
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) {
+    showAuthError("Supabase not configured. Config could not be loaded.");
+    return;
+  }
+  clearAuthMessages();
+  const els = getAuthElements();
+  var fd = new FormData(els.resetPasswordForm);
+  var password = fd.get("password");
+  var confirmPassword = fd.get("confirmPassword");
+
+  if (!password || !confirmPassword) {
+    showAuthError("Please fill in all fields.");
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    showAuthError("Passwords do not match.");
+    return;
+  }
+
+  setAuthLoading(els.resetPasswordForm, true);
+  log.debug("[AUTH] Resetting user password");
+
+  try {
+    const { error } = await supabaseClient.auth.updateUser({
+      password: password
+    });
+
+    if (error) {
+      console.error("[AUTH] Password update failed:", error.message);
+      showAuthError(error.message);
+      setAuthLoading(els.resetPasswordForm, false);
+      return;
+    }
+
+    showAuthSuccess("Password updated successfully! You can now close this modal.");
+    els.resetPasswordForm.reset();
+    setTimeout(function() {
+      closeAuthModal();
+    }, 2000);
+  } catch (err) {
+    console.error("[AUTH] Unexpected error updating password:", err);
+    showAuthError(err.message || "An unexpected error occurred.");
+  } finally {
+    setAuthLoading(els.resetPasswordForm, false);
+  }
+}
+
 export async function handleSignOut() {
   const supabaseClient = getSupabaseClient();
   if (supabaseClient) {
@@ -469,6 +602,14 @@ export function autoSaveReaderPreferences() {
 export function onAuthStateChange(event, session) {
   clearTokenCache();
   log.debug("[AUTH] onAuthStateChange event:", event);
+
+  if (event === "PASSWORD_RECOVERY") {
+    log.debug("[AUTH] Password recovery event detected. Opening reset password form.");
+    openAuthModal();
+    switchAuthTab("reset");
+    return;
+  }
+
   if (session && session.user) {
     if (state.user && state.user.id === session.user.id && state.profile) {
       log.debug("[AUTH] User already logged in, skipping redundant profile refresh");
@@ -779,6 +920,12 @@ export function initAuthModule(context) {
   if (els.signupOtpForm) els.signupOtpForm.addEventListener("submit", handleSignupOtpSubmit);
   var signupOtpCancel = document.getElementById("signupOtpCancelBtn");
   if (signupOtpCancel) signupOtpCancel.addEventListener("click", handleSignupOtpCancel);
+
+  if (els.forgotPasswordLink) els.forgotPasswordLink.addEventListener("click", handleForgotPasswordLinkClick);
+  if (els.forgotPasswordForm) els.forgotPasswordForm.addEventListener("submit", handleForgotPassword);
+  if (els.forgotPasswordCancelBtn) els.forgotPasswordCancelBtn.addEventListener("click", handleForgotPasswordCancel);
+  if (els.resetPasswordForm) els.resetPasswordForm.addEventListener("submit", handleResetPassword);
+  if (els.resetPasswordCancelBtn) els.resetPasswordCancelBtn.addEventListener("click", handleResetPasswordCancel);
 
   // 2FA login form submission and cancel handlers
   var mfaLoginForm = document.getElementById("mfaLoginForm");

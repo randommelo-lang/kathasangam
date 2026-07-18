@@ -102,7 +102,10 @@
           <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
         </label>
         <label class="field">
-          <span>Password</span>
+          <span style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Password</span>
+            <a href="#" id="forgotPasswordLink" style="font-size: 0.8rem; color: var(--accent); text-decoration: none;">Forgot password?</a>
+          </span>
           <input type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
         </label>
         <button type="submit" class="btn primary auth-submit-btn">Log In</button>
@@ -162,6 +165,36 @@
         </label>
         <button type="submit" class="btn primary auth-submit-btn">Verify & Activate</button>
         <button type="button" id="signupOtpCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
+      </form>
+
+      <!-- Forgot Password Form -->
+      <form id="forgotPasswordForm" class="auth-form" hidden autocomplete="on">
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          Enter your email address and we'll send you a recovery link to reset your password.
+        </p>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Send Recovery Email</button>
+        <button type="button" id="forgotPasswordCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Back to Log In</button>
+      </form>
+
+      <!-- Reset Password Form -->
+      <form id="resetPasswordForm" class="auth-form" hidden autocomplete="off">
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          Please choose a strong new password for your account.
+        </p>
+        <label class="field">
+          <span>New Password</span>
+          <input type="password" name="password" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password">
+        </label>
+        <label class="field">
+          <span>Confirm New Password</span>
+          <input type="password" name="confirmPassword" placeholder="••••••••" required minlength="6" autocomplete="new-password">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Update Password</button>
+        <button type="button" id="resetPasswordCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
       </form>
     </div>
   </div>

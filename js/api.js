@@ -33,6 +33,7 @@ export async function loadSupabaseConfig() {
 
     if (window.supabase && supabaseAnonKey) {
       supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+      window.supabaseClient = supabaseClient;
       log.debug("[AUTH] Supabase client initialized from /api/config");
     } else {
       console.warn("[AUTH] Supabase JS SDK not loaded or anon key missing");

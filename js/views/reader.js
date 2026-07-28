@@ -1,5 +1,6 @@
 import { button, el, field, form, formatDate, formatDateDDMMYYYY, input, list, progress, segmentButton, select, submitButton, textarea, svgEl } from "../components.js";
 import { emptyState } from "./shared.js";
+import { recordStoryView } from "../controllers/readerController.js";
 
 function createParagraphBubble(ctx, chapter, index) {
   var inlineComments = (chapter.comments || []).filter(function (c) {
@@ -385,6 +386,9 @@ export function renderReader(ctx) {
   ctx = ctx || this;
   var story = ctx.getCurrentStory();
   var chapter = ctx.getCurrentChapter(story);
+  if (story && story.id) {
+    recordStoryView(ctx, story.id);
+  }
   var isComic = story.type === "Chitrānk";
   var controls = [];
   

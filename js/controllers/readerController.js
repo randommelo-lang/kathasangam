@@ -1,3 +1,17 @@
+export function recordStoryView(ctx, storyId) {
+  if (!storyId) return;
+  ctx.apiPost("/stories/" + storyId + "/view")
+    .then(function (res) {
+      if (res && res.viewed && ctx.state && ctx.state.stories) {
+        var story = ctx.state.stories.find(function (s) { return s.id === storyId; });
+        if (story) story.views = res.views;
+      }
+    })
+    .catch(function (err) {
+      console.warn("Failed to record view:", err);
+    });
+}
+
 export function handleReaderClick(ctx, action, target, e) {
   if (action === "readerMode") {
     ctx.ui.readerMode = target.dataset.value;
@@ -23,14 +37,8 @@ export function handleReaderClick(ctx, action, target, e) {
     var storyId = target.dataset.id;
     var story = ctx.state.stories.find(function (s) { return s.id === storyId; });
     
-    // Increment unique view count
-    ctx.apiPost("/stories/" + storyId + "/view")
-      .then(res => {
-        if (res.viewed && story) {
-          story.views = res.views;
-        }
-      })
-      .catch(err => console.warn("Failed to record unique view:", err));
+    // Record unique view
+    recordStoryView(ctx, storyId);
 
     var chapterIdx = 0;
     var pageIdx = 0;
@@ -107,6 +115,9 @@ export function handleReaderClick(ctx, action, target, e) {
     ctx.ui.currentTextPageIndex = 0;
     ctx.ui.currentScrollProgress = 0;
     window.scrollTo(0, 0);
+    if (ctx.ui.currentStoryId) {
+      recordStoryView(ctx, ctx.ui.currentStoryId);
+    }
     window.location.hash = "reader";
     ctx.render();
     ctx.syncCurrentProgress();

@@ -845,14 +845,17 @@ pub async fn view_story(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(pool): State<PgPool>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let story_status = sqlx::query_scalar::<_, String>(
+    let story_status = match sqlx::query_scalar::<_, String>(
         "SELECT status FROM stories WHERE id = $1"
     )
     .bind(story_id)
     .fetch_optional(&pool)
-    .await?;
+    .await? {
+        Some(s) => s,
+        None => return Err(AppError::not_found("Story not found.")),
+    };
 
-    let st = story_status.as_deref().unwrap_or("").to_lowercase();
+    let st = story_status.to_lowercase();
     if st == "draft" || st == "unpublished" {
         let current_views = sqlx::query_scalar::<_, i32>(
             "SELECT views FROM stories WHERE id = $1"

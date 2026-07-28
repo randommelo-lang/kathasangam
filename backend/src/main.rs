@@ -123,10 +123,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
                 let _ = sqlx::query(
                     "INSERT INTO notifications (user_id, message, story_id, chapter_sort_order) \
-                     SELECT l.user_id, $1, $2, $3 \
-                     FROM library l \
-                     JOIN profiles p ON l.user_id = p.id \
-                     WHERE l.story_id = $2 AND (COALESCE(p.preferences->>'in_app_notifications', 'true'))::boolean = true"
+                     SELECT DISTINCT target_users.user_id, $1, $2, $3 \
+                     FROM ( \
+                         SELECT user_id FROM public.bookmarks WHERE story_id = $2 \
+                         UNION \
+                         SELECT user_id FROM public.library WHERE story_id = $2 \
+                     ) AS target_users \
+                     JOIN public.profiles p ON target_users.user_id = p.id \
+                     JOIN public.stories s ON s.id = $2 \
+                     WHERE target_users.user_id != s.author_id \
+                       AND (COALESCE(p.preferences->>'in_app_notifications', 'true'))::boolean = true"
                 )
                 .bind(&message)
                 .bind(story_id)

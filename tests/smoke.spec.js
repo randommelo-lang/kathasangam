@@ -1589,6 +1589,44 @@ test.describe('KathaSangam Smoke Tests', () => {
     await expect(chapterMeta).toBeVisible();
     await expect(chapterMeta).toContainText('28/07/2026');
   });
+
+  test('Bookmarked story notifications work when new chapter is published', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    await page.route('**/api/notifications', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            {
+              id: 'notif-1',
+              user_id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+              message: "New chapter 'Chapter 2' published for 'Bookmarked Fantasy Realm'",
+              story_id: 'story-bm-1',
+              chapter_sort_order: 2,
+              read: false,
+              created_at: new Date().toISOString()
+            }
+          ])
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/');
+    await page.click('#signInBtn');
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+    await page.waitForTimeout(500);
+    const notifBtn = page.locator('.hero-bell-btn');
+    await expect(notifBtn).toBeVisible();
+    await notifBtn.click();
+    const notifItem = page.locator('.notification-item', { hasText: 'Bookmarked Fantasy Realm' });
+    await expect(notifItem).toBeVisible();
+  });
 });
 
 

@@ -1,4 +1,4 @@
-import { analyticsMetricBox, button, el, formatDate, formatNumber, generateChartData, generateChapterReadsChart, calculateRetentionFunnel, calculateGenreAverages, iconButton, progress, quickActionTile, svgEl, makeCalendarIcon, makeCollaboratorsIcon, makeDiscussionIcon } from "../components.js";
+import { analyticsMetricBox, button, el, formatDate, formatDateDDMMYYYY, formatNumber, generateChartData, generateChapterReadsChart, calculateRetentionFunnel, calculateGenreAverages, iconButton, progress, quickActionTile, svgEl, makeCalendarIcon, makeCollaboratorsIcon, makeDiscussionIcon } from "../components.js";
 import { storyGrid, storyCardSkeleton } from "./shared.js";
 
 export function renderStudio(ctx) {
@@ -213,7 +213,13 @@ export function renderStudio(ctx) {
         var itemClass = "timeline-item" + (isCurrent ? " active-chapter" : "");
         var statusClass = "badge-status " + (ch.status === "published" ? "published" : ch.status === "scheduled" ? "scheduled" : "draft");
         
-        var detailParts = ["Updated " + (ch.updated_at ? formatDate(ch.updated_at) : "recently") + " · " + (ch.access || "Free")];
+        var pubDate = ch.createdAt || ch.created_at || ch.scheduledAt;
+        var dateLabel = ch.status === "scheduled" && ch.scheduledAt
+          ? "Scheduled " + formatDateDDMMYYYY(ch.scheduledAt)
+          : pubDate
+          ? "Published " + formatDateDDMMYYYY(pubDate)
+          : "Updated recently";
+        var detailParts = [dateLabel + " · " + (ch.access || "Free")];
         
         var detailsChildren = [
           el("strong", null, ch.title),

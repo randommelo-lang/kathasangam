@@ -1,9 +1,10 @@
-import { button, el, formatDate, formatNumber, list, progress } from "../components.js";
+import { button, el, formatDate, formatDateDDMMYYYY, formatNumber, list, progress } from "../components.js";
 
 export function renderStoryDetails(ctx) {
   ctx = ctx || this;
   var params = new URLSearchParams(window.location.hash.split("?")[1] || "");
   var storyId = params.get("id");
+  if (!ctx.state.stories) return;
   var story = ctx.state.stories.find(function (s) { return s.id === storyId; });
 
   if (!story) {
@@ -106,7 +107,14 @@ export function renderStoryDetails(ctx) {
         (story.genre || "").split(",").map(function (g) { return g.trim(); }).filter(Boolean).map(function (g) {
           return el("span", "badge genre-badge", g);
         }).concat([
-          el("span", { class: "badge type-badge", "data-type": story.type }, story.type)
+          el("span", { class: "badge type-badge", "data-type": story.type }, story.type),
+          el("span", { class: "badge status-badge " + (story.status || "published").toLowerCase() }, (function(st) {
+            if (st === "ongoing" || st === "active") return "🟢 Ongoing";
+            if (st === "completed") return "✅ Completed";
+            if (st === "on_hold") return "⏸️ On Hold";
+            if (st === "cancelled") return "🚫 Cancelled";
+            return "📖 " + st.charAt(0).toUpperCase() + st.slice(1);
+          })((story.status || "published").toLowerCase()))
         ])
       ),
       el("h1", "story-details-title", story.title),
@@ -169,14 +177,16 @@ export function renderStoryDetails(ctx) {
       var chAccess = ch.access || "public";
       
       var metaText = "Ch. " + (origIndex + 1);
-      if (chAccess !== "public") {
+      if (chAccess !== "public" && chAccess !== "free") {
         metaText += " · " + chAccess.charAt(0).toUpperCase() + chAccess.slice(1);
       }
-      if (chStatus !== "published") {
+      var pubDate = ch.createdAt || ch.created_at || ch.scheduledAt;
+      if (chStatus === "scheduled" && ch.scheduledAt) {
+        metaText += " · Scheduled " + formatDateDDMMYYYY(ch.scheduledAt);
+      } else if (pubDate) {
+        metaText += " · Published " + formatDateDDMMYYYY(pubDate);
+      } else if (chStatus !== "published") {
         metaText += " · " + chStatus.charAt(0).toUpperCase() + chStatus.slice(1);
-      }
-      if (ch.scheduledAt && chStatus === "scheduled") {
-        metaText += " (" + formatDate(ch.scheduledAt) + ")";
       }
 
       var row = el("div", {

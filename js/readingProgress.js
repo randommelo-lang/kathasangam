@@ -110,16 +110,24 @@ export function calculateActiveReaderProgress(story) {
   var totalChapters = story.chapters.length;
   var currentChapterIndex = ui.currentChapterIndex;
 
-  var pageProgress = 1.0;
+  var pageProgress = 0;
   var chapter = story.chapters[currentChapterIndex];
-  if (chapter && ui.readerMode === "pages") {
-    if (story.type === "Chitrānk" && chapter.pages && chapter.pages.length) {
-      pageProgress = (ui.currentComicPageIndex + 1) / chapter.pages.length;
-    } else if (chapter.content && chapter.content.length && ctx) {
-      var pages = ctx.paginateText(chapter.content);
-      if (pages.length) {
-        pageProgress = (ui.currentTextPageIndex + 1) / pages.length;
+  if (chapter) {
+    if (ui.readerMode === "pages") {
+      if (story.type === "Chitrānk" && chapter.pages && chapter.pages.length) {
+        pageProgress = (ui.currentComicPageIndex + 1) / chapter.pages.length;
+      } else if (chapter.content && chapter.content.length && ctx) {
+        var pages = ctx.paginateText(chapter.content);
+        if (pages.length) {
+          pageProgress = (ui.currentTextPageIndex + 1) / pages.length;
+        } else {
+          pageProgress = 1.0;
+        }
+      } else {
+        pageProgress = 1.0;
       }
+    } else {
+      pageProgress = (ui.currentScrollProgress !== undefined && ui.currentScrollProgress !== null) ? ui.currentScrollProgress : 0;
     }
   }
 

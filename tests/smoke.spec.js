@@ -1312,6 +1312,283 @@ test.describe('KathaSangam Smoke Tests', () => {
     await expect(page.locator('#authSuccess')).toBeVisible();
     await expect(page.locator('#authSuccess')).toContainText('Password updated successfully');
   });
+
+  test('Create story includes language selection', async ({ page }) => {
+    setupConsoleLogging(page);
+    await page.goto('/');
+
+    // 1. Log in
+    const signInBtn = page.locator('#signInBtn');
+    await signInBtn.click();
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+
+    // 2. Go to Studio page
+    const studioLink = page.locator('nav a:has-text("Studio")');
+    await expect(studioLink).toBeVisible();
+    await studioLink.click();
+
+    // 3. Click Create Story button
+    const createStoryBtn = page.locator('button[data-action="openStoryModal"]').first();
+    await expect(createStoryBtn).toBeVisible();
+    await createStoryBtn.click();
+
+    // 4. Check if the modal with storyForm is open and the Language input is present
+    const storyModal = page.locator('#storyModal');
+    await expect(storyModal).toBeVisible();
+    
+    const languageInput = storyModal.locator('input[name="language"]');
+    await expect(languageInput).toBeVisible();
+    await expect(languageInput).toHaveValue('English'); // Check default value
+
+    // Mock API creation request
+    let capturedBody = null;
+    await page.route('**/api/stories', async route => {
+      if (route.request().method() === 'POST') {
+        capturedBody = route.request().postDataJSON();
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 'd9b5e321-df62-4217-bf41-698f26df8596',
+            author_id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+            title: capturedBody.title,
+            author: 'testplaywright',
+            type: capturedBody.type || 'Web Novel',
+            genre: capturedBody.genre,
+            language: capturedBody.language,
+            license: 'Creator-owned',
+            status: 'draft',
+            tags: ['fantasy', 'drama'],
+            description: capturedBody.description,
+            cover: '',
+            followers: 0,
+            views: 0,
+            likes: 0,
+            earnings: 0,
+            progress: 0,
+            created_at: new Date().toISOString()
+          })
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([])
+        });
+      }
+    });
+
+    // 5. Fill out the create story form
+    await page.fill('#storyModal input[name="title"]', 'E2E Testing Story');
+    await page.fill('#storyModal input[name="genre"]', 'Fantasy, Adventure');
+    await page.fill('#storyModal input[name="language"]', 'Nepali');
+    await page.fill('#storyModal textarea[name="description"]', 'An automated test story.');
+    
+    // Submit creation form
+    await page.click('#storyModal button[type="submit"]');
+
+    // 6. Verify form feedback and API payload
+    await expect(storyModal.locator('.form-feedback.success')).toContainText('Story created successfully!');
+    
+    // Verify language was passed in request
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody.language).toBe('Nepali');
+  });
+
+  test('Scroll mode reader progress fills dynamically on scroll', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Mock story response
+    await page.route('**/api/stories', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([{
+            id: 'c1234567-89ab-cdef-0123-456789abcdef',
+            author_id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+            author: 'testplaywright',
+            title: 'Scroll Progress Test Story',
+            type: 'Shabdanuvad',
+            genre: 'Fantasy',
+            language: 'en',
+            license: 'Creator-owned',
+            status: 'published',
+            tags: ['scroll', 'test'],
+            description: 'A long story for testing scroll progress.',
+            cover: '',
+            followers: 0,
+            views: 10,
+            likes: 5,
+            earnings: 0,
+            progress: 0,
+            chapters: [{
+              id: 'ch-111',
+              story_id: 'c1234567-89ab-cdef-0123-456789abcdef',
+              sort_order: 1,
+              title: 'Long Chapter 1',
+              status: 'published',
+              access: 'free',
+              content: [
+                'Paragraph 1 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40),
+                'Paragraph 2 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40),
+                'Paragraph 3 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40),
+                'Paragraph 4 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40),
+                'Paragraph 5 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40),
+                'Paragraph 6 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40),
+                'Paragraph 7 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40),
+                'Paragraph 8 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40),
+                'Paragraph 9 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40),
+                'Paragraph 10 of a long scrollable chapter. ' + 'Lorem ipsum '.repeat(40)
+              ],
+              comments: []
+            }],
+            created_at: new Date().toISOString()
+          }])
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/#reader');
+
+    // 2. Open story in reader
+    const progressLine = page.locator('.reader-progress-line');
+    await expect(progressLine).toBeAttached();
+
+    // 3. Verify initial scroll progress at top is 0%
+    const initialWidth = await progressLine.evaluate(el => el.style.width);
+    expect(initialWidth).toBe('0%');
+
+    // 4. Scroll down page
+    await page.evaluate(() => window.scrollTo(0, 800));
+    await page.waitForTimeout(300);
+
+    // 5. Verify progress line width has increased above 0% and is visible
+    await expect(progressLine).toBeVisible();
+    const scrolledWidthStr = await progressLine.evaluate(el => el.style.width);
+    const scrolledWidth = parseFloat(scrolledWidthStr);
+    expect(scrolledWidth).toBeGreaterThan(0);
+
+    // 6. Verify sticky reader header floats
+    const stickyHeader = page.locator('.reader-toolbar.sticky-header');
+    await expect(stickyHeader).toBeVisible();
+  });
+
+  test('Ongoing and Active stories appear in Discover search and status filter', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // 1. Mock stories endpoint with an Ongoing story
+    await page.route('**/api/stories', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            {
+              id: 'story-ongoing-1',
+              author_id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+              author: 'ongoing_author',
+              title: 'Active Adventure Realm',
+              type: 'Web Novel',
+              genre: 'Fantasy',
+              language: 'en',
+              license: 'Creator-owned',
+              status: 'ongoing',
+              tags: ['ongoing', 'fantasy'],
+              description: 'An ongoing active web novel in progress.',
+              cover: '',
+              followers: 12,
+              views: 100,
+              likes: 45,
+              earnings: 0,
+              progress: 0,
+              chapters: [],
+              created_at: new Date().toISOString()
+            }
+          ])
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/#discover');
+
+    // 2. Search for the ongoing story title
+    await page.fill('#searchInput', 'Active Adventure Realm');
+    await page.waitForTimeout(200);
+
+    // 3. Verify the ongoing story card is visible in Discover results
+    const storyCard = page.locator('.story-card', { hasText: 'Active Adventure Realm' });
+    await expect(storyCard).toBeVisible();
+
+    // 4. Toggle filter drawer and filter by status 'ongoing'
+    await page.click('.filter-toggle-btn');
+    await page.selectOption('select[name="filterStatus"]', 'ongoing');
+    await expect(storyCard).toBeVisible();
+  });
+
+  test('Chapter displays publish date formatted as DD/MM/YYYY', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    await page.route('**/api/stories', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            {
+              id: 'story-dated-1',
+              author_id: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+              author: 'dated_author',
+              title: 'Chronicles of Time',
+              type: 'Web Novel',
+              genre: 'Fantasy',
+              language: 'en',
+              license: 'Creator-owned',
+              status: 'published',
+              tags: ['fantasy'],
+              description: 'A story with dated chapters.',
+              cover: '',
+              followers: 5,
+              views: 20,
+              likes: 10,
+              earnings: 0,
+              progress: 0,
+              chapters: [
+                {
+                  id: 'ch-dated-1',
+                  sort_order: 1,
+                  title: 'Chapter 1: The Beginning',
+                  status: 'published',
+                  access: 'free',
+                  createdAt: '2026-07-28T10:00:00.000Z',
+                  words: 500,
+                  reads: 20,
+                  likes: 5,
+                  comments: []
+                }
+              ],
+              created_at: new Date().toISOString()
+            }
+          ])
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/#story?id=story-dated-1');
+
+    // Verify chapter item contains 'Published 28/07/2026'
+    const chapterMeta = page.locator('.chapter-item-info .mini-meta');
+    await expect(chapterMeta).toBeVisible();
+    await expect(chapterMeta).toContainText('28/07/2026');
+  });
 });
 
 

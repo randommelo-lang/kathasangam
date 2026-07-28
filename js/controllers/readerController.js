@@ -3,6 +3,8 @@ export function handleReaderClick(ctx, action, target, e) {
     ctx.ui.readerMode = target.dataset.value;
     ctx.ui.currentComicPageIndex = 0;
     ctx.ui.currentTextPageIndex = 0;
+    ctx.ui.currentScrollProgress = 0;
+    window.scrollTo(0, 0);
     ctx.render();
     ctx.syncCurrentProgress();
     ctx.autoSaveReaderPreferences();
@@ -103,6 +105,8 @@ export function handleReaderClick(ctx, action, target, e) {
     ctx.ui.currentChapterIndex = Number(target.dataset.index);
     ctx.ui.currentComicPageIndex = 0;
     ctx.ui.currentTextPageIndex = 0;
+    ctx.ui.currentScrollProgress = 0;
+    window.scrollTo(0, 0);
     window.location.hash = "reader";
     ctx.render();
     ctx.syncCurrentProgress();
@@ -417,4 +421,42 @@ export function handleReaderSubmit(ctx, formName, target, e) {
     return true;
   }
   return false;
+}
+
+export function updateReaderScrollProgress(ctx) {
+  if (!ctx || ctx.ui.currentView !== "reader") return;
+  var story = ctx.getCurrentStory();
+  if (!story || !story.chapters || !story.chapters.length) return;
+
+  if (ctx.ui.readerMode === "scroll") {
+    var content = document.querySelector(".reader-content");
+    if (content) {
+      var rect = content.getBoundingClientRect();
+      var winHeight = window.innerHeight;
+      var headerOffset = 61;
+      var totalHeight = rect.height - (winHeight - headerOffset);
+      var scrollProgress = 0;
+      if (totalHeight <= 0) {
+        scrollProgress = 1.0;
+      } else {
+        var scrolled = (headerOffset + 40) - rect.top;
+        scrollProgress = Math.max(0, Math.min(1.0, scrolled / totalHeight));
+      }
+      ctx.ui.currentScrollProgress = scrollProgress;
+    }
+  }
+
+  var progressVal = ctx.calculateActiveReaderProgress(story);
+  var progressLine = document.querySelector(".reader-progress-line");
+  if (progressLine) {
+    progressLine.style.width = progressVal + "%";
+  }
+}
+
+export function initReaderController(context) {
+  window.addEventListener("scroll", function () {
+    if (context.ui.currentView === "reader") {
+      updateReaderScrollProgress(context);
+    }
+  }, { passive: true });
 }

@@ -300,6 +300,16 @@ export function formatDate(v) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(v));
 }
 
+export function formatDateDDMMYYYY(v) {
+  if (!v) return "";
+  var d = new Date(v);
+  if (isNaN(d.getTime())) return "";
+  var day = String(d.getDate()).padStart(2, "0");
+  var month = String(d.getMonth() + 1).padStart(2, "0");
+  var year = d.getFullYear();
+  return day + "/" + month + "/" + year;
+}
+
 export function showConfirm(options) {
   var title = options.title || "Confirm";
   var message = options.message || "Are you sure?";

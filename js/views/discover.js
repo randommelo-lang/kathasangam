@@ -5,7 +5,7 @@ var carouselIndex = 0;
 var carouselTimer = null;
 
 function countPublished(ctx) {
-  return ctx.state.stories.filter(function (s) { return s.status === "published"; }).length;
+  return ctx.state.stories.filter(function (s) { return s.status && s.status !== "draft" && s.status !== "unpublished"; }).length;
 }
 
 function totalViews(ctx) {
@@ -82,7 +82,7 @@ export function renderDiscover(ctx) {
   }
 
   var stories = ctx.filteredStories();
-  var featured = ctx.state.stories.filter(function (s) { return s.status === "published"; }).slice(0, 3);
+  var featured = ctx.state.stories.filter(function (s) { return s.status && s.status !== "draft" && s.status !== "unpublished"; }).slice(0, 3);
 
   // Hero Carousel
   var carousel = el("section", "hero-carousel");
@@ -164,8 +164,9 @@ export function renderDiscover(ctx) {
         el("label", null, "Status"),
         select("filterStatus", [
           ["all", "All Statuses"],
-          ["ongoing", "Ongoing"],
-          ["completed", "Completed"]
+          ["ongoing", "Ongoing / Active"],
+          ["completed", "Completed"],
+          ["published", "Published"]
         ], ctx.ui.filterStatus || "all")
       ]),
       el("div", "filter-group", [

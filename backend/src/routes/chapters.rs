@@ -185,6 +185,7 @@ pub async fn list_chapters(
                 status: ch.status.clone(),
                 access: ch.access.clone(),
                 scheduled_at: ch.scheduled_at,
+                created_at: ch.created_at,
                 words: ch.words,
                 reads: ch.reads,
                 likes: ch.likes,
@@ -303,6 +304,11 @@ pub async fn toggle_chapter_status(
     }
 
     if new_status == "published" {
+        let _ = sqlx::query("UPDATE stories SET status = 'ongoing' WHERE id = $1 AND (status = 'draft' OR status = 'unpublished')")
+            .bind(row.story_id)
+            .execute(&pool)
+            .await;
+
         notify_followers(&pool, row.story_id, &row.title, row.sort_order).await;
     }
 
@@ -529,6 +535,11 @@ pub async fn update_chapter(
     tx.commit().await?;
 
     if should_notify {
+        let _ = sqlx::query("UPDATE stories SET status = 'ongoing' WHERE id = $1 AND (status = 'draft' OR status = 'unpublished')")
+            .bind(row.story_id)
+            .execute(&pool)
+            .await;
+
         notify_followers(&pool, row.story_id, &body.title, row.sort_order).await;
     }
 

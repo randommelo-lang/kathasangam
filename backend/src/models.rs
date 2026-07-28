@@ -60,6 +60,7 @@ pub struct CreateStoryRequest {
     #[serde(rename = "type")]
     pub story_type: String,
     pub genre: String,
+    pub language: Option<String>,
     pub description: String,
     pub cover: Option<String>,
 }
@@ -102,6 +103,7 @@ pub struct ChapterRow {
     pub words: i32,
     pub reads: i32,
     pub likes: i32,
+    pub created_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -113,6 +115,8 @@ pub struct ChapterResponse {
     pub access: String,
     #[serde(rename = "scheduledAt", skip_serializing_if = "Option::is_none")]
     pub scheduled_at: Option<NaiveDateTime>,
+    #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<NaiveDateTime>,
     pub words: i32,
     pub reads: i32,
     pub likes: i32,

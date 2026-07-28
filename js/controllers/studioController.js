@@ -572,13 +572,14 @@ export function handleStudioSubmit(ctx, formName, target, e) {
     var fd = new FormData(target);
     var title = fd.get("title").trim();
     var genre = fd.get("genre").trim();
+    var language = fd.get("language").trim();
     var description = fd.get("description").trim();
     var type = fd.get("type");
     
     setFormFeedback(target, "", "");
 
-    if (!title || !genre) {
-      setFormFeedback(target, "Title and Genre are required. Please check your inputs and try again.", "error");
+    if (!title || !genre || !language) {
+      setFormFeedback(target, "Title, Genre, and Language are required. Please check your inputs and try again.", "error");
       return true;
     }
     
@@ -589,6 +590,7 @@ export function handleStudioSubmit(ctx, formName, target, e) {
       title: title,
       type: type,
       genre: genre,
+      language: language,
       description: description
     }).then(function (resp) {
       setButtonLoading(submitBtn, false);

@@ -54,6 +54,10 @@ function storyForm() {
       input("text", "", { name: "genre", placeholder: "e.g. Fantasy, Romance", required: "true" })
     ]),
     el("div", "field", [
+      el("span", null, "Language"),
+      input("text", "English", { name: "language", placeholder: "e.g. English, Hindi", required: "true" })
+    ]),
+    el("div", "field", [
       el("span", null, "Synopsis"),
       textarea("description", "A new serialized story begins here.")
     ]),

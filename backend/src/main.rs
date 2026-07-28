@@ -106,6 +106,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
                 tracing::info!("📅 Auto-published chapter '{}' (id: {})", title, ch_id);
 
+                let _ = sqlx::query("UPDATE stories SET status = 'ongoing' WHERE id = $1 AND (status = 'draft' OR status = 'unpublished')")
+                    .bind(story_id)
+                    .execute(&publish_pool)
+                    .await;
+
                 // Notify followers
                 let story_info: Option<(String,)> = sqlx::query_as("SELECT title FROM stories WHERE id = $1")
                     .bind(story_id)

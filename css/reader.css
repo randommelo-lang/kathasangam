@@ -5,7 +5,7 @@
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
-  overflow: hidden
+  overflow: visible;
 }
 
 .reader-toolbar {
@@ -365,16 +365,19 @@
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
   transition: background 0.25s, border-color 0.25s;
 }
 
 .reader-progress-line {
   position: absolute;
-  bottom: 0;
+  bottom: -1px;
   left: 0;
-  height: 3px;
+  height: 4px;
   background: var(--primary);
-  transition: width 0.15s ease-out;
+  box-shadow: 0 0 10px var(--primary-glow, rgba(230, 81, 0, 0.5));
+  transition: width 0.1s linear;
   z-index: 101;
 }
 
@@ -493,7 +496,7 @@
   background: var(--surface-2);
   border-left: 1px solid var(--line);
   z-index: 1100;
-  transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s, border-color 0.25s;
+  transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s, visibility 0.25s, background 0.25s, border-color 0.25s;
   padding: 24px;
   box-sizing: border-box;
   display: flex;
@@ -502,10 +505,16 @@
   box-shadow: -10px 0 30px rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(12px);
   overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .reader-settings-drawer.active {
   right: 0;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .drawer-header {
@@ -1438,11 +1447,17 @@
   display: flex;
   flex-direction: column;
   transform: translateX(100%);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s, visibility 0.25s;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .inline-comments-drawer.active {
   transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .inline-comments-header-title {

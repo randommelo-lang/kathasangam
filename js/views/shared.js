@@ -41,6 +41,11 @@ export function storyCard(ctx, story, options) {
   card.querySelector("p").textContent = story.description;
 
   var tags = card.querySelector(".tag-row");
+  var st = (story.status || "published").toLowerCase();
+  if (st !== "published") {
+    var statusLabel = st === "ongoing" || st === "active" ? "Ongoing" : st.charAt(0).toUpperCase() + st.slice(1);
+    tags.appendChild(el("span", "tag status-tag " + st, statusLabel));
+  }
   genres.forEach(function (g) {
     tags.appendChild(el("span", "tag", g));
   });

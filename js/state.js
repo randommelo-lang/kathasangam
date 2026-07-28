@@ -23,6 +23,7 @@ export const ui = {
   currentChapterIndex: 0,
   currentComicPageIndex: 0,
   currentTextPageIndex: 0,
+  currentScrollProgress: 0,
   editingChapterId: "",
   filterType: "all",
   filterStatus: "all",

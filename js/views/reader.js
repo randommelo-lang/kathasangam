@@ -1,4 +1,4 @@
-import { button, el, field, form, formatDate, input, list, progress, segmentButton, select, submitButton, textarea, svgEl } from "../components.js";
+import { button, el, field, form, formatDate, formatDateDDMMYYYY, input, list, progress, segmentButton, select, submitButton, textarea, svgEl } from "../components.js";
 import { emptyState } from "./shared.js";
 
 function createParagraphBubble(ctx, chapter, index) {
@@ -413,7 +413,11 @@ export function renderReader(ctx) {
       el("span", "chapter-meta-title", chapter.title),
       el("span", "meta-dot", " · "),
       el("span", "chapter-meta-access badge " + String(chapter.access || "free").toLowerCase(), chapter.access),
-      chapter.status === "scheduled" ? el("span", "chapter-meta-scheduled", " · Scheduled " + formatDate(chapter.scheduledAt)) : null
+      chapter.status === "scheduled"
+        ? el("span", "chapter-meta-scheduled", " · Scheduled " + formatDateDDMMYYYY(chapter.scheduledAt))
+        : (chapter.createdAt || chapter.created_at)
+        ? el("span", "chapter-meta-published", " · Published " + formatDateDDMMYYYY(chapter.createdAt || chapter.created_at))
+        : null
     ].filter(Boolean)),
     el("div", "reader-header-right button-row", [
       button("⚙️ Settings", "btn", { action: "toggleSettingsDrawer" })
@@ -452,7 +456,11 @@ export function renderReader(ctx) {
           el("div", "chapter-num", chNum),
           el("div", "chapter-info", [
             el("span", "chapter-title", item.title),
-            item.status === "scheduled" ? el("span", "chapter-scheduled", "Scheduled " + formatDate(item.scheduledAt)) : null
+            item.status === "scheduled"
+              ? el("span", "chapter-scheduled", "Scheduled " + formatDateDDMMYYYY(item.scheduledAt))
+              : (item.createdAt || item.created_at)
+              ? el("span", "chapter-published", "Published " + formatDateDDMMYYYY(item.createdAt || item.created_at))
+              : null
           ].filter(Boolean)),
           el("div", "chapter-meta", [
             el("span", "chapter-access-badge " + String(item.access || "free").toLowerCase(), item.access),

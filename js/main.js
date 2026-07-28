@@ -24,7 +24,7 @@ import { canDeleteStory, storyCard } from "./views/shared.js";
 // Import controller modules
 import { handleDiscoverClick } from "./controllers/discoverController.js";
 import { handleLibraryClick } from "./controllers/libraryController.js";
-import { handleReaderClick, handleReaderInput, handleReaderSubmit } from "./controllers/readerController.js";
+import { handleReaderClick, handleReaderInput, handleReaderSubmit, initReaderController, updateReaderScrollProgress } from "./controllers/readerController.js";
 import { handleStudioClick, handleStudioSubmit } from "./controllers/studioController.js";
 import { handleModerationClick, handleModerationInput } from "./controllers/moderationController.js";
 import { handleProfileClick } from "./controllers/profileController.js";
@@ -153,7 +153,8 @@ var ctx = {
   toggleFullscreen: toggleFullscreen,
   handleSignOut: handleSignOut,
   fetchProfile: fetchProfile,
-  changeUserRole: changeUserRole
+  changeUserRole: changeUserRole,
+  updateReaderScrollProgress: function () { return updateReaderScrollProgress(ctx); }
 };
 
 // ── Bootstrap ──
@@ -165,6 +166,7 @@ async function bootstrap() {
   initNotificationsModule(ctx);
   initStoryController(ctx);
   initReadingProgress(ctx);
+  initReaderController(ctx);
 
   loadPreferences();
   await loadSupabaseConfig();
@@ -501,12 +503,14 @@ function filteredStories() {
   var query = searchInput.value.trim().toLowerCase();
   var genre = genreFilter.value;
   var results = state.stories.filter(function (s) {
-    if (s.status !== "published") return false;
+    var st = (s.status || "").toLowerCase();
+    var hasPublishedChapter = s.chapters && s.chapters.some(function (ch) { return ch.status === "published"; });
+    if ((st === "draft" || st === "unpublished") && !hasPublishedChapter) return false;
     var hay = [s.title, s.author, s.genre, s.description].join(" ").toLowerCase();
     var matchesSearch = !query || hay.indexOf(query) !== -1;
     var matchesGenre = genre === "all" || (s.genre && s.genre.split(",").map(function (g) { return g.trim().toLowerCase(); }).indexOf(genre.toLowerCase()) !== -1);
     var matchesType = ui.filterType === "all" || s.type === ui.filterType;
-    var matchesStatus = !ui.filterStatus || ui.filterStatus === "all" || (s.status && s.status.toLowerCase() === ui.filterStatus.toLowerCase());
+    var matchesStatus = !ui.filterStatus || ui.filterStatus === "all" || (st === ui.filterStatus.toLowerCase() || (ui.filterStatus.toLowerCase() === "ongoing" && (st === "ongoing" || st === "active" || st === "draft")));
     var matchesLanguage = !ui.filterLanguage || ui.filterLanguage === "all" || (s.language && s.language.toLowerCase() === ui.filterLanguage.toLowerCase());
     return matchesSearch && matchesGenre && matchesType && matchesStatus && matchesLanguage;
   });

@@ -149,9 +149,13 @@ pub async fn list_stories(
         }
     }
 
-    // Visibility check: only allow draft stories if the user is the author or an accepted collaborator
+    // Visibility check: a story is publicly visible if its status is non-draft OR if it has at least 1 published chapter
     results.retain(|s| {
-        if s.status.to_lowercase() == "published" {
+        let st = s.status.to_lowercase();
+        if st != "draft" && st != "unpublished" {
+            return true;
+        }
+        if s.chapters.iter().any(|ch| ch.status == "published") {
             return true;
         }
         if let Some(ref u) = auth {
@@ -373,13 +377,15 @@ pub async fn create_story(
     ]);
 
     let cover = body.cover.unwrap_or_else(random_cover);
+    let language = body.language.clone().unwrap_or_else(|| "English".to_string());
 
     sqlx::query(
-        "INSERT INTO stories (id, author_id, title, type, genre, status, tags, description, cover) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"
+        "INSERT INTO stories (id, author_id, title, type, genre, status, tags, description, cover, language) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"
     )
         .bind(id).bind(author_id).bind(&body.title)
         .bind(&body.story_type).bind(&body.genre)
         .bind("draft").bind(&tags_json).bind(&body.description).bind(&cover)
+        .bind(&language)
         .execute(&pool)
         .await?;
 
@@ -424,7 +430,7 @@ pub async fn get_stats(
 ) -> Result<Json<StatsResponse>, AppError> {
     let row: (i64, i64, i64) = sqlx::query_as(
         "SELECT \
-         (SELECT COUNT(*) FROM stories WHERE status = 'published'), \
+         (SELECT COUNT(*) FROM stories WHERE status != 'draft' AND status != 'unpublished'), \
          (SELECT COALESCE(SUM(views), 0) FROM stories), \
          (SELECT COALESCE(SUM(followers), 0) FROM stories)"
     )
@@ -683,6 +689,7 @@ pub async fn build_story_responses_batch(
                                 status: ch.status.clone(),
                                 access: ch.access.clone(),
                                 scheduled_at: ch.scheduled_at,
+                                created_at: ch.created_at,
                                 words: ch.words,
                                 reads: ch.reads,
                                 likes: ch.likes,
@@ -766,7 +773,8 @@ pub async fn like_story(
     .fetch_optional(&pool)
     .await?;
 
-    if story_status.as_deref() != Some("published") {
+    let st = story_status.as_deref().unwrap_or("").to_lowercase();
+    if st == "draft" || st == "unpublished" {
         return Err(AppError::bad_request("Story likes are only counted after publishing."));
     }
 
@@ -844,7 +852,8 @@ pub async fn view_story(
     .fetch_optional(&pool)
     .await?;
 
-    if story_status.as_deref() != Some("published") {
+    let st = story_status.as_deref().unwrap_or("").to_lowercase();
+    if st == "draft" || st == "unpublished" {
         let current_views = sqlx::query_scalar::<_, i32>(
             "SELECT views FROM stories WHERE id = $1"
         )

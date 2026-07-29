@@ -1722,6 +1722,52 @@ test.describe('KathaSangam Smoke Tests', () => {
     await expect(feedback).toBeVisible();
     await expect(feedback).toContainText('only allowed for users located in India');
   });
+
+  test('Fullscreen mode persists when navigating to the next page', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    await page.goto('/');
+    await page.click('#signInBtn');
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+    await page.waitForTimeout(500);
+
+    // Open first story
+    const storyCard = page.locator('.story-card').first();
+    await expect(storyCard).toBeVisible();
+    await storyCard.click();
+
+    // Click read button to open reader
+    const readBtn = page.locator('button[data-action="openReader"]').first();
+    await expect(readBtn).toBeVisible();
+    await readBtn.click();
+
+    // Find and click Settings button to open drawer
+    const settingsBtn = page.locator('button[data-action="toggleSettingsDrawer"]').first();
+    await expect(settingsBtn).toBeVisible();
+    await settingsBtn.click();
+    await page.waitForTimeout(200);
+
+    // Find and click Fullscreen button
+    const fullscreenBtn = page.locator('button[data-action="toggleFullscreen"]').first();
+    await expect(fullscreenBtn).toBeVisible();
+    await fullscreenBtn.click();
+
+    // Evaluate fullscreen element before navigation
+    const isFullscreenBefore = await page.evaluate(() => !!document.fullscreenElement);
+
+    // Click Next page button (>)
+    const nextBtn = page.locator('button[data-action="textPage"][data-step="1"]').first();
+    if (await nextBtn.isVisible()) {
+      await nextBtn.click();
+      await page.waitForTimeout(200);
+
+      // Verify fullscreen element status is unchanged
+      const isFullscreenAfter = await page.evaluate(() => !!document.fullscreenElement);
+      expect(isFullscreenAfter).toBe(isFullscreenBefore);
+    }
+  });
 });
 
 

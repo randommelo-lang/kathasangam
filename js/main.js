@@ -441,10 +441,10 @@ function render() {
 }
 
 function toggleFullscreen() {
-  var frame = document.querySelector(".reader-frame");
-  if (!frame) return;
+  var viewEl = document.getElementById("view");
+  if (!viewEl) return;
   if (!document.fullscreenElement) {
-    frame.requestFullscreen().catch(function (err) {
+    viewEl.requestFullscreen().catch(function (err) {
       console.error("Error attempting to enable fullscreen:", err);
     });
   } else {

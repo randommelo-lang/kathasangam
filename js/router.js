@@ -32,6 +32,10 @@ export function render(ctx) {
   const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings", "story", "messages"];
   if (allowed.indexOf(ctx.ui.currentView) === -1) ctx.ui.currentView = "discover";
 
+  if (ctx.ui.currentView !== "reader" && document.fullscreenElement) {
+    document.exitFullscreen().catch(function () {});
+  }
+
   const canModerate = ctx.canModerateRole();
   const moderationLink = document.querySelector('[data-nav="moderation"]');
   if (moderationLink) {

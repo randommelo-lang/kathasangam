@@ -162,17 +162,17 @@ function comicPager(ctx, chapter) {
     label += " - " + (secondIdx + 1);
   }
   return el("div", "comic-pager", [
-    button("Prev page", "btn", { action: "comicPage", step: "-2" }, firstIdx === 0),
+    button("<", "btn", { action: "comicPage", step: "-2" }, firstIdx === 0),
     el("span", "mini-meta", pages.length ? label + " / " + pages.length : "0 / 0"),
-    button("Next page", "btn", { action: "comicPage", step: "2" }, secondIdx >= pages.length - 1)
+    button(">", "btn", { action: "comicPage", step: "2" }, secondIdx >= pages.length - 1)
   ]);
 }
 
 function textPager(ctx, pages) {
   return el("div", "comic-pager text-pager", [
-    button("Prev page", "btn", { action: "textPage", step: "-1" }, ctx.ui.currentTextPageIndex === 0),
+    button("<", "btn", { action: "textPage", step: "-1" }, ctx.ui.currentTextPageIndex === 0),
     el("span", "mini-meta", pages.length ? (ctx.ui.currentTextPageIndex + 1) + " / " + pages.length : "0 / 0"),
-    button("Next page", "btn", { action: "textPage", step: "1" }, ctx.ui.currentTextPageIndex >= pages.length - 1)
+    button(">", "btn", { action: "textPage", step: "1" }, ctx.ui.currentTextPageIndex >= pages.length - 1)
   ]);
 }
 

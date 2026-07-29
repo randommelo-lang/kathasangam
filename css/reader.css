@@ -61,7 +61,45 @@
 .comic-pager {
   display: inline-flex;
   align-items: center;
-  gap: 8px
+  gap: 16px;
+  justify-content: center;
+  width: 100%;
+  margin-top: 24px;
+}
+
+.comic-pager .btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1.2rem;
+  font-weight: bold;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.comic-pager .btn:hover:not(:disabled) {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  transform: scale(1.05);
+}
+
+.comic-pager .btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.comic-pager .mini-meta {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .comic-reader {
@@ -243,7 +281,11 @@
 }
 
 /* Fullscreen Reader Styles */
-.reader-frame:fullscreen {
+#view:fullscreen .reader-frame,
+#view:-webkit-full-screen .reader-frame,
+.reader-frame:fullscreen,
+.reader-frame:-webkit-full-screen,
+.reader-frame.is-fullscreen {
   width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;
@@ -258,7 +300,11 @@
   overflow-y: auto !important;
 }
 
-.reader-frame:fullscreen .reader-toolbar {
+#view:fullscreen .reader-toolbar,
+#view:-webkit-full-screen .reader-toolbar,
+.reader-frame:fullscreen .reader-toolbar,
+.reader-frame:-webkit-full-screen .reader-toolbar,
+.reader-frame.is-fullscreen .reader-toolbar {
   position: sticky !important;
   top: 0 !important;
   z-index: 1000 !important;
@@ -267,41 +313,11 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
 }
 
-.reader-frame:fullscreen .reader-content {
-  overflow-y: visible !important;
-  padding: 40px clamp(24px, 8vw, 96px) 120px clamp(24px, 8vw, 96px) !important;
-  max-width: 900px !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  margin: 0 auto !important;
-}
-
-/* Vendor prefixes for fullscreen compatibility */
-.reader-frame:-webkit-full-screen {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-sizing: border-box !important;
-  background: var(--surface) !important;
-  display: block !important;
-  overflow-y: auto !important;
-}
-
-.reader-frame:-webkit-full-screen .reader-toolbar {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 1000 !important;
-  background: #241E1A !important;
-  border-radius: 0 !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
-}
-
-.reader-frame:-webkit-full-screen .reader-content {
+#view:fullscreen .reader-content,
+#view:-webkit-full-screen .reader-content,
+.reader-frame:fullscreen .reader-content,
+.reader-frame:-webkit-full-screen .reader-content,
+.reader-frame.is-fullscreen .reader-content {
   overflow-y: visible !important;
   padding: 40px clamp(24px, 8vw, 96px) 120px clamp(24px, 8vw, 96px) !important;
   max-width: 900px !important;
@@ -311,18 +327,27 @@
 }
 
 /* Fullscreen Autohiding Scrollbar Styling (WebKit) */
+#view:fullscreen::-webkit-scrollbar,
+#view:-webkit-full-screen::-webkit-scrollbar,
 .reader-frame:fullscreen::-webkit-scrollbar,
-.reader-frame:-webkit-full-screen::-webkit-scrollbar {
+.reader-frame:-webkit-full-screen::-webkit-scrollbar,
+.reader-frame.is-fullscreen::-webkit-scrollbar {
   width: 12px !important;
 }
 
+#view:fullscreen::-webkit-scrollbar-track,
+#view:-webkit-full-screen::-webkit-scrollbar-track,
 .reader-frame:fullscreen::-webkit-scrollbar-track,
-.reader-frame:-webkit-full-screen::-webkit-scrollbar-track {
+.reader-frame:-webkit-full-screen::-webkit-scrollbar-track,
+.reader-frame.is-fullscreen::-webkit-scrollbar-track {
   background: transparent !important;
 }
 
+#view:fullscreen::-webkit-scrollbar-thumb,
+#view:-webkit-full-screen::-webkit-scrollbar-thumb,
 .reader-frame:fullscreen::-webkit-scrollbar-thumb,
-.reader-frame:-webkit-full-screen::-webkit-scrollbar-thumb {
+.reader-frame:-webkit-full-screen::-webkit-scrollbar-thumb,
+.reader-frame.is-fullscreen::-webkit-scrollbar-thumb {
   background: transparent !important;
   border-radius: 6px !important;
   border: 3px solid transparent !important;
@@ -330,14 +355,20 @@
 }
 
 /* Only show scrollbar when hovering over the scrollbar track region */
+#view:fullscreen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb,
+#view:-webkit-full-screen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb,
 .reader-frame:fullscreen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb,
-.reader-frame:-webkit-full-screen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb {
+.reader-frame:-webkit-full-screen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb,
+.reader-frame.is-fullscreen::-webkit-scrollbar:hover::-webkit-scrollbar-thumb {
   background: rgba(229, 124, 51, 0.4) !important;
 }
 
 /* Highlight thumb when directly hovered */
+#view:fullscreen::-webkit-scrollbar-thumb:hover,
+#view:-webkit-full-screen::-webkit-scrollbar-thumb:hover,
 .reader-frame:fullscreen::-webkit-scrollbar-thumb:hover,
-.reader-frame:-webkit-full-screen::-webkit-scrollbar-thumb:hover {
+.reader-frame:-webkit-full-screen::-webkit-scrollbar-thumb:hover,
+.reader-frame.is-fullscreen::-webkit-scrollbar-thumb:hover {
   background: rgba(229, 124, 51, 0.8) !important;
 }
 

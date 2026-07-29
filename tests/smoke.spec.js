@@ -1627,6 +1627,57 @@ test.describe('KathaSangam Smoke Tests', () => {
     const notifItem = page.locator('.notification-item', { hasText: 'Bookmarked Fantasy Realm' });
     await expect(notifItem).toBeVisible();
   });
+
+  test('Story title must be unique (case-insensitive)', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    await page.route('**/api/stories', async route => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON();
+        if (body.title && body.title.toLowerCase() === 'samyati') {
+          await route.fulfill({
+            status: 400,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              error: 'bad_request',
+              message: 'A story with this title already exists. Please choose a different title.'
+            })
+          });
+        } else {
+          await route.continue();
+        }
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/');
+    await page.click('#signInBtn');
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+    await page.waitForTimeout(500);
+
+    const studioLink = page.locator('nav a:has-text("Studio")');
+    await expect(studioLink).toBeVisible();
+    await studioLink.click();
+
+    const createStoryBtn = page.locator('button[data-action="openStoryModal"]').first();
+    await expect(createStoryBtn).toBeVisible();
+    await createStoryBtn.click();
+
+    const storyModal = page.locator('#storyModal');
+    await expect(storyModal).toBeVisible();
+
+    await page.fill('form[data-form="storyForm"] input[name="title"]', 'SAMYATI');
+    await page.fill('form[data-form="storyForm"] input[name="genre"]', 'Fantasy');
+    await page.click('form[data-form="storyForm"] button[type="submit"]');
+
+    // Verify error feedback message is displayed
+    const feedback = page.locator('.form-feedback.error');
+    await expect(feedback).toBeVisible();
+    await expect(feedback).toContainText('already exists');
+  });
 });
 
 

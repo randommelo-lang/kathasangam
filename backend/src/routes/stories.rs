@@ -310,7 +310,26 @@ pub async fn update_story(
     }
 
     // Build update query dynamically
-    let title = body.title.unwrap_or(row.title);
+    let title = body.title.unwrap_or_else(|| row.title.clone());
+
+    if title.trim().is_empty() {
+        return Err(AppError::bad_request("Story title cannot be empty."));
+    }
+
+    if title.trim().to_lowercase() != row.title.trim().to_lowercase() {
+        let title_exists: (bool,) = sqlx::query_as(
+            "SELECT EXISTS(SELECT 1 FROM stories WHERE LOWER(TRIM(title)) = LOWER(TRIM($1)) AND id != $2)"
+        )
+        .bind(&title)
+        .bind(id)
+        .fetch_one(&pool)
+        .await?;
+
+        if title_exists.0 {
+            return Err(AppError::bad_request("A story with this title already exists. Please choose a different title."));
+        }
+    }
+
     let genre = body.genre.unwrap_or(row.genre);
     let description = body.description.unwrap_or(row.description);
     let mut cover = body.cover.unwrap_or(row.cover);
@@ -367,6 +386,18 @@ pub async fn create_story(
 ) -> Result<(StatusCode, Json<StoryResponse>), AppError> {
     if body.title.trim().is_empty() {
         return Err(AppError::bad_request("Story title cannot be empty."));
+    }
+
+    // Case-insensitive title uniqueness check
+    let title_exists: (bool,) = sqlx::query_as(
+        "SELECT EXISTS(SELECT 1 FROM stories WHERE LOWER(TRIM(title)) = LOWER(TRIM($1)))"
+    )
+    .bind(&body.title)
+    .fetch_one(&pool)
+    .await?;
+
+    if title_exists.0 {
+        return Err(AppError::bad_request("A story with this title already exists. Please choose a different title."));
     }
     let id = Uuid::new_v4();
     let author_id = auth.user_id;

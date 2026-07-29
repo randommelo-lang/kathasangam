@@ -378,12 +378,20 @@ pub async fn update_story(
 }
 
 
-/// POST /api/stories
 pub async fn create_story(
     State(pool): State<PgPool>,
+    headers: HeaderMap,
     auth: AuthUser,
     Json(body): Json<CreateStoryRequest>,
 ) -> Result<(StatusCode, Json<StoryResponse>), AppError> {
+    // Geolocalized country restriction
+    if let Some(cf_country) = headers.get("cf-ipcountry").and_then(|v| v.to_str().ok()) {
+        let country_code = cf_country.to_uppercase();
+        if !country_code.is_empty() && country_code != "IN" {
+            return Err(AppError::forbidden("Story creation is only allowed for users located in India."));
+        }
+    }
+
     if body.title.trim().is_empty() {
         return Err(AppError::bad_request("Story title cannot be empty."));
     }

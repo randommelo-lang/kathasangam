@@ -1678,6 +1678,50 @@ test.describe('KathaSangam Smoke Tests', () => {
     await expect(feedback).toBeVisible();
     await expect(feedback).toContainText('already exists');
   });
+
+  test('Story creation restricted to Indian IP addresses', async ({ page }) => {
+    setupConsoleLogging(page);
+
+    // Inject CF-IPCountry: US header into actual backend calls to test restriction
+    await page.route('**/api/stories', async route => {
+      if (route.request().method() === 'POST') {
+        const headers = {
+          ...route.request().headers(),
+          'cf-ipcountry': 'US'
+        };
+        await route.continue({ headers });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/');
+    await page.click('#signInBtn');
+    await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+    await page.fill('#loginForm input[name="password"]', 'Password123!');
+    await page.click('#loginForm button[type="submit"]');
+    await page.waitForTimeout(500);
+
+    const studioLink = page.locator('nav a:has-text("Studio")');
+    await expect(studioLink).toBeVisible();
+    await studioLink.click();
+
+    const createStoryBtn = page.locator('button[data-action="openStoryModal"]').first();
+    await expect(createStoryBtn).toBeVisible();
+    await createStoryBtn.click();
+
+    const storyModal = page.locator('#storyModal');
+    await expect(storyModal).toBeVisible();
+
+    await page.fill('form[data-form="storyForm"] input[name="title"]', `US Geoblock Test Story ${Date.now()}`);
+    await page.fill('form[data-form="storyForm"] input[name="genre"]', 'Sci-Fi');
+    await page.click('form[data-form="storyForm"] button[type="submit"]');
+
+    // Verify error feedback message showing location restriction
+    const feedback = page.locator('.form-feedback.error');
+    await expect(feedback).toBeVisible();
+    await expect(feedback).toContainText('only allowed for users located in India');
+  });
 });
 
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{StatusCode, HeaderMap},
     Json,
 };
 use sqlx::PgPool;
@@ -199,13 +199,21 @@ pub async fn list_chapters(
     Ok(Json(chapters))
 }
 
-/// POST /api/stories/:story_id/chapters
 pub async fn create_chapter(
     auth: AuthUser,
+    headers: HeaderMap,
     State(pool): State<PgPool>,
     Path(story_id): Path<Uuid>,
     Json(body): Json<CreateChapterRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
+    // Geolocalized country restriction
+    if let Some(cf_country) = headers.get("cf-ipcountry").and_then(|v| v.to_str().ok()) {
+        let country_code = cf_country.to_uppercase();
+        if !country_code.is_empty() && country_code != "IN" {
+            return Err(AppError::forbidden("Chapter creation is only allowed for users located in India."));
+        }
+    }
+
     // Verify user is story owner or admin
     verify_story_owner_or_admin(&pool, auth.user_id, story_id).await?;
 

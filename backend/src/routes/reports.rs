@@ -482,6 +482,16 @@ pub async fn ban_user(
         return Err(AppError::not_found("User profile not found."));
     }
 
+    // Notify the user about the ban
+    let message = format!("Your account has been banned by a moderator. Reason: {}", body.reason.as_deref().unwrap_or("No reason specified"));
+    let _ = sqlx::query(
+        "INSERT INTO notifications (user_id, message) VALUES ($1, $2)"
+    )
+    .bind(body.user_id)
+    .bind(&message)
+    .execute(&pool)
+    .await;
+
     // Log the moderation action
     sqlx::query(
         "INSERT INTO moderation_audit_logs (moderator_id, action, target_type, target_id, details) VALUES ($1, $2, $3, $4, $5)"

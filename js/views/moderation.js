@@ -461,12 +461,13 @@ export function renderModeration(ctx) {
     ]),
     el("aside", null, [
       el("section", "panel", [
-        el("h2", null, "Guidelines"),
+        el("h2", null, "Rules & Guidelines"),
         list([
-          "No harassment, hate, doxxing, or threats.",
-          "No piracy, plagiarism, or unauthorized uploads.",
-          "Sensitive content must be tagged before publication.",
-          "Moderation actions are logged for appeal review."
+          "Don't use AI as your Final product. AI tools are permitted for brainstorming and outlining, but all final prose, dialogue, and artwork must be human-crafted.",
+          "No piracy, plagiarism, or unauthorized distribution of intellectual property. All uploaded works must be original or appropriately licensed.",
+          "No harassment, hate speech, doxxing, threats, or abusive conduct toward any community member.",
+          "Sensitive or mature content must be marked as NSFW using the story creation form. NSFW stories are blurred or hidden for underage users and guests.",
+          "All moderation actions (removals, warnings, bans) are audited and logged. Users can submit appeals for review."
         ], "activity-list", function (t) {
           return el("li", "activity-item", t);
         })

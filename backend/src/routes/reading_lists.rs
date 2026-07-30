@@ -72,7 +72,7 @@ pub async fn get_reading_list(
         "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, \
          stories.title, stories.type, stories.genre, stories.language, stories.license, \
          stories.status, stories.tags, stories.description, stories.cover, stories.followers, \
-         stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at \
+         stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \
          FROM public.stories \
          JOIN public.reading_list_entries rle ON rle.story_id = stories.id \
          LEFT JOIN public.profiles ON profiles.id = stories.author_id \

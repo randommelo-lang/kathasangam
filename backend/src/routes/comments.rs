@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Query},
     http::StatusCode,
     Json,
 };
@@ -134,6 +134,7 @@ pub async fn delete_comment(
     State(pool): State<PgPool>,
     auth: AuthUser,
     Path(comment_id): Path<Uuid>,
+    Query(query): Query<DeleteQuery>,
 ) -> Result<StatusCode, AppError> {
     // 1. Fetch the comment to check user_id and content
     let comment: Option<(Option<Uuid>, String)> = sqlx::query_as("SELECT user_id, content FROM comments WHERE id = $1")
@@ -186,6 +187,18 @@ pub async fn delete_comment(
         .bind(&details)
         .execute(&mut *tx)
         .await?;
+
+        if let Some(author_id) = comment_user_id {
+            let reason_str = query.reason.as_deref().unwrap_or("No reason specified");
+            let message = format!("Your comment '{}' was removed by a moderator. Reason: {}", comment_content, reason_str);
+            let _ = sqlx::query(
+                "INSERT INTO notifications (user_id, message) VALUES ($1, $2)"
+            )
+            .bind(author_id)
+            .bind(&message)
+            .execute(&mut *tx)
+            .await;
+        }
     }
 
     // 4. Delete the comment

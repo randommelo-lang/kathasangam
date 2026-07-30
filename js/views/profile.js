@@ -58,6 +58,10 @@ function storyForm() {
       input("text", "English", { name: "language", placeholder: "e.g. English, Hindi", required: "true" })
     ]),
     el("div", "field", [
+      el("span", null, "NSFW / Mature Content (18+)"),
+      select("isNsfw", [["false", "No - General Audiences"], ["true", "Yes - 18+ Mature Content"]])
+    ]),
+    el("div", "field", [
       el("span", null, "Synopsis"),
       textarea("description", "A new serialized story begins here.")
     ]),
@@ -66,6 +70,7 @@ function storyForm() {
 }
 
 function storySettingsForm(story) {
+  var isNsfwStr = story.isNsfw ? "true" : "false";
   return el("form", { "data-form": "storySettingsForm", class: "form-grid" }, [
     (function () {
       var hidden = el("input");
@@ -85,6 +90,10 @@ function storySettingsForm(story) {
     el("div", "field", [
       el("span", null, "Language"),
       input("text", story.language || "English", { name: "language", placeholder: "English", required: "true" })
+    ]),
+    el("div", "field", [
+      el("span", null, "NSFW / Mature Content (18+)"),
+      select("isNsfw", [["false", "No - General Audiences"], ["true", "Yes - 18+ Mature Content"]], isNsfwStr)
     ]),
     el("div", "field", [
       el("span", null, "License"),
@@ -366,6 +375,8 @@ export function renderProfileSettings(context) {
     var defaultSize = (state.profile && state.profile.preferences && state.profile.preferences.reader_size) || 19;
     var defaultEmail = (state.profile && state.profile.preferences && state.profile.preferences.email_notifications !== undefined) ? state.profile.preferences.email_notifications : true;
     var defaultInApp = (state.profile && state.profile.preferences && state.profile.preferences.in_app_notifications !== undefined) ? state.profile.preferences.in_app_notifications : true;
+    var dobVal = (state.profile && state.profile.preferences && state.profile.preferences.date_of_birth) || "";
+    var defaultNsfwPreference = (state.profile && state.profile.preferences && state.profile.preferences.nsfw_preference) || "blur";
 
     var uInput = input("text", username, { name: "username", placeholder: "Your username" });
     var uHint = el("p", "username-hint", "");
@@ -404,6 +415,18 @@ export function renderProfileSettings(context) {
           });
       }, 500);
     });
+
+    function getAge(dateString) {
+      if (!dateString) return 0;
+      var today = new Date();
+      var birthDate = new Date(dateString);
+      var age = today.getFullYear() - birthDate.getFullYear();
+      var m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age;
+    }
 
     var bioTextarea = textarea("bio", state.profile.bio || "");
     bioTextarea.className = "settings-bio-textarea";
@@ -580,7 +603,7 @@ export function renderProfileSettings(context) {
       el("div", "settings-group", [
         el("h4", { style: "display: flex; align-items: center; gap: 8px; margin-bottom: 16px;" }, [
           el("span", "icon icon-bell"),
-          document.createTextNode("Reading & Notifications")
+          document.createTextNode("Reading & Content Preferences")
         ]),
         el("div", "settings-field-row-wrap", [
           el("div", "settings-field-col", [
@@ -595,6 +618,30 @@ export function renderProfileSettings(context) {
             el("label", "settings-label", "Default Font Size (px)"),
             input("number", defaultSize, { name: "reader_size", min: "16", max: "26" })
           ])
+        ]),
+        el("div", "settings-field-row-wrap", [
+          el("div", "settings-field-col", [
+            el("label", "settings-label", "Date of Birth"),
+            input("date", dobVal, { name: "date_of_birth" })
+          ]),
+          (function() {
+            var age = getAge(dobVal);
+            if (age >= 18) {
+              return el("div", "settings-field-col", [
+                el("label", "settings-label", "NSFW Content (18+)"),
+                select("nsfw_preference", [
+                  ["blur", "Blur 18+ content (Default)"],
+                  ["show", "Show 18+ content"],
+                  ["hide", "Hide 18+ content"]
+                ], defaultNsfwPreference)
+              ]);
+            } else {
+              return el("div", "settings-field-col", [
+                el("label", "settings-label", "NSFW Content (18+)"),
+                el("div", { style: "color: var(--muted); font-size: 0.85rem; padding-top: 8px;" }, "Hidden (under 18)")
+              ]);
+            }
+          })()
         ]),
         el("div", "settings-checkboxes", [
           el("label", "checkbox-label", [

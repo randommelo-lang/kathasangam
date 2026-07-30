@@ -578,6 +578,8 @@ export function handleStudioSubmit(ctx, formName, target, e) {
     
     setFormFeedback(target, "", "");
 
+    var isNsfw = fd.get("isNsfw") === "true";
+
     if (!title || !genre || !language) {
       setFormFeedback(target, "Title, Genre, and Language are required. Please check your inputs and try again.", "error");
       return true;
@@ -591,7 +593,8 @@ export function handleStudioSubmit(ctx, formName, target, e) {
       type: type,
       genre: genre,
       language: language,
-      description: description
+      description: description,
+      isNsfw: isNsfw
     }).then(function (resp) {
       setButtonLoading(submitBtn, false);
       setFormFeedback(target, "Story created successfully!", "success");
@@ -624,6 +627,8 @@ export function handleStudioSubmit(ctx, formName, target, e) {
     
     setFormFeedback(target, "", "");
 
+    var isNsfw = fd.get("isNsfw") === "true";
+
     if (!title || !genre || !language) {
       setFormFeedback(target, "Title, Genre, and Language are required. Please check your inputs and try again.", "error");
       return true;
@@ -638,7 +643,8 @@ export function handleStudioSubmit(ctx, formName, target, e) {
       description: description,
       status: status,
       language: language,
-      license: license
+      license: license,
+      isNsfw: isNsfw
     }).then(function (resp) {
       setButtonLoading(submitBtn, false);
       setFormFeedback(target, "Story settings saved successfully!", "success");

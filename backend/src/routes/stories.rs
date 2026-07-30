@@ -8,13 +8,59 @@ use axum::{
 use std::net::SocketAddr;
 use sqlx::PgPool;
 use uuid::Uuid;
+use chrono::Datelike;
 
 use crate::db::{AuthUser, OptionalAuthUser};
 use crate::models::*;
 use crate::errors::AppError;
 
-const STORY_SELECT_ORDERED: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id ORDER BY stories.created_at DESC";
-const STORY_SELECT_BY_ID: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE stories.id = $1";
+const STORY_SELECT_ORDERED: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id ORDER BY stories.created_at DESC";
+const STORY_SELECT_BY_ID: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE stories.id = $1";
+
+pub async fn is_user_eighteen_plus(pool: &PgPool, user_id: uuid::Uuid) -> bool {
+    let row: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
+        "SELECT preferences FROM profiles WHERE id = $1"
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .unwrap_or(None);
+
+    if let Some((Some(prefs),)) = row {
+        if let Some(dob_val) = prefs.get("date_of_birth") {
+            if let Some(dob_str) = dob_val.as_str() {
+                if let Ok(dob) = chrono::NaiveDate::parse_from_str(dob_str, "%Y-%m-%d") {
+                    let today = chrono::Utc::now().naive_utc().date();
+                    let mut age = today.year() - dob.year();
+                    if today.month() < dob.month() || (today.month() == dob.month() && today.day() < dob.day()) {
+                        age -= 1;
+                    }
+                    return age >= 18;
+                }
+            }
+        }
+    }
+    false
+}
+
+pub async fn get_user_nsfw_preference(pool: &PgPool, user_id: uuid::Uuid) -> String {
+    let row: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
+        "SELECT preferences FROM profiles WHERE id = $1"
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .unwrap_or(None);
+
+    if let Some((Some(prefs),)) = row {
+        if let Some(pref_val) = prefs.get("nsfw_preference") {
+            if let Some(pref_str) = pref_val.as_str() {
+                return pref_str.to_string();
+            }
+        }
+    }
+    "blur".to_string()
+}
 
 pub async fn fetch_story_row(pool: &PgPool, id: Uuid) -> Result<Option<StoryRow>, sqlx::Error> {
     sqlx::query_as(STORY_SELECT_BY_ID)
@@ -48,7 +94,7 @@ pub async fn list_stories(
     let mut results = if let Some(ids) = meili_ids {
         // Fetch rows matching the Meilisearch hits
         let rows: Vec<StoryRow> = sqlx::query_as(
-            "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at \
+            "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \
              FROM stories \
              LEFT JOIN profiles ON profiles.id = stories.author_id \
              WHERE stories.id = ANY($1)"
@@ -149,6 +195,23 @@ pub async fn list_stories(
         }
     }
 
+    let (is_eighteen_plus, nsfw_pref) = if let Some(ref u) = auth {
+        let is_18 = is_user_eighteen_plus(&pool, u.user_id).await;
+        let pref = get_user_nsfw_preference(&pool, u.user_id).await;
+        (is_18, pref)
+    } else {
+        (false, "hide".to_string())
+    };
+
+    results.retain(|s| {
+        if s.is_nsfw {
+            let is_author = auth.as_ref().map(|u| s.author_id == Some(u.user_id) || s.collaborators.iter().any(|c| c.user_id == u.user_id && c.status == "accepted")).unwrap_or(false);
+            is_author || (is_eighteen_plus && nsfw_pref != "hide")
+        } else {
+            true
+        }
+    });
+
     // Visibility check: a story is publicly visible if its status is non-draft OR if it has at least 1 published chapter
     results.retain(|s| {
         let st = s.status.to_lowercase();
@@ -184,6 +247,20 @@ pub async fn get_story(
 
     let resp = build_story_response(&pool, &row, auth.as_ref()).await?;
 
+    // Check NSFW visibility
+    if resp.is_nsfw {
+        let mut allowed = false;
+        if let Some(ref u) = auth {
+            let is_author = resp.author_id == Some(u.user_id) || resp.collaborators.iter().any(|c| c.user_id == u.user_id && c.status == "accepted");
+            if is_author || (is_user_eighteen_plus(&pool, u.user_id).await && get_user_nsfw_preference(&pool, u.user_id).await != "hide") {
+                allowed = true;
+            }
+        }
+        if !allowed {
+            return Err(AppError::forbidden("Underage or unauthenticated accounts are not permitted to view NSFW content."));
+        }
+    }
+
     // Check draft visibility
     if resp.status.to_lowercase() == "draft" {
         let mut allowed = false;
@@ -207,6 +284,7 @@ pub async fn delete_story(
     State(pool): State<PgPool>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Query(query): Query<DeleteQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Check if the story exists and retrieve its author_id
     let row = fetch_story_row(&pool, id)
@@ -253,6 +331,20 @@ pub async fn delete_story(
     .bind(&details)
     .execute(&pool)
     .await?;
+
+    if is_moderation_action {
+        if let Some(author_id) = row.author_id {
+            let reason_str = query.reason.as_deref().unwrap_or("No reason specified");
+            let message = format!("Your story '{}' was removed by a moderator. Reason: {}", row.title, reason_str);
+            let _ = sqlx::query(
+                "INSERT INTO notifications (user_id, message) VALUES ($1, $2)"
+            )
+            .bind(author_id)
+            .bind(&message)
+            .execute(&pool)
+            .await;
+        }
+    }
 
     let cover_url = row.cover.clone();
     let result = sqlx::query("DELETE FROM stories WHERE id = $1")
@@ -343,9 +435,10 @@ pub async fn update_story(
         Some(t) => serde_json::json!(t),
         None => row.tags,
     };
+    let is_nsfw = body.is_nsfw.unwrap_or(row.is_nsfw);
 
     sqlx::query(
-        "UPDATE stories SET title = $1, genre = $2, description = $3, cover = $4, status = $5, language = $6, license = $7, tags = $8 WHERE id = $9"
+        "UPDATE stories SET title = $1, genre = $2, description = $3, cover = $4, status = $5, language = $6, license = $7, tags = $8, is_nsfw = $9 WHERE id = $10"
     )
     .bind(&title)
     .bind(&genre)
@@ -355,6 +448,7 @@ pub async fn update_story(
     .bind(&language)
     .bind(&license)
     .bind(&tags_val)
+    .bind(is_nsfw)
     .bind(id)
     .execute(&pool)
     .await?;
@@ -418,13 +512,15 @@ pub async fn create_story(
     let cover = body.cover.unwrap_or_else(random_cover);
     let language = body.language.clone().unwrap_or_else(|| "English".to_string());
 
+    let is_nsfw_val = body.is_nsfw.unwrap_or(false);
+
     sqlx::query(
-        "INSERT INTO stories (id, author_id, title, type, genre, status, tags, description, cover, language) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"
+        "INSERT INTO stories (id, author_id, title, type, genre, status, tags, description, cover, language, is_nsfw) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)"
     )
         .bind(id).bind(author_id).bind(&body.title)
         .bind(&body.story_type).bind(&body.genre)
         .bind("draft").bind(&tags_json).bind(&body.description).bind(&cover)
-        .bind(&language)
+        .bind(&language).bind(is_nsfw_val)
         .execute(&pool)
         .await?;
 
@@ -786,6 +882,7 @@ fn assemble_story(
         created_at: row.created_at,
         chapters,
         collaborators,
+        is_nsfw: row.is_nsfw,
     }
 }
 

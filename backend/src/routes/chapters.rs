@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Query},
     http::{StatusCode, HeaderMap},
     Json,
 };
@@ -330,6 +330,7 @@ pub async fn delete_chapter(
     auth: AuthUser,
     State(pool): State<PgPool>,
     Path(chapter_id): Path<Uuid>,
+    Query(query): Query<DeleteQuery>,
 ) -> Result<StatusCode, AppError> {
     let row: ChapterRow = sqlx::query_as("SELECT * FROM chapters WHERE id = $1")
         .bind(chapter_id)
@@ -374,6 +375,19 @@ pub async fn delete_chapter(
         .bind(&details)
         .execute(&mut *tx)
         .await?;
+
+        if let Some(author_id) = story_author_id {
+            let reason_str = query.reason.as_deref().unwrap_or("No reason specified");
+            let st_title = story_title.as_deref().unwrap_or("your story");
+            let message = format!("Your chapter '{}' under story '{}' was removed by a moderator. Reason: {}", row.title, st_title, reason_str);
+            let _ = sqlx::query(
+                "INSERT INTO notifications (user_id, message) VALUES ($1, $2)"
+            )
+            .bind(author_id)
+            .bind(&message)
+            .execute(&mut *tx)
+            .await;
+        }
     }
 
     sqlx::query("DELETE FROM comments WHERE chapter_id = $1")

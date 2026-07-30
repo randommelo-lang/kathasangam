@@ -1,4 +1,5 @@
 import { button, el, formatDate, formatDateDDMMYYYY, formatNumber, list, progress } from "../components.js";
+import { state } from "../state.js";
 
 export function renderStoryDetails(ctx) {
   ctx = ctx || this;
@@ -29,6 +30,14 @@ export function renderStoryDetails(ctx) {
   var headerCover = el("div", "story-details-cover");
   if (coverVal) {
     headerCover.style.backgroundImage = coverVal;
+  }
+  if (story.isNsfw) {
+    var prefs = (state.profile && state.profile.preferences) || {};
+    var pref = prefs.nsfw_preference || "blur";
+    if (pref === "blur") {
+      headerCover.style.filter = "blur(24px) brightness(0.7)";
+      headerCover.style.transform = "scale(1.05)";
+    }
   }
 
   var authorLink = el("a", "story-author-link", story.author);
@@ -115,7 +124,9 @@ export function renderStoryDetails(ctx) {
             if (st === "cancelled") return "🚫 Cancelled";
             return "📖 " + st.charAt(0).toUpperCase() + st.slice(1);
           })((story.status || "published").toLowerCase()))
-        ])
+        ]).concat(story.isNsfw ? [
+          el("span", { class: "badge nsfw-badge", style: "background: #ff4b4b; color: white; font-weight: bold;" }, "18+ NSFW")
+        ] : [])
       ),
       el("h1", "story-details-title", story.title),
       el("div", "story-details-author-row", [

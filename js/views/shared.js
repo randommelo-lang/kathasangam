@@ -1,4 +1,5 @@
 import { button, el, formatNumber, iconButton, progress, svgEl } from "../components.js";
+import { state } from "../state.js";
 
 export function storyGrid(ctx, stories, options) {
   var g = el("section", "story-grid");
@@ -20,6 +21,22 @@ export function storyCard(ctx, story, options) {
   var coverBadge = card.querySelector(".cover-badge");
   coverBadge.textContent = story.type;
   coverBadge.dataset.type = story.type;
+
+  if (story.isNsfw) {
+    var nsfwBadge = el("span", { class: "nsfw-tag-badge", style: "position: absolute; top: 10px; right: 10px; padding: 4px 8px; background: #ff4b4b; color: white; font-size: 0.72rem; font-weight: bold; border-radius: 4px; z-index: 2;" }, "18+ NSFW");
+    card.querySelector(".cover-button").appendChild(nsfwBadge);
+
+    var prefs = (state.profile && state.profile.preferences) || {};
+    var pref = prefs.nsfw_preference || "blur";
+    if (pref === "blur") {
+      card.querySelector(".cover-art").style.filter = "blur(12px) brightness(0.8)";
+      var blurOverlay = el("div", { class: "nsfw-blur-overlay", style: "position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); color: white; z-index: 1; border-radius: var(--radius);" }, [
+        el("span", { style: "font-size: 1.5rem; margin-bottom: 4px;" }, "⚠️"),
+        el("span", { style: "font-size: 0.75rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;" }, "NSFW Blurred")
+      ]);
+      card.querySelector(".cover-button").appendChild(blurOverlay);
+    }
+  }
 
   var openButton = card.querySelector(".cover-button");
   openButton.dataset.action = options.manage ? "manageStory" : "openStory";

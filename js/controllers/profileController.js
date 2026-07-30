@@ -122,27 +122,35 @@ export function handleProfileClick(ctx, action, target, e) {
     var emailCheck = panel ? panel.querySelector("input[name='email_notifications']") : null;
     var inAppCheck = panel ? panel.querySelector("input[name='in_app_notifications']") : null;
  
+    var dobInput = panel ? panel.querySelector("input[name='date_of_birth']") : null;
+    var nsfwSelect = panel ? panel.querySelector("select[name='nsfw_preference']") : null;
+
     var themeVal = themeSelect ? themeSelect.value : "light";
     var modeVal = modeSelect ? modeSelect.value : "scroll";
     var sizeVal = sizeInput ? Number(sizeInput.value) : 19;
     var emailVal = emailCheck ? emailCheck.checked : true;
     var inAppVal = inAppCheck ? inAppCheck.checked : true;
- 
+    var dobVal = dobInput ? dobInput.value : "";
+    var nsfwVal = nsfwSelect ? nsfwSelect.value : "blur";
+
     setFormFeedback(group, "", "");
 
     if (sizeVal < 16 || sizeVal > 26) {
       setFormFeedback(group, "Font size must be between 16 and 26px. Please check your input and try again.", "error");
       return true;
     }
- 
-    var prefs = {
+
+    var existingPrefs = (ctx.state.profile && ctx.state.profile.preferences) || {};
+    var prefs = Object.assign({}, existingPrefs, {
       reader_theme: themeVal,
       reader_size: sizeVal,
       reader_mode: modeVal,
       email_notifications: emailVal,
-      in_app_notifications: inAppVal
-    };
- 
+      in_app_notifications: inAppVal,
+      date_of_birth: dobVal,
+      nsfw_preference: nsfwVal
+    });
+
     setButtonLoading(target, true, "Saving...");
     ctx.apiPut("/profile", { preferences: prefs }).then(function () {
       setButtonLoading(target, false);

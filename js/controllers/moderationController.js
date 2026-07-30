@@ -267,14 +267,16 @@ export function handleModerationClick(ctx, action, target, e) {
     var cancelBtn = document.getElementById("confirmDeleteCancelBtn");
     var closeBtn = document.getElementById("confirmDeleteClose");
     var textEl = document.getElementById("confirmDeleteText");
+    var reasonInput = document.getElementById("confirmDeleteReason");
 
-    if (!modal || !confirmBtn || !cancelBtn || !closeBtn || !textEl) {
+    if (!modal || !confirmBtn || !cancelBtn || !closeBtn || !textEl || !reasonInput) {
       ctx.notify("Confirmation modal elements not found.");
       return true;
     }
 
     // Set text dynamically
     textEl.textContent = "Are you sure you want to permanently delete this " + targetType + "? This action is irreversible and the content will be deleted from the platform.";
+    reasonInput.value = "";
 
     // Show modal
     modal.hidden = false;
@@ -307,6 +309,12 @@ export function handleModerationClick(ctx, action, target, e) {
     }
 
     function onConfirm() {
+      var reason = reasonInput.value.trim();
+      if (!reason) {
+        ctx.notify("Please provide a reason for removing this content.");
+        return;
+      }
+
       confirmBtn.disabled = true;
       confirmBtn.textContent = "Deleting…";
 
@@ -322,6 +330,8 @@ export function handleModerationClick(ctx, action, target, e) {
         closeModal();
         return;
       }
+
+      deleteUrl += "?reason=" + encodeURIComponent(reason);
 
       ctx.apiDelete(deleteUrl)
         .catch(function (err) {

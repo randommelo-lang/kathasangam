@@ -1,5 +1,6 @@
 import { button, el, formatNumber, metric, segmentButton, select } from "../components.js";
 import { storyCard, storyCardSkeleton, emptyState } from "./shared.js";
+import { state } from "../state.js";
 
 var carouselIndex = 0;
 var carouselTimer = null;
@@ -95,10 +96,67 @@ export function renderDiscover(ctx) {
     }
     var bg = el("div", "cover-bg");
     bg.style.backgroundImage = coverVal;
+    
+    if (story.isNsfw) {
+      var prefs = (state.profile && state.profile.preferences) || {};
+      var pref = prefs.nsfw_preference || "blur";
+      if (pref === "blur") {
+        bg.style.filter = "blur(20px) brightness(0.7)";
+      }
+    }
+    
     slide.appendChild(bg);
+    if (story.isNsfw) {
+      slide.appendChild(el("span", { class: "badge nsfw-badge", style: "display: inline-block; padding: 4px 8px; background: #ff4b4b; color: white; font-size: 0.72rem; font-weight: bold; border-radius: 4px; margin-bottom: 8px; width: fit-content;" }, "18+ NSFW"));
+    }
     slide.appendChild(el("p", "carousel-eyebrow", story.genre + " · " + story.type));
     slide.appendChild(el("h2", "carousel-title", story.title));
-    slide.appendChild(el("p", "carousel-desc", story.description));
+    var descEl = el("p", "carousel-desc");
+    var descText = story.description || "";
+    if (descText.length > 180) {
+      var shortText = descText.slice(0, 160).trim() + "...";
+      var shortSpan = el("span", "desc-short", shortText);
+      var fullSpan = el("span", "desc-full", descText);
+      fullSpan.style.display = "none";
+      
+      var viewMoreBtn = el("button", {
+        class: "view-more-btn",
+        style: "color: var(--accent); cursor: pointer; font-weight: 700; margin-left: 6px; border: none; background: none; font-size: inherit; font-family: inherit; padding: 0; display: inline; text-decoration: underline;",
+        "aria-expanded": "false"
+      }, "View More");
+
+      var viewLessBtn = el("button", {
+        class: "view-less-btn",
+        style: "color: var(--accent); cursor: pointer; font-weight: 700; margin-left: 6px; border: none; background: none; font-size: inherit; font-family: inherit; padding: 0; display: none; text-decoration: underline;",
+        "aria-expanded": "true"
+      }, "View Less");
+      
+      viewMoreBtn.addEventListener("click", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        shortSpan.style.display = "none";
+        fullSpan.style.display = "inline";
+        viewMoreBtn.style.display = "none";
+        viewLessBtn.style.display = "inline";
+      });
+
+      viewLessBtn.addEventListener("click", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        fullSpan.style.display = "none";
+        shortSpan.style.display = "inline";
+        viewLessBtn.style.display = "none";
+        viewMoreBtn.style.display = "inline";
+      });
+      
+      descEl.appendChild(shortSpan);
+      descEl.appendChild(fullSpan);
+      descEl.appendChild(viewMoreBtn);
+      descEl.appendChild(viewLessBtn);
+    } else {
+      descEl.textContent = descText;
+    }
+    slide.appendChild(descEl);
     var carouselMeta = el("div", "carousel-meta");
     var authorLink = el("a", "story-author-link", story.author);
     authorLink.href = "#profile?username=" + encodeURIComponent(story.author);

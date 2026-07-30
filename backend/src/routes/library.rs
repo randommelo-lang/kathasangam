@@ -26,7 +26,7 @@ pub async fn get_library(
         "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, \
          stories.title, stories.type, stories.genre, stories.language, stories.license, \
          stories.status, stories.tags, stories.description, stories.cover, stories.followers, \
-         stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at \
+         stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \
          FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id \
          WHERE stories.id = ANY($1)",
     )

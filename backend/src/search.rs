@@ -61,7 +61,7 @@ pub async fn init_search_index() -> Result<(), String> {
 
 pub async fn index_story(pool: &sqlx::PgPool, story_id: Uuid) -> Result<(), String> {
     let row: Option<crate::models::StoryRow> = sqlx::query_as(
-        "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at \
+        "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \
          FROM stories \
          LEFT JOIN profiles ON profiles.id = stories.author_id \
          WHERE stories.id = $1"
@@ -128,7 +128,7 @@ pub async fn search_stories(q: &str, limit: usize) -> Result<Vec<Uuid>, String> 
 
 pub async fn backfill_all_stories(pool: &sqlx::PgPool) -> Result<(), String> {
     let rows: Vec<crate::models::StoryRow> = sqlx::query_as(
-        "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at \
+        "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \
          FROM stories \
          LEFT JOIN profiles ON profiles.id = stories.author_id"
     )

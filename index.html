@@ -316,7 +316,12 @@
       </div>
 
       <div class="confirm-delete-body" style="margin-bottom: 20px; color: var(--ink);">
-        <p id="confirmDeleteText" style="font-size: 0.95rem; line-height: 1.5; margin: 0;"></p>
+        <p id="confirmDeleteText" style="font-size: 0.95rem; line-height: 1.5; margin: 0 0 16px 0;"></p>
+        
+        <label class="field" style="display: flex; flex-direction: column; gap: 6px; text-align: left;">
+          <span>Reason for removal</span>
+          <textarea id="confirmDeleteReason" name="reason" placeholder="Describe the reason for removing this content (violating guidelines, spamming, etc.)..." required rows="3" style="width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-size: 0.95rem; font-family: inherit; resize: vertical; box-sizing: border-box;"></textarea>
+        </label>
       </div>
 
       <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">

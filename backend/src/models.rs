@@ -27,6 +27,7 @@ pub struct StoryRow {
     pub earnings: i32,
     pub progress: i32,
     pub created_at: NaiveDateTime,
+    pub is_nsfw: bool,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -52,6 +53,8 @@ pub struct StoryResponse {
     pub created_at: NaiveDateTime,
     pub chapters: Vec<ChapterResponse>,
     pub collaborators: Vec<CollaboratorResponse>,
+    #[serde(rename = "isNsfw")]
+    pub is_nsfw: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,6 +66,8 @@ pub struct CreateStoryRequest {
     pub language: Option<String>,
     pub description: String,
     pub cover: Option<String>,
+    #[serde(rename = "isNsfw")]
+    pub is_nsfw: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -75,6 +80,8 @@ pub struct UpdateStoryRequest {
     pub language: Option<String>,
     pub license: Option<String>,
     pub tags: Option<Vec<String>>,
+    #[serde(rename = "isNsfw")]
+    pub is_nsfw: Option<bool>,
 }
 
 
@@ -247,6 +254,11 @@ pub struct UpdateReportSeverityRequest {
 #[derive(Debug, Deserialize)]
 pub struct BanUserRequest {
     pub user_id: Uuid,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteQuery {
     pub reason: Option<String>,
 }
 

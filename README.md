@@ -159,12 +159,6 @@ KathaSangam is built with open-source software. We are grateful to the maintaine
 
 The browser bundles currently checked into `js/vendor/` are documented with their exact versions and integrity hashes in [js/vendor/README.md](js/vendor/README.md). Each dependency remains subject to its own license and notice requirements; this table is an acknowledgement, not a replacement for those licenses.
 
-## Documentation
-
-- [Idea.md](Idea.md) — product vision and longer-term architecture.
-- [plan.md](plan.md) — implementation history, open quality items, and roadmap.
-- [security.md](security.md) — security audit and completed remediations.
-
 ## License
 
 Copyright © 2026 KathaSangam. All rights reserved.

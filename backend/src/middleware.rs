@@ -180,8 +180,8 @@ pub async fn security_headers_middleware(
                    script-src 'self'; \
                    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
                    font-src 'self' https://fonts.gstatic.com; \
-                   img-src 'self' data: https://*.supabase.co https:; \
-                   connect-src 'self' https://*.supabase.co; \
+                   img-src 'self' data: https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.onrender.com https://onrender.com https:; \
+                   connect-src 'self' https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.onrender.com https://onrender.com; \
                    worker-src 'self' blob:; \
                    child-src 'self' blob:; \
                    frame-ancestors 'none';";

@@ -442,6 +442,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         if origins.iter().any(|o| o == origin_str) {
                             return true;
                         }
+                        
+                        for o in &origins {
+                            let clean_o = o.trim_start_matches("https://")
+                                .trim_start_matches("http://")
+                                .trim_start_matches("www.");
+                            let clean_origin = origin_str.trim_start_matches("https://")
+                                .trim_start_matches("http://")
+                                .trim_start_matches("www.");
+                            if clean_origin == clean_o {
+                                return true;
+                            }
+                        }
                         // 2. Allow local loopback origins
                         if origin_str.starts_with("http://localhost:") || origin_str.starts_with("http://127.0.0.1:") {
                             return true;

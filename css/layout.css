@@ -655,6 +655,10 @@ h2 {
     gap: 10px;
   }
 
+  .brand-text {
+    display: none !important;
+  }
+
   .searchbar {
     flex-direction: column;
     gap: 6px;

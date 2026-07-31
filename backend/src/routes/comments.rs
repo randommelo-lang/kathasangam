@@ -23,9 +23,9 @@ pub async fn list_comments(
             .await?
             .ok_or_else(|| AppError::not_found("Chapter not found"))?;
 
-    let rows: Vec<(Uuid, Option<Uuid>, String, String, Option<i32>)> =
+    let rows: Vec<(Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>)> =
         sqlx::query_as(
-            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index \
+            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id \
              FROM comments c \
              LEFT JOIN profiles p ON c.user_id = p.id \
              WHERE c.chapter_id = $1 \
@@ -37,12 +37,13 @@ pub async fn list_comments(
 
     Ok(Json(
         rows.into_iter()
-            .map(|(id, user_id, text, username, paragraph_index)| CommentResponse {
+            .map(|(id, user_id, text, username, paragraph_index, parent_id)| CommentResponse {
                 id,
                 user_id,
                 user: username,
                 text,
                 paragraph_index,
+                parent_id,
             })
             .collect(),
     ))
@@ -58,6 +59,9 @@ pub async fn create_comment(
     if body.text.trim().is_empty() {
         return Err(AppError::bad_request("Comment content cannot be empty."));
     }
+    if body.text.chars().count() > 5000 {
+        return Err(AppError::bad_request("Comment content cannot exceed 5000 characters."));
+    }
 
     let ch: ChapterRow =
         sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 AND sort_order = $2")
@@ -68,12 +72,13 @@ pub async fn create_comment(
             .ok_or_else(|| AppError::not_found("Chapter not found"))?;
 
     let id = Uuid::new_v4();
-    sqlx::query("INSERT INTO comments (id, chapter_id, user_id, content, paragraph_index) VALUES ($1,$2,$3,$4,$5)")
+    sqlx::query("INSERT INTO comments (id, chapter_id, user_id, content, paragraph_index, parent_id) VALUES ($1,$2,$3,$4,$5,$6)")
         .bind(id)
         .bind(ch.id)
         .bind(user_id)
         .bind(&body.text)
         .bind(body.paragraph_index)
+        .bind(body.parent_id)
         .execute(&pool)
         .await?;
 
@@ -125,6 +130,7 @@ pub async fn create_comment(
             user: username,
             text: body.text,
             paragraph_index: body.paragraph_index,
+            parent_id: body.parent_id,
         }),
     ))
 }

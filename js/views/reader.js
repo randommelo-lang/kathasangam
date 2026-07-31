@@ -18,6 +18,142 @@ function createParagraphBubble(ctx, chapter, index) {
   return bubble;
 }
 
+function renderCommentItem(c, ctx, story, isReply, isInline, pIdx) {
+  var currentUserId = ctx.state.user && ctx.state.user.id ? String(ctx.state.user.id) : "";
+  var commentUserId = c.user_id || c.userId ? String(c.user_id || c.userId) : "";
+  var currentUsername = ctx.state.profile && ctx.state.profile.username
+    ? ctx.state.profile.username
+    : (ctx.state.user && ctx.state.user.email ? ctx.state.user.email.split("@")[0] : "");
+  var ownsComment = (currentUserId && commentUserId && currentUserId === commentUserId)
+    || (currentUsername && c.user === currentUsername);
+  var userRole = (ctx.state.profile && ctx.state.profile.role) || ctx.state.role;
+  var canDelete = ownsComment || ["moderator", "admin"].indexOf(userRole) !== -1;
+  var canReport = ctx.state.user && !ownsComment;
+  var initials = (c.user || "U").substring(0, 2).toUpperCase();
+  var isStoryCreator = c.user === story.author || c.user_id === story.author_id;
+  var menuItems = [];
+
+  if (canReport) {
+    menuItems.push(button("Report", "comment-menu-item comment-menu-report", { action: "reportComment", id: c.id }));
+  }
+
+  if (canDelete) {
+    var deleteButton = button("", "comment-menu-item comment-menu-delete", {
+      action: "deleteComment",
+      id: c.id
+    });
+    deleteButton.title = "Delete comment";
+    deleteButton.setAttribute("aria-label", "Delete comment");
+    deleteButton.appendChild(el("img", {
+      class: "comment-menu-trash-icon",
+      src: "icons/trash-icon.svg",
+      alt: ""
+    }));
+    deleteButton.appendChild(el("span", "comment-menu-delete-label", "Delete"));
+    menuItems.push(deleteButton);
+  }
+
+  var overflowMenu = null;
+  if (ctx.state.user) {
+    overflowMenu = el("details", "comment-overflow-menu", [
+      el("summary", {
+        class: "comment-overflow-trigger",
+        "aria-label": "Comment actions",
+        title: "Comment actions"
+      }, el("img", {
+        class: "comment-menu-dots-icon",
+        src: "icons/dots-vertical-icon.svg?v=2",
+        alt: ""
+      })),
+      el("div", "comment-overflow-panel", menuItems)
+    ]);
+  }
+
+  var itemClass = "activity-item comment-item" + (isReply ? " comment-reply-item" : "") + (isInline ? " inline-comment-item" : "");
+  var itemStyle = isReply ? "padding: 8px 0; border: none; background: none; box-shadow: none;" : "";
+
+  var avatarEl = el("div", "comment-avatar", initials);
+  if (isReply) {
+    avatarEl.setAttribute("style", "width: 24px; height: 24px; min-width: 24px; font-size: 0.7rem; line-height: 24px;");
+  }
+
+  var item = el("div", { class: itemClass }, [
+    avatarEl,
+    el("div", "comment-body", [
+      el("div", "comment-header", [
+        el("div", "comment-meta", [
+          (function () {
+            var a = el("a", "commenter-name", c.user);
+            a.href = "#profile?username=" + encodeURIComponent(c.user);
+            return a;
+          })(),
+          isStoryCreator ? el("span", "comment-author-badge", "Author") : null
+        ].filter(Boolean)),
+        overflowMenu
+      ]),
+      el("span", "comment-text", c.text),
+      !isReply && ctx.state.user ? el("div", "comment-footer-actions", [
+        button("Reply", "comment-reply-link", { action: "showReplyForm", id: c.id })
+      ]) : null
+    ].filter(Boolean))
+  ]);
+
+  if (itemStyle) item.setAttribute("style", itemStyle);
+  return item;
+}
+
+function renderCommentThread(c, replies, ctx, story, isInline, pIdx) {
+  var threadChildren = [
+    renderCommentItem(c, ctx, story, false, isInline, pIdx)
+  ];
+
+  if (replies && replies.length) {
+    var repliesList = el("div", {
+      class: "comment-replies-list",
+      style: "margin-left: 36px; padding-left: 12px; border-left: 2px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 8px; margin-top: 8px;"
+    }, replies.map(function (r) {
+      return renderCommentItem(r, ctx, story, true, isInline, pIdx);
+    }));
+    threadChildren.push(repliesList);
+  }
+
+  if (ctx.ui.activeReplyCommentId === c.id) {
+    var replyFormEl = el("form", {
+      "data-form": "replyForm",
+      style: "margin-top: 10px; margin-left: 36px; display: flex; flex-direction: column; gap: 8px;"
+    }, [
+      el("input", { type: "hidden", name: "parentId", value: c.id }),
+      (pIdx !== undefined && pIdx !== null) ? el("input", { type: "hidden", name: "paragraphIndex", value: String(pIdx) }) : null,
+      (function() {
+        var replyTa = document.createElement("textarea");
+        replyTa.name = "replyText";
+        replyTa.placeholder = "Write a reply...";
+        replyTa.maxLength = 5000;
+        replyTa.required = true;
+        replyTa.style.width = "100%";
+        replyTa.style.minHeight = "60px";
+        replyTa.style.background = "rgba(0,0,0,0.2)";
+        replyTa.style.border = "1px solid rgba(255,255,255,0.1)";
+        replyTa.style.borderRadius = "var(--radius)";
+        replyTa.style.color = "var(--text)";
+        replyTa.style.padding = "8px";
+        replyTa.style.fontSize = "0.9rem";
+        return replyTa;
+      })(),
+      el("div", { style: "display: flex; justify-content: flex-end; gap: 8px;" }, [
+         button("Cancel", "btn secondary btn-sm", { action: "cancelReply" }),
+         submitButton("Post Reply", "btn primary btn-sm")
+      ])
+    ].filter(Boolean));
+    threadChildren.push(replyFormEl);
+  }
+
+  return el("li", {
+    class: "comment-thread-wrapper",
+    style: "display: flex; flex-direction: column; gap: 8px; list-style: none; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);"
+  }, threadChildren);
+}
+
 function inlineCommentsDrawer(ctx, story, chapter) {
   var pIdx = ctx.ui.activeParagraphIndex;
   var isOpen = pIdx !== undefined && pIdx !== null;
@@ -68,30 +204,17 @@ function inlineCommentsDrawer(ctx, story, chapter) {
 
   var listContent;
   if (inlineComments.length) {
-    listContent = el("ul", "activity-list comment-feed-list inline-comments-list", inlineComments.map(function (c) {
-      var canDelete = (ctx.state.user && c.user_id === ctx.state.user.id) || ["moderator", "admin"].indexOf(ctx.state.role) !== -1;
-      var initials = (c.user || "U").substring(0, 2).toUpperCase();
-      var isStoryCreator = c.user === story.author || c.user_id === story.author_id;
+    var rootInlineComments = inlineComments.filter(function (c) { return !c.parentId; });
+    var repliesMap = {};
+    inlineComments.forEach(function (c) {
+      if (c.parentId) {
+        if (!repliesMap[c.parentId]) repliesMap[c.parentId] = [];
+        repliesMap[c.parentId].push(c);
+      }
+    });
 
-      return el("li", "activity-item comment-item inline-comment-item", [
-        el("div", "comment-avatar", initials),
-        el("div", "comment-body", [
-          el("div", "comment-header", [
-            el("div", "comment-meta", [
-              (function () {
-                var a = el("a", "commenter-name", c.user);
-                a.href = "#profile?username=" + encodeURIComponent(c.user);
-                return a;
-              })(),
-              isStoryCreator ? el("span", "comment-author-badge", "Author") : null
-            ].filter(Boolean)),
-            el("div", "comment-actions button-row", [
-              canDelete ? button("Delete", "btn danger btn-sm", { action: "deleteComment", id: c.id }) : null
-            ].filter(Boolean))
-          ]),
-          el("span", "comment-text", c.text)
-        ])
-      ]);
+    listContent = el("ul", "activity-list comment-feed-list inline-comments-list", rootInlineComments.map(function (c) {
+      return renderCommentThread(c, repliesMap[c.id] || [], ctx, story, true, pIdx);
     }));
   } else {
     listContent = emptyState(
@@ -110,8 +233,10 @@ function inlineCommentsDrawer(ctx, story, chapter) {
       button("Log In", "btn primary btn-sm", { action: "loginToComment" })
     ]);
   } else {
+    var inlineTa = textarea("inlineCommentText", "");
+    inlineTa.maxLength = 5000;
     formEl = form("inlineCommentForm", [
-      field("Add reaction", textarea("inlineCommentText", "")),
+      field("Add reaction (max 5000 characters)", inlineTa),
       submitButton("Post Comment", "btn primary btn-sm")
     ]);
     // Set a data attribute to bind the index
@@ -140,8 +265,10 @@ function commentForm(ctx) {
       button("Log In", "btn primary", { action: "loginToComment" })
     ]);
   }
+  var ta = textarea("comment", "");
+  ta.maxLength = 5000;
   return form("commentForm", [
-    field("Add comment", textarea("comment", "")),
+    field("Add comment (max 5000 characters)", ta),
     submitButton("Post comment", "btn primary")
   ]);
 }
@@ -475,38 +602,29 @@ export function renderReader(ctx) {
     ]),
     el("aside", "panel", [
       el("h2", null, "Comments"),
-      chapter.comments.length ? list(chapter.comments, "activity-list comment-feed-list", function (c) {
-        var canDelete = (ctx.state.user && c.user_id === ctx.state.user.id) || ["moderator", "admin"].indexOf(ctx.state.role) !== -1;
-        var canReport = ctx.state.user && c.user_id !== ctx.state.user.id;
-        var initials = (c.user || "U").substring(0, 2).toUpperCase();
-        var isStoryCreator = c.user === story.author || c.user_id === story.author_id;
-        
-        return el("li", "activity-item comment-item", [
-          el("div", "comment-avatar", initials),
-          el("div", "comment-body", [
-            el("div", "comment-header", [
-              el("div", "comment-meta", [
-                (function () {
-                  var a = el("a", "commenter-name", c.user);
-                  a.href = "#profile?username=" + encodeURIComponent(c.user);
-                  return a;
-                })(),
-                isStoryCreator ? el("span", "comment-author-badge", "Author") : null
-              ].filter(Boolean)),
-              el("div", "comment-actions button-row", [
-                canReport ? button("Report", "btn text-btn btn-sm", { action: "reportComment", id: c.id }) : null,
-                canDelete ? button("Delete", "btn danger btn-sm", { action: "deleteComment", id: c.id }) : null
-              ].filter(Boolean))
-            ]),
-            el("span", "comment-text", c.text)
-          ])
-        ]);
-      }) : emptyState(
-        "No comments yet",
-        "Be the first to share your thoughts, theories, or words of encouragement!",
-        null,
-        "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm0 4h8v2H6v-2zm0-8h12v2H6V5z"
-      ),
+      (function() {
+        var rootComments = (chapter.comments || []).filter(function (c) { return !c.parentId; });
+        var repliesMap = {};
+        (chapter.comments || []).forEach(function (c) {
+          if (c.parentId) {
+            if (!repliesMap[c.parentId]) repliesMap[c.parentId] = [];
+            repliesMap[c.parentId].push(c);
+          }
+        });
+
+        if (rootComments.length) {
+          return el("ul", "activity-list comment-feed-list", rootComments.map(function (c) {
+            return renderCommentThread(c, repliesMap[c.id] || [], ctx, story, false, null);
+          }));
+        } else {
+          return emptyState(
+            "No comments yet",
+            "Be the first to share your thoughts, theories, or words of encouragement!",
+            null,
+            "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm0 4h8v2H6v-2zm0-8h12v2H6V5z"
+          );
+        }
+      })(),
       commentForm(ctx)
     ])
   ]);

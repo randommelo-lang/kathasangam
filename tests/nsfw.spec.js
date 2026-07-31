@@ -52,9 +52,19 @@ test.beforeEach(async ({ page }) => {
         listFactors: async function() { return { data: { all: [], active: [] } }; }
       }
     };
-    window.supabase = {
-      createClient: () => ({ auth: mockAuth })
+    const mockClient = {
+      auth: mockAuth
     };
+    const mockSupabase = {
+      createClient: () => mockClient
+    };
+    Object.defineProperty(window, 'supabase', {
+      get: () => mockSupabase,
+      set: () => {
+        console.log("[MOCK] Ignored overwrite attempt to window.supabase by CDN script.");
+      },
+      configurable: true
+    });
   });
 });
 
@@ -62,18 +72,17 @@ test('NSFW Content and Age Verification flow', async ({ page }) => {
   setupConsoleLogging(page);
 
   // Navigate to login
-  await page.goto('http://localhost:5173/#discover');
-  await page.click('button:has-text("Log In")');
-  await page.fill('input[type="email"]', 'testplaywright@example.com');
-  await page.fill('input[type="password"]', 'Password123!');
-  await page.click('button:has-text("Sign In")');
+  await page.goto('/#discover');
+  await page.click('#signInBtn');
+  await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
+  await page.fill('#loginForm input[name="password"]', 'Password123!');
+  await page.click('#loginForm button[type="submit"]');
 
   // Verify successful sign-in
-  await expect(page.locator('a:has-text("Author Studio")')).toBeVisible();
+  await expect(page.locator('.account-trigger')).toBeVisible();
 
   // Go to Profile Settings
-  await page.click('a:has-text("Profile")');
-  await page.click('button:has-text("Settings")');
+  await page.goto('/#settings');
 
   // Verify DOB is visible
   await expect(page.locator('input[name="date_of_birth"]')).toBeVisible();
@@ -101,17 +110,25 @@ test('NSFW Content and Age Verification flow', async ({ page }) => {
   await page.waitForTimeout(1500);
 
   // Go to Author Studio and Create NSFW Story
-  await page.click('a:has-text("Author Studio")');
+  await page.goto('/#studio');
   await page.click('button:has-text("New Story")');
   await page.fill('input[name="title"]', 'NSFW Test Story Title');
   await page.fill('input[name="genre"]', 'Romance');
   await page.selectOption('select[name="isNsfw"]', 'true');
   await page.fill('textarea[name="description"]', 'This is a mature test story.');
   await page.click('form[data-form="storyForm"] button[type="submit"]');
-  await page.waitForTimeout(1500);
+  // Wait for the creation modal to close
+  await expect(page.locator('#storyModal')).toHaveAttribute('hidden', '', { timeout: 10000 });
+
+  // Edit story settings to set status to "ongoing" so it becomes visible on Discover feed
+  await page.click('button:has-text("Edit Settings")');
+  await page.selectOption('form[data-form="storySettingsForm"] select[name="status"]', 'ongoing');
+  await page.click('form[data-form="storySettingsForm"] button[type="submit"]');
+  // Wait for the settings modal to close
+  await expect(page.locator('#storyModal')).toHaveAttribute('hidden', '', { timeout: 10000 });
 
   // Go to Discover feed to view it
-  await page.click('a:has-text("Discover")');
+  await page.goto('/#discover');
   await page.waitForTimeout(1000);
 
   // Verify our story is rendered
@@ -123,14 +140,13 @@ test('NSFW Content and Age Verification flow', async ({ page }) => {
   await expect(storyCard.locator('.nsfw-blur-overlay')).toContainText('NSFW Blurred');
 
   // Change preference to "Show NSFW"
-  await page.click('a:has-text("Profile")');
-  await page.click('button:has-text("Settings")');
+  await page.goto('/#settings');
   await page.selectOption('select[name="nsfw_preference"]', 'show');
   await page.click('button:has-text("Update Preferences")');
   await page.waitForTimeout(1500);
 
   // Verify cover is no longer blurred
-  await page.click('a:has-text("Discover")');
+  await page.goto('/#discover');
   await page.waitForTimeout(1000);
   const storyCardShow = page.locator('.story-card:has-text("NSFW Test Story Title")');
   await expect(storyCardShow.locator('.nsfw-blur-overlay')).not.toBeVisible();

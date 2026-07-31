@@ -188,6 +188,8 @@ pub struct CommentResponse {
     pub text: String,
     #[serde(rename = "paragraphIndex")]
     pub paragraph_index: Option<i32>,
+    #[serde(rename = "parentId")]
+    pub parent_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -195,6 +197,8 @@ pub struct CreateCommentRequest {
     pub text: String,
     #[serde(rename = "paragraphIndex")]
     pub paragraph_index: Option<i32>,
+    #[serde(rename = "parentId")]
+    pub parent_id: Option<Uuid>,
 }
 
 // ── Report ──

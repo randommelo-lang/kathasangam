@@ -123,6 +123,17 @@ export function handleReaderClick(ctx, action, target, e) {
     ctx.syncCurrentProgress();
     return true;
   }
+  if (action === "showReplyForm") {
+    var id = target.dataset.id;
+    ctx.ui.activeReplyCommentId = ctx.ui.activeReplyCommentId === id ? null : id;
+    ctx.render();
+    return true;
+  }
+  if (action === "cancelReply") {
+    ctx.ui.activeReplyCommentId = null;
+    ctx.render();
+    return true;
+  }
   if (action === "deleteComment") {
     window.showConfirm({
       title: "Delete Comment",
@@ -428,6 +439,41 @@ export function handleReaderSubmit(ctx, formName, target, e) {
       .catch(function (err) {
         console.error("Failed to post comment:", err);
         ctx.notify(err.message || "Failed to post comment. Please log in.");
+      });
+    return true;
+  }
+  if (formName === "replyForm") {
+    var fd = new FormData(target);
+    var text = fd.get("replyText").trim();
+    var parentId = fd.get("parentId");
+    var paragraphIndexVal = fd.get("paragraphIndex");
+    var paragraphIndex = (paragraphIndexVal !== null && paragraphIndexVal !== "") ? Number(paragraphIndexVal) : null;
+    
+    if (!text) return true;
+    var story = ctx.getCurrentStory();
+    var chapter = ctx.getCurrentChapter(story);
+    if (!chapter || !chapter.id) {
+      ctx.notify("No chapter selected.");
+      return true;
+    }
+    
+    ctx.apiPost("/chapters/" + story.id + "/" + chapter.sort_order + "/comments", {
+      text: text,
+      parentId: parentId,
+      paragraphIndex: paragraphIndex
+    })
+      .then(function () {
+        ctx.ui.activeReplyCommentId = null; // Close reply input form
+        return ctx.api("/stories");
+      })
+      .then(function (s) {
+        ctx.state.stories = s;
+        ctx.notify("Reply posted.");
+        ctx.render();
+      })
+      .catch(function (err) {
+        console.error("Failed to post reply:", err);
+        ctx.notify(err.message || "Failed to post reply. Please log in.");
       });
     return true;
   }

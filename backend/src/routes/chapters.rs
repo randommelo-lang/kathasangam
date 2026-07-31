@@ -107,8 +107,8 @@ pub async fn list_chapters(
     .bind(&chapter_ids)
     .fetch_all(&pool);
 
-    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>)>(
-        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index \
+    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>)>(
+        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id \
          FROM comments c \
          LEFT JOIN profiles p ON c.user_id = p.id \
          WHERE c.chapter_id = ANY($1) \
@@ -129,13 +129,13 @@ pub async fn list_chapters(
     for p in all_pages {
         page_map.entry(p.chapter_id).or_default().push(p);
     }
-    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String, Option<i32>)>> =
+    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>)>> =
         HashMap::new();
-    for (chapter_id, id, user_id, text, username, paragraph_index) in all_comments {
+    for (chapter_id, id, user_id, text, username, paragraph_index, parent_id) in all_comments {
         comment_map
             .entry(chapter_id)
             .or_default()
-            .push((id, user_id, text, username, paragraph_index));
+            .push((id, user_id, text, username, paragraph_index, parent_id));
     }
 
     let chapters = rows
@@ -169,12 +169,13 @@ pub async fn list_chapters(
             let comment_rows = comment_map.remove(&ch.id).unwrap_or_default();
             let comments = comment_rows
                 .into_iter()
-                .map(|(id, user_id, text, username, paragraph_index)| CommentResponse {
+                .map(|(id, user_id, text, username, paragraph_index, parent_id)| CommentResponse {
                     id,
                     user_id,
                     user: username,
                     text,
                     paragraph_index,
+                    parent_id,
                 })
                 .collect();
 

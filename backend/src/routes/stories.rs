@@ -513,6 +513,7 @@ pub async fn create_story(
     let language = body.language.clone().unwrap_or_else(|| "English".to_string());
 
     let is_nsfw_val = body.is_nsfw.unwrap_or(false);
+    let mut tx = pool.begin().await?;
 
     sqlx::query(
         "INSERT INTO stories (id, author_id, title, type, genre, status, tags, description, cover, language, is_nsfw) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)"
@@ -521,26 +522,28 @@ pub async fn create_story(
         .bind(&body.story_type).bind(&body.genre)
         .bind("draft").bind(&tags_json).bind(&body.description).bind(&cover)
         .bind(&language).bind(is_nsfw_val)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
 
     // Create initial chapter
     let ch_id = Uuid::new_v4();
     sqlx::query("INSERT INTO chapters (id, story_id, sort_order, title, status, access) VALUES ($1,$2,0,'Chapter 1','draft','free')")
         .bind(ch_id).bind(id)
-        .execute(&pool).await?;
+        .execute(&mut *tx).await?;
 
     let content_id = Uuid::new_v4();
     sqlx::query("INSERT INTO chapter_content (id, chapter_id, sort_order, paragraph) VALUES ($1,$2,0,'Start writing here.')")
         .bind(content_id).bind(ch_id)
-        .execute(&pool).await?;
+        .execute(&mut *tx).await?;
 
     if body.story_type == "Chitrānk" {
         let page_id = Uuid::new_v4();
         sqlx::query("INSERT INTO chapter_pages (id, chapter_id, page_index, label, bg) VALUES ($1,$2,0,'Page 1','linear-gradient(135deg, #243337, #b34e3a 55%, #f3d58a)')")
             .bind(page_id).bind(ch_id)
-            .execute(&pool).await?;
+            .execute(&mut *tx).await?;
     }
+
+    tx.commit().await?;
 
     let row: StoryRow = fetch_story_row(&pool, id)
         .await?
@@ -740,8 +743,8 @@ pub async fn build_story_responses_batch(
     .fetch_all(pool);
 
     // Include c.chapter_id as first field so we can group by it
-    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>)>(
-        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index \
+    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>)>(
+        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id \
          FROM comments c \
          LEFT JOIN profiles p ON c.user_id = p.id \
          WHERE c.chapter_id = ANY($1) \
@@ -762,13 +765,13 @@ pub async fn build_story_responses_batch(
     for p in all_pages {
         page_map.entry(p.chapter_id).or_default().push(p);
     }
-    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String, Option<i32>)>> =
+    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>)>> =
         HashMap::new();
-    for (chapter_id, id, user_id, text, username, paragraph_index) in all_comments {
+    for (chapter_id, id, user_id, text, username, paragraph_index, parent_id) in all_comments {
         comment_map
             .entry(chapter_id)
             .or_default()
-            .push((id, user_id, text, username, paragraph_index));
+            .push((id, user_id, text, username, paragraph_index, parent_id));
     }
 
     // Assemble responses
@@ -808,12 +811,13 @@ pub async fn build_story_responses_batch(
                             let comment_rows = comment_map.remove(&ch.id).unwrap_or_default();
                             let comments = comment_rows
                                 .into_iter()
-                                .map(|(id, user_id, text, username, paragraph_index)| CommentResponse {
+                                .map(|(id, user_id, text, username, paragraph_index, parent_id)| CommentResponse {
                                     id,
                                     user_id,
                                     user: username,
                                     text,
                                     paragraph_index,
+                                    parent_id,
                                 })
                                 .collect();
 

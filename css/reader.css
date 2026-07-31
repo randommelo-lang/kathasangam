@@ -1145,6 +1145,149 @@
   word-break: break-word;
 }
 
+.comment-footer-actions {
+  display: flex;
+  align-items: center;
+  margin-top: .45rem;
+}
+
+.comment-reply-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+  transition: color .18s ease;
+}
+
+.comment-reply-link:hover,
+.comment-reply-link:focus-visible {
+  color: var(--primary);
+}
+
+.comment-reply-link:focus-visible,
+.comment-overflow-trigger:focus-visible,
+.comment-menu-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.comment-overflow-menu {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.comment-overflow-trigger {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+  opacity: .94;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease;
+}
+
+.comment-overflow-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.comment-overflow-trigger:hover,
+.comment-overflow-menu[open] .comment-overflow-trigger {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 38%, transparent);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  opacity: 1;
+}
+
+.comment-menu-dots-icon,
+.comment-menu-trash-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  filter: var(--comment-icon-filter, none);
+}
+
+.comment-overflow-panel {
+  position: absolute;
+  top: calc(100% + .35rem);
+  right: 0;
+  display: grid;
+  min-width: 2.5rem;
+  padding: .3rem;
+  border: 1px solid var(--line);
+  border-radius: .55rem;
+  background: var(--surface);
+  box-shadow: 0 .75rem 1.8rem rgba(0, 0, 0, .2);
+}
+
+.comment-menu-item {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: flex-start;
+  gap: .45rem;
+  padding: .4rem .5rem;
+  border: 0;
+  border-radius: .35rem;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: .78rem;
+  white-space: nowrap;
+}
+
+.comment-menu-item:hover {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.comment-menu-delete {
+  width: 2rem;
+  overflow: hidden;
+  color: #d65151;
+  transition: width .2s ease, background .2s ease;
+}
+
+.comment-menu-delete .comment-menu-trash-icon {
+  --comment-icon-filter: invert(43%) sepia(31%) saturate(1254%) hue-rotate(314deg) brightness(96%) contrast(83%);
+}
+
+.comment-menu-delete:hover,
+.comment-menu-delete:focus-visible {
+  width: 5.7rem;
+  background: rgba(214, 81, 81, .12);
+}
+
+.comment-menu-delete-label {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-width .2s ease, opacity .15s ease;
+}
+
+.comment-menu-delete:hover .comment-menu-delete-label,
+.comment-menu-delete:focus-visible .comment-menu-delete-label {
+  max-width: 3rem;
+  opacity: 1;
+}
+
+.reader-view-wrapper.dark .comment-menu-dots-icon,
+.reader-view-wrapper.sepia .comment-menu-dots-icon {
+  --comment-icon-filter: brightness(0) invert(1);
+}
+
 /* 6. Responsive Toolbar layout wrap at medium screen sizes */
 @media (max-width: 768px) {
   .reader-toolbar {

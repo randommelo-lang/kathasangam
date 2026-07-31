@@ -433,8 +433,8 @@
 
 /* Discover Filters */
 .filter-drawer {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 20px;
@@ -442,6 +442,7 @@
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .filter-group {
   display: flex;
@@ -456,18 +457,28 @@
   letter-spacing: 0.05em;
 }
 .filter-group select {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text);
+  color-scheme: dark;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
   border-radius: 6px;
   padding: 8px 12px;
   font-size: 0.9rem;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
   cursor: pointer;
+}
+.filter-group select option {
+  background: var(--surface);
+  color: var(--ink);
 }
 .filter-group select:focus {
   border-color: #f36b15;
+  background: var(--surface-3);
+}
+:root.light .filter-group select {
+  color-scheme: light;
+}
 }
 .filter-toggle-btn.active {
   background: #f36b15 !important;

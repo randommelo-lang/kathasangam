@@ -1291,22 +1291,77 @@
 /* 6. Responsive Toolbar layout wrap at medium screen sizes */
 @media (max-width: 768px) {
   .reader-toolbar {
-    grid-template-columns: 1fr !important;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 14px;
     text-align: center;
+    align-items: center;
   }
-  
+
+  .reader-toolbar.sticky-header {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 8px 12px !important;
+  }
+
+  /* Hide redundant elements in sticky-header */
+  .reader-toolbar.sticky-header .story-author-link,
+  .reader-toolbar.sticky-header .chapter-meta-access,
+  .reader-toolbar.sticky-header .chapter-meta-published,
+  .reader-toolbar.sticky-header .chapter-meta-scheduled,
+  .reader-toolbar.sticky-header .meta-dot {
+    display: none !important;
+  }
+
   .reader-header-left {
-    justify-content: center;
+    justify-content: flex-start !important;
   }
-  
+
   .reader-header-center {
-    justify-content: center;
+    justify-content: center !important;
   }
-  
+
   .reader-header-right {
-    justify-content: center;
-    flex-wrap: wrap;
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Make Settings button more compact */
+  .reader-header-right button {
+    padding: 6px 10px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .reader-content {
+    padding: 16px 12px !important;
+  }
+
+  .comic-reader {
+    padding: 8px 4px !important;
+  }
+
+  .reader-bottom-nav {
+    padding: 12px 16px !important;
+    gap: 10px !important;
+  }
+
+  .reader-bottom-nav .btn {
+    padding: 10px 16px !important;
+    font-size: 0.85rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .reader-settings-drawer {
+    width: 100% !important;
+    right: -100% !important;
+  }
+  .reader-settings-drawer.active {
+    right: 0 !important;
+  }
+  .inline-comments-drawer {
+    width: 100% !important;
   }
 }
 

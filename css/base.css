@@ -441,14 +441,6 @@ a:focus-visible {
   text-align: center;
 }
 
-/* ─── Handwriting overrides for Chitrānk (Comics) ─── */
-.cover-badge[data-type="Chitrānk"],
-.type-badge[data-type="Chitrānk"],
-.studio-active-badge[data-type="Chitrānk"],
-.segmented button[data-value="Chitrānk"] {
-  font-family: var(--font-cursive);
-}
-
 /* Text alignment utilities */
 .align-left {
   text-align: left;

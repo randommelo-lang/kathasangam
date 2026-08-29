@@ -1365,6 +1365,69 @@
   }
 }
 
+/* Side Overlay Navigation Arrows (< and >) */
+.reader-side-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 56px;
+  height: 84px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 2.4rem;
+  font-weight: 300;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+}
+
+.reader-side-nav.prev {
+  left: clamp(8px, 2vw, 28px);
+}
+
+.reader-side-nav.next {
+  right: clamp(8px, 2vw, 28px);
+}
+
+.reader-side-nav:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface);
+  transform: translateY(-50%) scale(1.05);
+}
+
+.reader-side-nav:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.bottom-page-indicator {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+  padding: 8px 18px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+  min-width: 60px;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+.bottom-page-indicator:empty {
+  display: none;
+}
+
 /* 7. Bottom Navigation & Settings Actions styling */
 .reader-bottom-nav {
   display: flex !important;

@@ -344,10 +344,9 @@ function comicFlipContent(ctx, chapter) {
   }
 
   container.appendChild(el("div", "comic-flip-stage", [
-    comicNavButton("Previous page", "prev", -2, firstIdx === 0),
-    pagesContainer,
-    comicNavButton("Next page", "next", 2, secondIdx >= pages.length - 1)
+    pagesContainer
   ]));
+
   return container;
 }
 
@@ -517,13 +516,36 @@ export function renderReader(ctx) {
     recordStoryView(ctx, story.id);
   }
   var isComic = story.type === "Chitrānk";
-  var controls = [];
   
-  if (isComic && ctx.ui.readerMode === "pages") controls.push(comicPager(ctx, chapter));
-  if (!isComic && ctx.ui.readerMode === "pages" && chapter.content) {
-    var textPages = ctx.paginateText(chapter.content);
-    ctx.clampTextPage(textPages);
-    controls.push(textPager(ctx, textPages));
+  var pageIndicatorText = "";
+  var sideNavPrev = null;
+  var sideNavNext = null;
+
+  if (ctx.ui.readerMode === "pages") {
+    if (isComic && chapter.pages) {
+      var comicPages = chapter.pages || [];
+      ctx.clampComicPage(comicPages);
+      var cFirst = ctx.ui.currentComicPageIndex;
+      var cSecond = cFirst + 1;
+      var cLabel = comicPages.length ? (cFirst + 1) : "0";
+      if (cSecond < comicPages.length) cLabel += " - " + (cSecond + 1);
+      pageIndicatorText = comicPages.length ? (cLabel + " / " + comicPages.length) : "";
+
+      sideNavPrev = button("‹", "reader-side-nav prev", { action: "comicPage", step: "-2" }, cFirst === 0);
+      sideNavPrev.setAttribute("aria-label", "Previous page");
+      sideNavNext = button("›", "reader-side-nav next", { action: "comicPage", step: "2" }, cSecond >= comicPages.length - 1);
+      sideNavNext.setAttribute("aria-label", "Next page");
+    } else if (chapter.content) {
+      var tPages = ctx.paginateText(chapter.content);
+      ctx.clampTextPage(tPages);
+      var tIdx = ctx.ui.currentTextPageIndex;
+      pageIndicatorText = tPages.length ? ((tIdx + 1) + " / " + tPages.length) : "";
+
+      sideNavPrev = button("‹", "reader-side-nav prev", { action: "textPage", step: "-1" }, tIdx === 0);
+      sideNavPrev.setAttribute("aria-label", "Previous page");
+      sideNavNext = button("›", "reader-side-nav next", { action: "textPage", step: "1" }, tIdx >= tPages.length - 1);
+      sideNavNext.setAttribute("aria-label", "Next page");
+    }
   }
   
   var progressVal = ctx.calculateActiveReaderProgress(story);
@@ -556,16 +578,16 @@ export function renderReader(ctx) {
     progressLine
   ]);
 
-  var secondaryToolbar = controls.length ? el("div", "reader-toolbar paging-toolbar", controls) : null;
-
   var bottomNav = (story.chapters && story.chapters.length) ? el("div", "reader-bottom-nav", [
     button("← Previous Chapter", "btn", { action: "chapter", step: "-1" }, ctx.ui.currentChapterIndex === 0),
+    el("span", "bottom-page-indicator", pageIndicatorText),
     button("Next Chapter →", "btn", { action: "chapter", step: "1" }, ctx.ui.currentChapterIndex === story.chapters.length - 1)
   ]) : null;
   
   var frame = el("div", "reader-frame", [
     primaryToolbar,
-    secondaryToolbar,
+    sideNavPrev,
+    sideNavNext,
     readerContent(ctx, story, chapter),
     bottomNav,
     settingsDrawer(ctx),

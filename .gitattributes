@@ -1,2 +1,0 @@
-# Force LF line endings for vendored browser libraries to preserve SRI hashes
-js/vendor/*.js text eol=lf

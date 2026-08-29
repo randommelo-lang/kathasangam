@@ -1,41 +1,34 @@
-# Rust / Cargo
-/target/
-/backend/target/
-**/*.rs.bk
-Cargo.lock
-
-# Environment / Secrets
-.env
-backend/.env
-*.env
-*.key
-*.pem
-
-# Meilisearch Data & Executables
-/data.ms/
-/dumps/
-/meilisearch-windows-amd64.exe
-meilisearch*
-
-# IDEs & System Files
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# Project Docs / Drafts 
-security.md
-plan.md
-Idea.md
-
-# Build & Logs
+# Dependencies
 node_modules/
-*.log
-/playwright-report/
-/test-results/
-/scratch/
 
-# SQLite database files
+# Executables and large binaries
+*.exe
+meilisearch-windows-amd64.exe
+
+# Database & search data
+data.ms/
+data.ms.old/
 *.db
 *.db-shm
 *.db-wal
+
+# Build artifacts & test reports
+playwright-report/
+test-results/
+scratch/
+
+# Backend targets & logs
+backend/target/
+backend/.env
+backend/server.err.log
+backend/server.out.log
+backend/server_log.txt
+backend/temp_compressed_*
+backend/temp_raw_*
+backend/test_output.webp
+
+# IDE and System files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

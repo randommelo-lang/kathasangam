@@ -1369,7 +1369,6 @@
 .reader-side-nav {
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
   z-index: 10;
   width: 56px;
   height: 84px;
@@ -1401,7 +1400,7 @@
   border-color: var(--accent);
   color: var(--accent);
   background: var(--surface);
-  transform: translateY(-50%) scale(1.05);
+  transform: scale(1.05);
 }
 
 .reader-side-nav:disabled {

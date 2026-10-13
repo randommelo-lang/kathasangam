@@ -14,8 +14,110 @@ use crate::db::{AuthUser, OptionalAuthUser};
 use crate::models::*;
 use crate::errors::AppError;
 
-const STORY_SELECT_ORDERED: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id ORDER BY stories.created_at DESC";
-const STORY_SELECT_BY_ID: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE stories.id = $1";
+const STORY_SELECT_BY_ID: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw, COALESCE(stories.content_rating, 'All ages') AS content_rating FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE stories.id = $1";
+
+pub const CANONICAL_GENRES: &[&str] = &[
+    "Fantasy",
+    "Romance",
+    "Sci-Fi",
+    "Action",
+    "Drama",
+    "Mystery",
+    "Slice of Life",
+    "Supernatural",
+    "Historical",
+    "Poetry",
+    "Comedy",
+    "Horror",
+    "Thriller",
+    "Adventure",
+];
+
+pub fn normalize_genre(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return "Fantasy".to_string();
+    }
+    for canonical in CANONICAL_GENRES {
+        if trimmed.eq_ignore_ascii_case(canonical) {
+            return canonical.to_string();
+        }
+    }
+    trimmed
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+pub fn is_chitrank(raw: &str) -> bool {
+    let trimmed = raw.trim();
+    trimmed.eq_ignore_ascii_case("chitrānk") || trimmed.eq_ignore_ascii_case("chitrank")
+}
+
+pub fn normalize_story_type(raw: &str) -> String {
+    if is_chitrank(raw) {
+        "Chitrānk".to_string()
+    } else {
+        "Web Novel".to_string()
+    }
+}
+
+pub fn normalize_language(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return "English".to_string();
+    }
+    match trimmed.to_ascii_lowercase().as_str() {
+        "en" | "eng" | "english" => "English".to_string(),
+        "ne" | "nep" | "nepali" => "Nepali".to_string(),
+        "hi" | "hin" | "hindi" => "Hindi".to_string(),
+        _ => {
+            let mut chars = trimmed.chars();
+            match chars.next() {
+                None => "English".to_string(),
+                Some(first) => first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+            }
+        }
+    }
+}
+
+pub fn normalize_status(raw: &str) -> String {
+    let trimmed = raw.trim();
+    match trimmed.to_ascii_lowercase().as_str() {
+        "ongoing" | "active" => "ongoing".to_string(),
+        "completed" | "complete" => "completed".to_string(),
+        "on_hold" | "on hold" | "hiatus" => "on_hold".to_string(),
+        "cancelled" | "canceled" => "cancelled".to_string(),
+        "draft" | "unpublished" => "draft".to_string(),
+        _ => trimmed.to_lowercase(),
+    }
+}
+
+pub fn normalize_tags(tags: &[String], is_promoted: bool) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    if is_promoted {
+        result.push("promoted".to_string());
+        seen.insert("promoted".to_string());
+    }
+
+    for tag in tags {
+        let cleaned = tag.trim().trim_start_matches('#').to_lowercase();
+        if !cleaned.is_empty() && cleaned.chars().count() <= 30 && !seen.contains(&cleaned) {
+            seen.insert(cleaned.clone());
+            result.push(cleaned);
+        }
+    }
+    result
+}
 
 pub async fn is_user_eighteen_plus(pool: &PgPool, user_id: uuid::Uuid) -> bool {
     let row: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
@@ -62,6 +164,31 @@ pub async fn get_user_nsfw_preference(pool: &PgPool, user_id: uuid::Uuid) -> Str
     "blur".to_string()
 }
 
+const MAX_TITLE_LENGTH: usize = 120;
+const MAX_DESCRIPTION_LENGTH: usize = 2_000;
+const MAX_TAG_LENGTH: usize = 30;
+const MAX_STORY_TAGS: usize = 20;
+
+/// SB-18: most user-supplied strings had no length bound at all — only comments did.
+/// This rejects control characters and over-long values before they reach the database,
+/// which bounds storage growth and keeps list responses from ballooning.
+fn validate_story_text<'a>(value: &'a str, label: &'static str) -> Result<&'a str, String> {
+    let limit = match label {
+        "Title" => MAX_TITLE_LENGTH,
+        "Description" => MAX_DESCRIPTION_LENGTH,
+        "Tag" => MAX_TAG_LENGTH,
+        _ => MAX_TITLE_LENGTH,
+    };
+
+    if value.chars().any(char::is_control) {
+        return Err(format!("{label} must not contain control characters."));
+    }
+    if value.chars().count() > limit {
+        return Err(format!("{label} must be {limit} characters or fewer."));
+    }
+    Ok(value)
+}
+
 pub async fn fetch_story_row(pool: &PgPool, id: Uuid) -> Result<Option<StoryRow>, sqlx::Error> {
     sqlx::query_as(STORY_SELECT_BY_ID)
         .bind(id)
@@ -69,143 +196,186 @@ pub async fn fetch_story_row(pool: &PgPool, id: Uuid) -> Result<Option<StoryRow>
         .await
 }
 
-/// GET /api/stories?q=&genre=&type=
+/// GET /api/stories?q=&genre=&type=&cursor=&limit=
 pub async fn list_stories(
-    auth: Option<AuthUser>,
+    // SB-05: was `auth: Option<AuthUser>`. Axum's blanket `Option<T>` extractor is
+    // `T::from_request_parts(..).await.ok()`, which discards *every* rejection — so a
+    // banned user (rejected by AuthUser with 403) was silently treated as anonymous
+    // instead of being refused, and any transient DB fault during the ban check did
+    // the same. `OptionalAuthUser` is the correct shape: it returns Ok(None) for a
+    // banned user and Infallible, with no error-swallowing.
+    auth: OptionalAuthUser,
     State(pool): State<PgPool>,
     Query(params): Query<StoryQuery>,
-) -> Result<Json<Vec<StoryResponse>>, AppError> {
-    let mut meili_ids = None;
-
-    if let Some(ref q) = params.q {
-        let q_trimmed = q.trim();
-        if !q_trimmed.is_empty() {
-            match crate::search::search_stories(q_trimmed, 100).await {
-                Ok(ids) => {
-                    meili_ids = Some(ids);
-                }
-                Err(e) => {
-                    tracing::error!("⚠️ Meilisearch search failed, falling back to database: {}", e);
-                }
-            }
+) -> Result<Json<StoryPage>, AppError> {
+    let query = params.q.as_deref().unwrap_or("").trim();
+    if query.chars().count() > 200 {
+        return Err(AppError::bad_request("Search text must be 200 characters or fewer."));
+    }
+    for (name, value) in [("genre", params.genre.as_deref()), ("type", params.story_type.as_deref()), ("status", params.status.as_deref()), ("language", params.language.as_deref())] {
+        if value.map(|v| v.chars().count() > 80 || v.chars().any(char::is_control)).unwrap_or(false) {
+            return Err(AppError::bad_request(format!("The {name} filter is invalid or too long.")));
         }
     }
-
-    let mut results = if let Some(ids) = meili_ids {
-        // Fetch rows matching the Meilisearch hits
-        let rows: Vec<StoryRow> = sqlx::query_as(
-            "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \
-             FROM stories \
-             LEFT JOIN profiles ON profiles.id = stories.author_id \
-             WHERE stories.id = ANY($1)"
-        )
-        .bind(&ids)
-        .fetch_all(&pool)
-        .await?;
-
-        let mut responses = build_story_responses_batch(&pool, &rows, auth.as_ref()).await?;
-
-        // Sort responses to match Meilisearch order
-        responses.sort_by_key(|r| ids.iter().position(|&id| id == r.id).unwrap_or(usize::MAX));
-        responses
-    } else {
-        // Original logic: Fetch all stories and apply search filter in-memory as fallback
-        let rows: Vec<StoryRow> = sqlx::query_as(STORY_SELECT_ORDERED)
-            .fetch_all(&pool)
-            .await?;
-
-        let mut responses = build_story_responses_batch(&pool, &rows, auth.as_ref()).await?;
-
-        if let Some(ref q) = params.q {
-            let q = q.to_lowercase();
-            responses.retain(|s| {
-                s.title.to_lowercase().contains(&q)
-                    || s.author.to_lowercase().contains(&q)
-                    || s.description.to_lowercase().contains(&q)
-                    || s.tags.iter().any(|t| t.to_lowercase().contains(&q))
-            });
+    if let Some(value) = params.story_type.as_deref().map(str::trim).filter(|v| !v.is_empty() && !v.eq_ignore_ascii_case("all")) {
+        if !["web novel", "chitrānk", "chitrank"].iter().any(|valid| value.eq_ignore_ascii_case(valid)) {
+            return Err(AppError::bad_request("type must be Web Novel or Chitrānk."));
         }
-
-        responses
+    }
+    if let Some(value) = params.status.as_deref().map(str::trim).filter(|v| !v.is_empty() && !v.eq_ignore_ascii_case("all")) {
+        if !["published", "ongoing", "active", "completed", "draft", "unpublished", "on_hold", "cancelled"].iter().any(|valid| value.eq_ignore_ascii_case(valid)) {
+            return Err(AppError::bad_request("The selected status filter is not supported."));
+        }
+    }
+    let sort = params
+        .sort_by
+        .as_deref()
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_else(|| {
+            if !query.is_empty() {
+                "relevance".to_string()
+            } else {
+                "newest".to_string()
+            }
+        });
+    let sanitized_query = query.replace('\'', "''");
+    let relevance_calc = format!(
+        "(CASE WHEN lower(stories.title) = lower('{q}') THEN 100 \
+               WHEN lower(stories.title) LIKE lower('{q}') || '%' THEN 60 \
+               WHEN lower(stories.title) LIKE '%' || lower('{q}') || '%' THEN 30 \
+               ELSE 0 END \
+         + CASE WHEN lower(stories.tags::text) LIKE '%' || lower('{q}') || '%' THEN 20 ELSE 0 END \
+         + CASE WHEN lower(stories.genre) LIKE '%' || lower('{q}') || '%' THEN 15 ELSE 0 END \
+         + CASE WHEN lower(stories.description) LIKE '%' || lower('{q}') || '%' THEN 5 ELSE 0 END)",
+        q = sanitized_query
+    );
+    let sort_expression = match sort.as_str() {
+        "newest" => "stories.created_at".to_string(),
+        "reads" => "stories.views".to_string(),
+        "likes" => "stories.likes".to_string(),
+        "rating" => "COALESCE((SELECT AVG(rating)::float8 FROM story_ratings WHERE story_ratings.story_id = stories.id), 0.0)".to_string(),
+        "relevance" => {
+            if !query.is_empty() {
+                relevance_calc
+            } else {
+                "stories.created_at".to_string()
+            }
+        }
+        _ => return Err(AppError::bad_request("sort_by must be newest, reads, likes, rating, or relevance.")),
     };
-
-    // Filter by genre
-    if let Some(ref genre) = params.genre {
-        if !genre.trim().is_empty() && genre.to_lowercase() != "all" {
-            let target_genre = genre.to_lowercase();
-            results.retain(|s| {
-                s.genre
-                    .split(',')
-                    .map(|g| g.trim().to_lowercase())
-                    .any(|g| g == target_genre)
-            });
-        }
+    let limit = params.limit.unwrap_or(24);
+    if !(1..=100).contains(&limit) {
+        return Err(AppError::bad_request("limit must be between 1 and 100."));
     }
 
-    // Filter by format type
-    if let Some(ref story_type) = params.story_type {
-        if !story_type.trim().is_empty() {
-            results.retain(|s| s.story_type.to_lowercase() == story_type.to_lowercase());
+    let cursor_id = if let Some(cursor) = params.cursor.as_deref() {
+        let mut parts = cursor.splitn(2, ':');
+        let cursor_sort = parts.next().unwrap_or_default();
+        let id = parts.next().ok_or_else(|| AppError::bad_request("Invalid cursor."))?;
+        if cursor_sort != sort { return Err(AppError::bad_request("Cursor does not match the selected sort order.")); }
+        Some(Uuid::parse_str(id).map_err(|_| AppError::bad_request("Invalid cursor."))?)
+    } else { None };
+
+    let mut sql = sqlx::QueryBuilder::<sqlx::Postgres>::new(
+        "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw, COALESCE(stories.content_rating, 'All ages') AS content_rating FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE TRUE"
+    );
+    if !query.is_empty() {
+        let pattern = format!("%{query}%");
+        sql.push(" AND (stories.title ILIKE ").push_bind(pattern.clone())
+            .push(" OR COALESCE(profiles.username, 'You') ILIKE ").push_bind(pattern.clone())
+            .push(" OR stories.description ILIKE ").push_bind(pattern.clone())
+            .push(" OR stories.genre ILIKE ").push_bind(pattern.clone())
+            .push(" OR stories.tags::text ILIKE ").push_bind(pattern).push(")");
+    }
+    if let Some(value) = params.genre.as_deref().map(str::trim).filter(|v| !v.is_empty() && !v.eq_ignore_ascii_case("all")) {
+        sql.push(" AND (',' || lower(stories.genre) || ',') LIKE ").push_bind(format!("%,{},%", value.to_lowercase()));
+    }
+    if let Some(value) = params.story_type.as_deref().map(str::trim).filter(|v| !v.is_empty() && !v.eq_ignore_ascii_case("all")) {
+        if is_chitrank(value) {
+            sql.push(" AND lower(stories.type) IN ('chitrānk', 'chitrank')");
+        } else {
+            sql.push(" AND lower(stories.type) = ").push_bind(value.to_lowercase());
         }
     }
-
-    // Filter by status
-    if let Some(ref status) = params.status {
-        if !status.trim().is_empty() && status.to_lowercase() != "all" {
-            results.retain(|s| s.status.to_lowercase() == status.to_lowercase());
+    if let Some(value) = params.status.as_deref().map(str::trim).filter(|v| !v.is_empty() && !v.eq_ignore_ascii_case("all")) {
+        let norm_status = normalize_status(value);
+        if norm_status == "ongoing" {
+            sql.push(" AND lower(stories.status) IN ('ongoing', 'active')");
+        } else {
+            sql.push(" AND lower(stories.status) = ").push_bind(norm_status);
         }
     }
-
-    // Filter by language
-    if let Some(ref language) = params.language {
-        if !language.trim().is_empty() && language.to_lowercase() != "all" {
-            results.retain(|s| s.language.to_lowercase() == language.to_lowercase());
-        }
+    if let Some(value) = params.language.as_deref().map(str::trim).filter(|v| !v.is_empty() && !v.eq_ignore_ascii_case("all")) {
+        let norm_lang = normalize_language(value);
+        sql.push(" AND (lower(stories.language) = ").push_bind(norm_lang.to_lowercase())
+            .push(" OR lower(stories.language) = ").push_bind(value.to_lowercase()).push(")");
     }
-
-    // Sort by criteria
-    if let Some(ref sort_by) = params.sort_by {
-        match sort_by.to_lowercase().as_str() {
-            "newest" => {
-                results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-            }
-            "reads" => {
-                results.sort_by(|a, b| b.views.cmp(&a.views));
-            }
-            "likes" => {
-                results.sort_by(|a, b| b.likes.cmp(&a.likes));
-            }
-            "rating" => {
-                let calc_rating = |views: i32, likes: i32| -> f64 {
-                    if views == 0 {
-                        5.0
-                    } else {
-                        let ratio = likes as f64 / views as f64;
-                        let r = 4.0 + ratio * 10.0;
-                        r.min(5.0).max(1.0)
-                    }
-                };
-                results.sort_by(|a, b| {
-                    let r_a = calc_rating(a.views, a.likes);
-                    let r_b = calc_rating(b.views, b.likes);
-                    r_b.partial_cmp(&r_a).unwrap_or(std::cmp::Ordering::Equal)
-                });
-            }
-            _ => {}
-        }
+    if let Some(recency_val) = params.recency.as_deref().map(str::trim).filter(|v| !v.is_empty() && !v.eq_ignore_ascii_case("all")) {
+        let days = match recency_val.to_ascii_lowercase().as_str() {
+            "7d" | "week" => 7,
+            "30d" | "month" => 30,
+            "90d" | "quarter" => 90,
+            "1y" | "year" => 365,
+            _ => return Err(AppError::bad_request("recency must be 7d, 30d, 90d, 1y, or all.")),
+        };
+        sql.push(format!(
+            " AND GREATEST(stories.created_at, COALESCE((SELECT MAX(created_at) FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published'), stories.created_at)) >= NOW() - INTERVAL '{days} days'"
+        ));
     }
+    if let Some(cursor_id) = cursor_id {
+        // Tie-break by UUID so records with equal sort values are never skipped.
+        sql.push(" AND ((").push(&sort_expression).push(" < (SELECT ").push(&sort_expression)
+            .push(" FROM stories WHERE id = ").push_bind(cursor_id).push(") ) OR ((")
+            .push(&sort_expression).push(" = (SELECT ").push(&sort_expression).push(" FROM stories WHERE id = ")
+            .push_bind(cursor_id).push(") ) AND stories.id > ").push_bind(cursor_id).push("))");
+    }
+    sql.push(" ORDER BY ").push(&sort_expression).push(" DESC, stories.id ASC LIMIT ").push_bind(limit + 1);
+    let mut rows = sql.build_query_as::<StoryRow>().fetch_all(&pool).await?;
+    let has_more = rows.len() > limit as usize;
+    rows.truncate(limit as usize);
+    let last_id = rows.last().map(|row| row.id);
+    let mut results = build_story_metadata_responses_batch(&pool, &rows, auth.user_id).await?;
+    let raw_genres = sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT trim(genre_item) FROM stories \
+         CROSS JOIN LATERAL unnest(string_to_array(stories.genre, ',')) AS genre_item \
+         WHERE trim(genre_item) <> '' \
+           AND (lower(stories.status) NOT IN ('draft', 'unpublished') \
+                OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW()))) \
+         ORDER BY trim(genre_item)"
+    ).fetch_all(&pool).await?;
+    let genres = raw_genres
+        .into_iter()
+        .map(|g| normalize_genre(&g))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
 
-    let (is_eighteen_plus, nsfw_pref) = if let Some(ref u) = auth {
-        let is_18 = is_user_eighteen_plus(&pool, u.user_id).await;
-        let pref = get_user_nsfw_preference(&pool, u.user_id).await;
-        (is_18, pref)
-    } else {
-        (false, "hide".to_string())
+    let raw_languages = sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT trim(stories.language) FROM stories \
+         WHERE trim(stories.language) <> '' \
+           AND (lower(stories.status) NOT IN ('draft', 'unpublished') \
+                OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW()))) \
+         ORDER BY trim(stories.language)"
+    ).fetch_all(&pool).await?;
+    let languages = raw_languages
+        .into_iter()
+        .map(|l| normalize_language(&l))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    let (is_eighteen_plus, nsfw_pref) = match auth.user_id {
+        Some(uid) => {
+            let is_18 = is_user_eighteen_plus(&pool, uid).await;
+            let pref = get_user_nsfw_preference(&pool, uid).await;
+            (is_18, pref)
+        }
+        None => (false, "hide".to_string()),
     };
 
     results.retain(|s| {
         if s.is_nsfw {
-            let is_author = auth.as_ref().map(|u| s.author_id == Some(u.user_id) || s.collaborators.iter().any(|c| c.user_id == u.user_id && c.status == "accepted")).unwrap_or(false);
+            let is_author = auth.user_id.map(|uid| s.author_id == Some(uid) || s.collaborators.iter().any(|c| c.user_id == uid && c.status == "accepted")).unwrap_or(false);
             is_author || (is_eighteen_plus && nsfw_pref != "hide")
         } else {
             true
@@ -221,23 +391,26 @@ pub async fn list_stories(
         if s.chapters.iter().any(|ch| ch.status == "published") {
             return true;
         }
-        if let Some(ref u) = auth {
-            if s.author_id == Some(u.user_id) {
+        if let Some(uid) = auth.user_id {
+            if s.author_id == Some(uid) {
                 return true;
             }
-            if s.collaborators.iter().any(|c| c.user_id == u.user_id && c.status == "accepted") {
+            if s.collaborators.iter().any(|c| c.user_id == uid && c.status == "accepted") {
                 return true;
             }
         }
         false
     });
 
-    Ok(Json(results))
+    // Apply the same visibility/NSFW rules as before, after building each bounded page.
+    let next_cursor = if has_more { last_id.map(|id| format!("{sort}:{id}")) } else { None };
+    Ok(Json(StoryPage { items: results, genres, languages, next_cursor, has_more }))
 }
 
 /// GET /api/stories/:id
 pub async fn get_story(
-    auth: Option<AuthUser>,
+    // SB-05: was `Option<AuthUser>`, which swallowed the banned-user rejection.
+    auth: OptionalAuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<StoryResponse>, AppError> {
@@ -245,14 +418,14 @@ pub async fn get_story(
         .await?
         .ok_or_else(|| AppError::not_found("Story not found."))?;
 
-    let resp = build_story_response(&pool, &row, auth.as_ref()).await?;
+    let resp = build_story_response(&pool, &row, auth.user_id).await?;
 
     // Check NSFW visibility
     if resp.is_nsfw {
         let mut allowed = false;
-        if let Some(ref u) = auth {
-            let is_author = resp.author_id == Some(u.user_id) || resp.collaborators.iter().any(|c| c.user_id == u.user_id && c.status == "accepted");
-            if is_author || (is_user_eighteen_plus(&pool, u.user_id).await && get_user_nsfw_preference(&pool, u.user_id).await != "hide") {
+        if let Some(uid) = auth.user_id {
+            let is_author = resp.author_id == Some(uid) || resp.collaborators.iter().any(|c| c.user_id == uid && c.status == "accepted");
+            if is_author || (is_user_eighteen_plus(&pool, uid).await && get_user_nsfw_preference(&pool, uid).await != "hide") {
                 allowed = true;
             }
         }
@@ -261,13 +434,17 @@ pub async fn get_story(
         }
     }
 
-    // Check draft visibility
-    if resp.status.to_lowercase() == "draft" {
+    // Draft visibility.
+    // SB-08: this previously matched only "draft", while list_stories hides both
+    // "draft" and "unpublished". Any row in the second state was therefore readable
+    // by anyone holding its id even though it was absent from every listing.
+    let status = resp.status.to_lowercase();
+    if status == "draft" || status == "unpublished" {
         let mut allowed = false;
-        if let Some(ref u) = auth {
-            if resp.author_id == Some(u.user_id) {
+        if let Some(uid) = auth.user_id {
+            if resp.author_id == Some(uid) {
                 allowed = true;
-            } else if resp.collaborators.iter().any(|c| c.user_id == u.user_id && c.status == "accepted") {
+            } else if resp.collaborators.iter().any(|c| c.user_id == uid && c.status == "accepted") {
                 allowed = true;
             }
         }
@@ -356,13 +533,6 @@ pub async fn delete_story(
         return Err(AppError::not_found("Story not found."));
     }
 
-    // De-index story from Meilisearch
-    tokio::spawn(async move {
-        if let Err(e) = crate::search::deindex_story(id).await {
-            tracing::error!("⚠️ Failed to de-index story {} from Meilisearch: {}", id, e);
-        }
-    });
-
     // Delete the old cover from storage asynchronously
     tokio::spawn(async move {
         crate::routes::upload::delete_uploaded_file(&cover_url).await;
@@ -422,23 +592,51 @@ pub async fn update_story(
         }
     }
 
-    let genre = body.genre.unwrap_or(row.genre);
+    let genre = body.genre.map(|g| normalize_genre(&g)).unwrap_or(row.genre);
     let description = body.description.unwrap_or(row.description);
+    // SB-18: bound title/description on update too.
+    validate_story_text(&title, "Title").map_err(AppError::bad_request)?;
+    validate_story_text(&description, "Description").map_err(AppError::bad_request)?;
     let mut cover = body.cover.unwrap_or(row.cover);
+    // SB-08: validate before storing; see create_story.
+    if !crate::routes::upload::is_valid_stored_media_url(&cover) {
+        return Err(AppError::bad_request(
+            "Invalid cover image. Please upload the cover using the image upload control.",
+        ));
+    }
     if cover.is_empty() {
         cover = random_cover();
     }
-    let status = body.status.unwrap_or(row.status);
-    let language = body.language.unwrap_or(row.language);
+    let status = body.status.map(|s| normalize_status(&s)).unwrap_or(row.status);
+    let language = body.language.map(|l| normalize_language(&l)).unwrap_or(row.language);
     let license = body.license.unwrap_or(row.license);
+    let is_promoted = body.is_promoted;
     let tags_val = match body.tags {
-        Some(t) => serde_json::json!(t),
-        None => row.tags,
+        Some(t) => {
+            let p = is_promoted.unwrap_or_else(|| {
+                row.tags.as_array().map(|arr| arr.iter().any(|v| v.as_str().map(|s| s.eq_ignore_ascii_case("promoted")).unwrap_or(false))).unwrap_or(false)
+            });
+            let norm = normalize_tags(&t, p);
+            serde_json::json!(norm)
+        }
+        None => {
+            if let Some(p) = is_promoted {
+                let existing: Vec<String> = row.tags.as_array().map(|arr| arr.iter().filter_map(|v| v.as_str().map(ToString::to_string)).collect()).unwrap_or_default();
+                let norm = normalize_tags(&existing, p);
+                serde_json::json!(norm)
+            } else {
+                row.tags
+            }
+        }
     };
-    let is_nsfw = body.is_nsfw.unwrap_or(row.is_nsfw);
+    let raw_eligibility = body.eligibility.or(body.content_rating).unwrap_or_else(|| {
+        row.content_rating.clone().unwrap_or_else(|| if row.is_nsfw { "18+".to_string() } else { "All ages".to_string() })
+    });
+    let is_nsfw = raw_eligibility == "18+" || body.is_nsfw.unwrap_or(row.is_nsfw);
+    let eligibility = if is_nsfw && raw_eligibility != "18+" { "18+".to_string() } else { raw_eligibility };
 
     sqlx::query(
-        "UPDATE stories SET title = $1, genre = $2, description = $3, cover = $4, status = $5, language = $6, license = $7, tags = $8, is_nsfw = $9 WHERE id = $10"
+        "UPDATE stories SET title = $1, genre = $2, description = $3, cover = $4, status = $5, language = $6, license = $7, tags = $8, is_nsfw = $9, content_rating = $10 WHERE id = $11"
     )
     .bind(&title)
     .bind(&genre)
@@ -449,17 +647,10 @@ pub async fn update_story(
     .bind(&license)
     .bind(&tags_val)
     .bind(is_nsfw)
+    .bind(&eligibility)
     .bind(id)
     .execute(&pool)
     .await?;
-
-    // Re-index story in Meilisearch
-    let pool_clone = pool.clone();
-    tokio::spawn(async move {
-        if let Err(e) = crate::search::index_story(&pool_clone, id).await {
-            tracing::error!("⚠️ Failed to re-index story {} in Meilisearch: {}", id, e);
-        }
-    });
 
     // Delete old cover from storage asynchronously if replaced/removed
     if cover_was_removed_or_replaced && !cover_to_delete.is_empty() {
@@ -475,19 +666,57 @@ pub async fn update_story(
 pub async fn create_story(
     State(pool): State<PgPool>,
     headers: HeaderMap,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     auth: AuthUser,
     Json(body): Json<CreateStoryRequest>,
 ) -> Result<(StatusCode, Json<StoryResponse>), AppError> {
-    // Geolocalized country restriction
-    if let Some(cf_country) = headers.get("cf-ipcountry").and_then(|v| v.to_str().ok()) {
-        let country_code = cf_country.to_uppercase();
-        if !country_code.is_empty() && country_code != "IN" {
-            return Err(AppError::forbidden("Story creation is only allowed for users located in India."));
+    // Geolocalized country restriction.
+    //
+    // SB-10: this previously read `cf-ipcountry` unconditionally. That header is
+    // injected by Cloudflare, not by us, and the API is reachable directly at
+    // kathasangam-backend.onrender.com — so the header was simply absent for most
+    // requests (check skipped) and trivially forgeable by anyone who did send it
+    // (`curl -H 'cf-ipcountry: IN'`). Now the value is only honoured when the request
+    // actually arrived through a trusted proxy.
+    if let Some(country_code) =
+        crate::middleware::trusted_proxy_header(&headers, peer, "cf-ipcountry")
+    {
+        if country_code.to_uppercase() != "IN" {
+            return Err(AppError::forbidden(
+                "Story creation is only allowed for users located in India.",
+            ));
         }
+    } else {
+        // The country could not be established. This is a fail-open path and is
+        // logged loudly: configure TRUSTED_PROXIES (and put the service behind that
+        // proxy) for the restriction to be enforceable.
+        tracing::warn!(
+            "Story creation allowed without a verified country; \
+             configure TRUSTED_PROXIES to enforce the India-only publishing policy"
+        );
     }
 
     if body.title.trim().is_empty() {
         return Err(AppError::bad_request("Story title cannot be empty."));
+    }
+    // SB-18: bound user input so story rows cannot grow without limit.
+    if let Err(message) = validate_story_text(&body.title, "Title") {
+        return Err(AppError::bad_request(message));
+    }
+    if let Err(message) = validate_story_text(&body.description, "Description") {
+        return Err(AppError::bad_request(message));
+    }
+    if let Some(tags) = body.tags.as_ref() {
+        if tags.len() > MAX_STORY_TAGS {
+            return Err(AppError::bad_request(format!(
+                "A story may have at most {MAX_STORY_TAGS} tags."
+            )));
+        }
+        for tag in tags {
+            if let Err(message) = validate_story_text(tag, "Tag") {
+                return Err(AppError::bad_request(message));
+            }
+        }
     }
 
     // Case-insensitive title uniqueness check
@@ -503,25 +732,45 @@ pub async fn create_story(
     }
     let id = Uuid::new_v4();
     let author_id = auth.user_id;
-    let tags_json = serde_json::json!([
-        body.genre.to_lowercase(),
-        body.story_type.to_lowercase(),
-        "new".to_string(),
-    ]);
+    let story_type = normalize_story_type(&body.story_type);
+    let genre = normalize_genre(&body.genre);
+    let mut initial_tags = vec![
+        genre.to_lowercase(),
+        story_type.to_lowercase(),
+    ];
+    if let Some(user_tags) = &body.tags {
+        initial_tags.extend(user_tags.clone());
+    }
+    let is_promoted = body.is_promoted.unwrap_or(false);
+    let normalized = normalize_tags(&initial_tags, is_promoted);
+    let tags_json = serde_json::json!(normalized);
 
     let cover = body.cover.unwrap_or_else(random_cover);
-    let language = body.language.clone().unwrap_or_else(|| "English".to_string());
+    // SB-08: `cover` was stored verbatim. Any later story deletion or cover swap
+    // passes this value to `delete_uploaded_file`, which builds a service-role
+    // DELETE (or a local remove_file) from it — so an unvalidated cover allowed
+    // deleting objects outside the uploads bucket. Constrain it here.
+    if !crate::routes::upload::is_valid_stored_media_url(&cover) {
+        return Err(AppError::bad_request(
+            "Invalid cover image. Please upload the cover using the image upload control.",
+        ));
+    }
+    let language = normalize_language(body.language.as_deref().unwrap_or("English"));
 
-    let is_nsfw_val = body.is_nsfw.unwrap_or(false);
+    let raw_eligibility = body.eligibility.or(body.content_rating).unwrap_or_else(|| {
+        if body.is_nsfw.unwrap_or(false) { "18+".to_string() } else { "All ages".to_string() }
+    });
+    let is_nsfw_val = raw_eligibility == "18+" || body.is_nsfw.unwrap_or(false);
+    let eligibility_val = if is_nsfw_val && raw_eligibility != "18+" { "18+".to_string() } else { raw_eligibility };
     let mut tx = pool.begin().await?;
 
     sqlx::query(
-        "INSERT INTO stories (id, author_id, title, type, genre, status, tags, description, cover, language, is_nsfw) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)"
+        "INSERT INTO stories (id, author_id, title, type, genre, status, tags, description, cover, language, is_nsfw, content_rating) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)"
     )
         .bind(id).bind(author_id).bind(&body.title)
-        .bind(&body.story_type).bind(&body.genre)
+        .bind(&story_type).bind(&genre)
         .bind("draft").bind(&tags_json).bind(&body.description).bind(&cover)
-        .bind(&language).bind(is_nsfw_val)
+        .bind(&language).bind(is_nsfw_val).bind(&eligibility_val)
         .execute(&mut *tx)
         .await?;
 
@@ -536,7 +785,7 @@ pub async fn create_story(
         .bind(content_id).bind(ch_id)
         .execute(&mut *tx).await?;
 
-    if body.story_type == "Chitrānk" {
+    if is_chitrank(&story_type) {
         let page_id = Uuid::new_v4();
         sqlx::query("INSERT INTO chapter_pages (id, chapter_id, page_index, label, bg) VALUES ($1,$2,0,'Page 1','linear-gradient(135deg, #243337, #b34e3a 55%, #f3d58a)')")
             .bind(page_id).bind(ch_id)
@@ -548,15 +797,7 @@ pub async fn create_story(
     let row: StoryRow = fetch_story_row(&pool, id)
         .await?
         .ok_or_else(|| AppError::internal_server_error("Failed to retrieve created story."))?;
-    let resp = build_story_response(&pool, &row, Some(&auth)).await?;
-
-    // Index the new story in Meilisearch
-    let pool_clone = pool.clone();
-    tokio::spawn(async move {
-        if let Err(e) = crate::search::index_story(&pool_clone, id).await {
-            tracing::error!("⚠️ Failed to index story {} in Meilisearch: {}", id, e);
-        }
-    });
+    let resp = build_story_response(&pool, &row, Some(auth.user_id)).await?;
 
     Ok((StatusCode::CREATED, Json(resp)))
 }
@@ -611,7 +852,7 @@ pub async fn get_stats(
 pub async fn build_story_response(
     pool: &PgPool,
     row: &StoryRow,
-    auth: Option<&AuthUser>,
+    auth: Option<Uuid>,
 ) -> Result<StoryResponse, sqlx::Error> {
     let mut responses = build_story_responses_batch(pool, std::slice::from_ref(row), auth).await?;
     Ok(responses.swap_remove(0))
@@ -620,7 +861,24 @@ pub async fn build_story_response(
 pub async fn build_story_responses_batch(
     pool: &PgPool,
     rows: &[StoryRow],
-    auth: Option<&AuthUser>,
+    auth: Option<Uuid>,
+) -> Result<Vec<StoryResponse>, sqlx::Error> {
+    build_story_responses_batch_mode(pool, rows, auth, true).await
+}
+
+async fn build_story_metadata_responses_batch(
+    pool: &PgPool,
+    rows: &[StoryRow],
+    auth: Option<Uuid>,
+) -> Result<Vec<StoryResponse>, sqlx::Error> {
+    build_story_responses_batch_mode(pool, rows, auth, false).await
+}
+
+async fn build_story_responses_batch_mode(
+    pool: &PgPool,
+    rows: &[StoryRow],
+    auth: Option<Uuid>,
+    include_chapter_content: bool,
 ) -> Result<Vec<StoryResponse>, sqlx::Error> {
     if rows.is_empty() {
         return Ok(Vec::new());
@@ -653,18 +911,54 @@ pub async fn build_story_responses_batch(
         });
     }
 
+    let rating_aggregates: Vec<(Uuid, f64, i64)> = if story_ids.is_empty() {
+        Vec::new()
+    } else {
+        sqlx::query_as(
+            "SELECT story_id, COALESCE(AVG(rating)::float8, 0.0), COUNT(*)::int8 \
+             FROM story_ratings \
+             WHERE story_id = ANY($1) \
+             GROUP BY story_id"
+        )
+        .bind(&story_ids)
+        .fetch_all(pool)
+        .await?
+    };
+
+    let mut ratings_map: HashMap<Uuid, (f64, i64)> = HashMap::new();
+    for (sid, avg, cnt) in rating_aggregates {
+        ratings_map.insert(sid, (avg, cnt));
+    }
+
+    let user_ratings_map: HashMap<Uuid, i16> = if let Some(uid) = auth {
+        if story_ids.is_empty() {
+            HashMap::new()
+        } else {
+            let u_rows: Vec<(Uuid, i16)> = sqlx::query_as(
+                "SELECT story_id, rating FROM story_ratings WHERE story_id = ANY($1) AND user_id = $2"
+            )
+            .bind(&story_ids)
+            .bind(uid)
+            .fetch_all(pool)
+            .await?;
+            u_rows.into_iter().collect()
+        }
+    } else {
+        HashMap::new()
+    };
+
     // Split story IDs into owned vs non-owned for chapter visibility
     let mut owned_ids: Vec<Uuid> = Vec::new();
     let mut non_owned_ids: Vec<Uuid> = Vec::new();
     for row in rows {
         let is_owner = auth
-            .map(|u| Some(u.user_id) == row.author_id)
+            .map(|uid| Some(uid) == row.author_id)
             .unwrap_or(false);
 
         let is_accepted_collab = auth
-            .map(|u| {
+            .map(|uid| {
                 collabs_by_story.get(&row.id)
-                    .map(|list| list.iter().any(|c| c.user_id == u.user_id && c.status == "accepted"))
+                    .map(|list| list.iter().any(|c| c.user_id == uid && c.status == "accepted"))
                     .unwrap_or(false)
             })
             .unwrap_or(false);
@@ -721,11 +1015,39 @@ pub async fn build_story_responses_batch(
         chapters_by_story.entry(ch.story_id).or_default().push(ch);
     }
 
+    if !include_chapter_content {
+        return Ok(rows.iter().map(|row| {
+            let chapters = chapters_by_story.get(&row.id).map(|chs| {
+                chs.iter().map(|ch| ChapterResponse {
+                    id: ch.id,
+                    sort_order: ch.sort_order,
+                    title: ch.title.clone(),
+                    status: ch.status.clone(),
+                    access: ch.access.clone(),
+                    scheduled_at: ch.scheduled_at,
+                    created_at: ch.created_at,
+                    words: ch.words,
+                    reads: ch.reads,
+                    likes: ch.likes,
+                    content: None,
+                    pages: None,
+                    comments: Vec::new(),
+                }).collect()
+            }).unwrap_or_default();
+            let collaborators = collabs_by_story.get(&row.id).cloned().unwrap_or_default();
+            let rating_info = ratings_map.get(&row.id).copied();
+            let user_rating = user_ratings_map.get(&row.id).copied();
+            assemble_story(row, chapters, collaborators, rating_info, user_rating)
+        }).collect());
+    }
+
     // If no chapters exist, return stories with empty chapter vecs
     if all_chapter_ids.is_empty() {
         return Ok(rows.iter().map(|row| {
             let collaborators = collabs_by_story.get(&row.id).cloned().unwrap_or_default();
-            assemble_story(row, Vec::new(), collaborators)
+            let rating_info = ratings_map.get(&row.id).copied();
+            let user_rating = user_ratings_map.get(&row.id).copied();
+            assemble_story(row, Vec::new(), collaborators, rating_info, user_rating)
         }).collect());
     }
 
@@ -811,13 +1133,16 @@ pub async fn build_story_responses_batch(
                             let comment_rows = comment_map.remove(&ch.id).unwrap_or_default();
                             let comments = comment_rows
                                 .into_iter()
-                                .map(|(id, user_id, text, username, paragraph_index, parent_id)| CommentResponse {
-                                    id,
-                                    user_id,
-                                    user: username,
-                                    text,
-                                    paragraph_index,
-                                    parent_id,
+                                .map(|(id, user_id, text, username, paragraph_index, parent_id)| {
+                                    let is_deleted = text == "[deleted]" || user_id.is_none();
+                                    CommentResponse {
+                                        id,
+                                        user_id,
+                                        user: if is_deleted { "[deleted]".to_string() } else { username },
+                                        text,
+                                        paragraph_index,
+                                        parent_id,
+                                    }
                                 })
                                 .collect();
 
@@ -842,7 +1167,9 @@ pub async fn build_story_responses_batch(
                 .unwrap_or_default();
 
             let collaborators = collabs_by_story.get(&row.id).cloned().unwrap_or_default();
-            assemble_story(row, chapters, collaborators)
+            let rating_info = ratings_map.get(&row.id).copied();
+            let user_rating = user_ratings_map.get(&row.id).copied();
+            assemble_story(row, chapters, collaborators, rating_info, user_rating)
         })
         .collect();
 
@@ -853,6 +1180,8 @@ fn assemble_story(
     row: &StoryRow,
     chapters: Vec<ChapterResponse>,
     collaborators: Vec<CollaboratorResponse>,
+    rating_info: Option<(f64, i64)>,
+    user_rating: Option<i16>,
 ) -> StoryResponse {
     let tags: Vec<String> = row
         .tags
@@ -864,6 +1193,17 @@ fn assemble_story(
                 .collect()
         })
         .unwrap_or_default();
+
+    let is_promoted = tags.iter().any(|t| t.eq_ignore_ascii_case("promoted") || t.eq_ignore_ascii_case("sponsored"));
+
+    let (rating, ratings_count) = match rating_info {
+        Some((avg, cnt)) if cnt > 0 => (Some((avg * 10.0).round() / 10.0), cnt),
+        _ => (None, 0),
+    };
+
+    let eligibility = row.content_rating.clone().unwrap_or_else(|| {
+        if row.is_nsfw { "18+".to_string() } else { "All ages".to_string() }
+    });
 
     StoryResponse {
         id: row.id,
@@ -887,7 +1227,165 @@ fn assemble_story(
         chapters,
         collaborators,
         is_nsfw: row.is_nsfw,
+        is_promoted,
+        content_rating: eligibility.clone(),
+        eligibility,
+        rating,
+        ratings_count,
+        user_rating,
     }
+}
+
+/// GET /api/stories/recommended
+pub async fn recommended_stories(
+    // SB-05: was `Option<AuthUser>`.
+    auth: OptionalAuthUser,
+    State(pool): State<PgPool>,
+) -> Result<Json<RecommendationResponse>, AppError> {
+    let (is_eighteen_plus, nsfw_pref) = match auth.user_id {
+        Some(uid) => {
+            let is_18 = is_user_eighteen_plus(&pool, uid).await;
+            let pref = get_user_nsfw_preference(&pool, uid).await;
+            (is_18, pref)
+        }
+        None => (false, "hide".to_string()),
+    };
+
+    // If authenticated, check for followed or read stories
+    if let Some(u) = auth.user_id {
+        let user_stories: Vec<(String, serde_json::Value)> = sqlx::query_as(
+            "SELECT DISTINCT s.genre, s.tags FROM stories s \
+             WHERE s.id IN ( \
+                 SELECT story_id FROM reading_progress WHERE user_id = $1 \
+                 UNION \
+                 SELECT story_id FROM library WHERE user_id = $1 \
+                 UNION \
+                 SELECT story_id FROM bookmarks WHERE user_id = $1 \
+             )"
+        )
+        .bind(u)
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
+        if !user_stories.is_empty() {
+            let mut genre_counts: HashMap<String, usize> = HashMap::new();
+            for (genre_str, tags_val) in &user_stories {
+                for g in genre_str.split(',') {
+                    let g_trim = g.trim().to_string();
+                    if !g_trim.is_empty() {
+                        *genre_counts.entry(g_trim).or_insert(0) += 1;
+                    }
+                }
+                if let Some(arr) = tags_val.as_array() {
+                    for t in arr {
+                        if let Some(tag_str) = t.as_str() {
+                            let t_trim = tag_str.trim().to_string();
+                            if !t_trim.is_empty() {
+                                *genre_counts.entry(t_trim).or_insert(0) += 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some((top_genre, _)) = genre_counts.into_iter().max_by_key(|(_, count)| *count) {
+                let rows: Vec<StoryRow> = sqlx::query_as(
+                    "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, \
+                            stories.title, stories.type, stories.genre, stories.language, stories.license, \
+                            stories.status, stories.tags, stories.description, stories.cover, stories.followers, \
+                            stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \
+                     FROM stories \
+                     LEFT JOIN profiles ON profiles.id = stories.author_id \
+                     WHERE (lower(stories.status) NOT IN ('draft', 'unpublished') \
+                            OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published')) \
+                       AND (stories.author_id IS NULL OR stories.author_id <> $1) \
+                       AND stories.id NOT IN ( \
+                           SELECT story_id FROM reading_progress WHERE user_id = $1 \
+                           UNION \
+                           SELECT story_id FROM library WHERE user_id = $1 \
+                           UNION \
+                           SELECT story_id FROM bookmarks WHERE user_id = $1 \
+                       ) \
+                       AND (stories.genre ILIKE $2 OR stories.tags::text ILIKE $2) \
+                     ORDER BY stories.likes DESC, stories.views DESC \
+                     LIMIT 6"
+                )
+                .bind(u)
+                .bind(format!("%{}%", top_genre))
+                .fetch_all(&pool)
+                .await
+                .unwrap_or_default();
+
+                if !rows.is_empty() {
+                    let mut items = build_story_metadata_responses_batch(&pool, &rows, auth.user_id).await?;
+                    items.retain(|s| {
+                        if s.is_nsfw {
+                            is_eighteen_plus && nsfw_pref != "hide"
+                        } else {
+                            true
+                        }
+                    });
+
+                    if !items.is_empty() {
+                        return Ok(Json(RecommendationResponse {
+                            items,
+                            headline: "Recommended For You".to_string(),
+                            reason: format!("Based on your interest in {}", top_genre),
+                            is_personalized: true,
+                            has_enough_data: true,
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    // Cold-start / fallback: Not enough trustworthy data yet or visitor
+    let trending_rows: Vec<StoryRow> = sqlx::query_as(
+        "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, \
+                stories.title, stories.type, stories.genre, stories.language, stories.license, \
+                stories.status, stories.tags, stories.description, stories.cover, stories.followers, \
+                stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \
+         FROM stories \
+         LEFT JOIN profiles ON profiles.id = stories.author_id \
+         WHERE (lower(stories.status) NOT IN ('draft', 'unpublished') \
+                OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published')) \
+         ORDER BY stories.views DESC, stories.likes DESC \
+         LIMIT 6"
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let mut items = build_story_metadata_responses_batch(&pool, &trending_rows, auth.user_id).await?;
+    items.retain(|s| {
+        if s.is_nsfw {
+            is_eighteen_plus && nsfw_pref != "hide"
+        } else {
+            true
+        }
+    });
+
+    let (headline, reason) = if auth.user_id.is_some() {
+        (
+            "Trending on KathaSangam".to_string(),
+            "Popular stories across the community. Read and follow stories to unlock personalized recommendations.".to_string(),
+        )
+    } else {
+        (
+            "Trending on KathaSangam".to_string(),
+            "Popular stories across the community. Sign in and start reading to personalize your feed.".to_string(),
+        )
+    };
+
+    Ok(Json(RecommendationResponse {
+        items,
+        headline,
+        reason,
+        is_personalized: false,
+        has_enough_data: false,
+    }))
 }
 
 fn random_cover() -> String {
@@ -958,15 +1456,16 @@ pub async fn like_story(
 
 /// GET /api/stories/:id/liked
 pub async fn check_liked(
-    auth: Option<AuthUser>,
+    // SB-05: was `Option<AuthUser>`.
+    auth: OptionalAuthUser,
     Path(story_id): Path<Uuid>,
     State(pool): State<PgPool>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let liked = if let Some(auth_user) = auth {
+    let liked = if let Some(uid) = auth.user_id {
         sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM story_likes WHERE user_id = $1 AND story_id = $2)"
         )
-        .bind(auth_user.user_id)
+        .bind(uid)
         .bind(story_id)
         .fetch_one(&pool)
         .await?
@@ -1083,3 +1582,137 @@ pub async fn view_story(
         "views": updated_views
     })))
 }
+
+/// POST /api/stories/:id/rate
+pub async fn rate_story(
+    auth: AuthUser,
+    Path(story_id): Path<Uuid>,
+    State(pool): State<PgPool>,
+    Json(payload): Json<RateStoryRequest>,
+) -> Result<Json<StoryRatingResponse>, AppError> {
+    if payload.rating < 1 || payload.rating > 5 {
+        return Err(AppError::bad_request("Rating must be between 1 and 5."));
+    }
+
+    let story_status = sqlx::query_scalar::<_, String>(
+        "SELECT status FROM stories WHERE id = $1"
+    )
+    .bind(story_id)
+    .fetch_optional(&pool)
+    .await?;
+
+    let st = story_status
+        .ok_or_else(|| AppError::not_found("Story not found"))?
+        .to_lowercase();
+
+    if st == "draft" || st == "unpublished" {
+        return Err(AppError::bad_request("Ratings are only allowed for published stories."));
+    }
+
+    sqlx::query(
+        "INSERT INTO story_ratings (story_id, user_id, rating, updated_at) \
+         VALUES ($1, $2, $3, NOW()) \
+         ON CONFLICT (story_id, user_id) \
+         DO UPDATE SET rating = EXCLUDED.rating, updated_at = NOW()"
+    )
+    .bind(story_id)
+    .bind(auth.user_id)
+    .bind(payload.rating)
+    .execute(&pool)
+    .await?;
+
+    let agg: (Option<f64>, i64) = sqlx::query_as(
+        "SELECT AVG(rating)::float8, COUNT(*)::int8 FROM story_ratings WHERE story_id = $1"
+    )
+    .bind(story_id)
+    .fetch_one(&pool)
+    .await?;
+
+    let dist_rows: Vec<(i16, i64)> = sqlx::query_as(
+        "SELECT rating, COUNT(*)::int8 FROM story_ratings WHERE story_id = $1 GROUP BY rating"
+    )
+    .bind(story_id)
+    .fetch_all(&pool)
+    .await?;
+
+    let mut distribution = std::collections::BTreeMap::new();
+    for star in 1..=5 {
+        distribution.insert(star, 0i64);
+    }
+    for (star, count) in dist_rows {
+        distribution.insert(star, count);
+    }
+
+    let avg_rating = agg.0.map(|v| (v * 10.0).round() / 10.0).unwrap_or(0.0);
+
+    Ok(Json(StoryRatingResponse {
+        story_id,
+        average_rating: avg_rating,
+        ratings_count: agg.1,
+        user_rating: Some(payload.rating),
+        distribution,
+    }))
+}
+
+/// GET /api/stories/:id/rating
+pub async fn get_story_rating(
+    opt_auth: OptionalAuthUser,
+    Path(story_id): Path<Uuid>,
+    State(pool): State<PgPool>,
+) -> Result<Json<StoryRatingResponse>, AppError> {
+    let story_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM stories WHERE id = $1)"
+    )
+    .bind(story_id)
+    .fetch_one(&pool)
+    .await?;
+
+    if !story_exists {
+        return Err(AppError::not_found("Story not found"));
+    }
+
+    let agg: (Option<f64>, i64) = sqlx::query_as(
+        "SELECT AVG(rating)::float8, COUNT(*)::int8 FROM story_ratings WHERE story_id = $1"
+    )
+    .bind(story_id)
+    .fetch_one(&pool)
+    .await?;
+
+    let dist_rows: Vec<(i16, i64)> = sqlx::query_as(
+        "SELECT rating, COUNT(*)::int8 FROM story_ratings WHERE story_id = $1 GROUP BY rating"
+    )
+    .bind(story_id)
+    .fetch_all(&pool)
+    .await?;
+
+    let mut distribution = std::collections::BTreeMap::new();
+    for star in 1..=5 {
+        distribution.insert(star, 0i64);
+    }
+    for (star, count) in dist_rows {
+        distribution.insert(star, count);
+    }
+
+    let user_rating = if let Some(uid) = opt_auth.user_id {
+        sqlx::query_scalar::<_, i16>(
+            "SELECT rating FROM story_ratings WHERE story_id = $1 AND user_id = $2"
+        )
+        .bind(story_id)
+        .bind(uid)
+        .fetch_optional(&pool)
+        .await?
+    } else {
+        None
+    };
+
+    let avg_rating = agg.0.map(|v| (v * 10.0).round() / 10.0).unwrap_or(0.0);
+
+    Ok(Json(StoryRatingResponse {
+        story_id,
+        average_rating: avg_rating,
+        ratings_count: agg.1,
+        user_rating,
+        distribution,
+    }))
+}
+

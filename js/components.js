@@ -1,8 +1,44 @@
 export function calculateStars(story) {
-  if (!story || !story.views) return "5.0";
-  const ratio = story.likes / story.views;
-  const rating = 4.0 + ratio * 10;
+  if (!story) return "New";
+  if (typeof story.rating === "number" && (story.ratings_count || 0) > 0) {
+    return story.rating.toFixed(1);
+  }
+  if (!story.views || story.views < 5) return "New";
+  const ratio = (story.likes || 0) / story.views;
+  const rating = 3.5 + ratio * 3.0;
   return Math.min(5.0, Math.max(1.0, rating)).toFixed(1);
+}
+
+export function getStoryRatingInfo(story) {
+  if (!story) return { score: null, label: "Unrated", isTrustworthy: false, count: 0 };
+  if (typeof story.rating === "number" && (story.ratings_count || 0) > 0) {
+    const score = story.rating.toFixed(1);
+    const count = story.ratings_count;
+    return {
+      score: score,
+      label: "★ " + score + " (" + count + " " + (count === 1 ? "rating" : "ratings") + ")",
+      isTrustworthy: true,
+      count: count
+    };
+  }
+  const views = story.views || 0;
+  const likes = story.likes || 0;
+  if (views < 5) {
+    return {
+      score: null,
+      label: "New · Not enough ratings yet",
+      isTrustworthy: false,
+      count: views
+    };
+  }
+  const ratio = likes / views;
+  const score = Math.min(5.0, Math.max(1.0, 3.5 + ratio * 3.0)).toFixed(1);
+  return {
+    score: score,
+    label: "★ " + score + " (" + views + " reads)",
+    isTrustworthy: true,
+    count: views
+  };
 }
 
 export function generateChartData(story, metric) {
@@ -120,13 +156,119 @@ export function makeDiscussionIcon(className = "icon") {
   ]);
 }
 
+/**
+ * Creates an animated dots-horizontal SVG icon.
+ * Supports AnimatedIconProps and AnimatedIconHandle for imperative animation control.
+ * @param {import("./globals.js").AnimatedIconProps} [props]
+ * @returns {SVGSVGElement & { handle: import("./globals.js").AnimatedIconHandle }}
+ */
+export function makeAnimatedDotsHorizontalIcon(props) {
+  props = props || {};
+  const size = props.size !== undefined ? props.size : 20;
+  const color = props.color || "currentColor";
+  const strokeWidth = props.strokeWidth !== undefined ? props.strokeWidth : 2;
+  const className = props.className || "";
+
+  const sizeStr = typeof size === "number" ? size + "px" : size;
+
+  const svg = svgEl("svg", {
+    xmlns: "http://www.w3.org/2000/svg",
+    width: sizeStr,
+    height: sizeStr,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: color,
+    "stroke-width": String(strokeWidth),
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: ("animated-dots-icon " + className).trim()
+  }, [
+    svgEl("path", { stroke: "none", d: "M0 0h24v24H0z", fill: "none" }),
+    svgEl("circle", { class: "dot dot-1", cx: "5", cy: "12", r: "1", fill: color }),
+    svgEl("circle", { class: "dot dot-2", cx: "12", cy: "12", r: "1", fill: color }),
+    svgEl("circle", { class: "dot dot-3", cx: "19", cy: "12", r: "1", fill: color })
+  ]);
+
+  const handle = {
+    startAnimation: function () {
+      svg.classList.add("animating");
+    },
+    stopAnimation: function () {
+      svg.classList.remove("animating");
+    }
+  };
+
+  svg.addEventListener("mouseenter", function () {
+    handle.startAnimation();
+  });
+
+  svg.addEventListener("mouseleave", function () {
+    handle.stopAnimation();
+  });
+
+  svg.handle = handle;
+  return svg;
+}
+
+/**
+ * Creates an animated send-horizontal SVG icon.
+ * Supports AnimatedIconProps and AnimatedIconHandle for imperative animation control.
+ * @param {import("./globals.js").AnimatedIconProps} [props]
+ * @returns {SVGSVGElement & { handle: import("./globals.js").AnimatedIconHandle }}
+ */
+export function makeAnimatedSendHorizontalIcon(props) {
+  props = props || {};
+  const size = props.size !== undefined ? props.size : 18;
+  const color = props.color || "currentColor";
+  const strokeWidth = props.strokeWidth !== undefined ? props.strokeWidth : 2;
+  const className = props.className || "";
+
+  const sizeStr = typeof size === "number" ? size + "px" : size;
+
+  const svg = svgEl("svg", {
+    xmlns: "http://www.w3.org/2000/svg",
+    width: sizeStr,
+    height: sizeStr,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: color,
+    "stroke-width": String(strokeWidth),
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: ("animated-send-icon " + className).trim()
+  }, [
+    svgEl("path", { class: "send-body", d: "M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z" }),
+    svgEl("path", { class: "send-line", d: "M6 12h16" })
+  ]);
+
+  const handle = {
+    startAnimation: function () {
+      svg.classList.add("animating");
+    },
+    stopAnimation: function () {
+      svg.classList.remove("animating");
+    }
+  };
+
+  svg.addEventListener("animationend", function () {
+    handle.stopAnimation();
+  });
+
+  svg.handle = handle;
+  return svg;
+}
+
 export function iconButton(text, className, data, iconName, disabled) {
   const btn = el("button", className || "btn");
   btn.type = "button";
   if (disabled) btn.disabled = true;
   if (data) {
     Object.keys(data).forEach(function (k) {
-      btn.dataset[k] = data[k];
+      if (k.startsWith("aria-") || k.startsWith("data-") || k === "role" || k === "title" || k === "tabindex") {
+        btn.setAttribute(k, data[k]);
+      } else {
+        btn.dataset[k] = data[k];
+      }
     });
   }
   if (iconName) {
@@ -135,8 +277,35 @@ export function iconButton(text, className, data, iconName, disabled) {
   }
   if (text) {
     btn.appendChild(document.createTextNode(text));
+    if (!btn.getAttribute("aria-label")) {
+      btn.setAttribute("aria-label", text);
+    }
+  }
+  if (!text && data && data.action && !btn.getAttribute("aria-label")) {
+    btn.setAttribute("aria-label", accessibleActionName(data.action, data));
   }
   return btn;
+}
+
+function accessibleActionName(action, data) {
+  var names = {
+    carouselPrev: "Previous featured story",
+    carouselNext: "Next featured story",
+    carouselToggle: "Toggle automatic slide changes",
+    deleteChapter: "Delete chapter",
+    deleteStory: "Delete story",
+    editChapter: "Edit chapter",
+    nextChapter: "Next chapter",
+    openChapter: "Read chapter",
+    openParagraphComments: "Show comments for this paragraph",
+    openStoryModal: "Create a story",
+    previousChapter: "Previous chapter"
+  };
+  if (names[action]) return names[action];
+  var readable = String(action || "Action")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2");
+  return readable.charAt(0).toUpperCase() + readable.slice(1);
 }
 
 export function analyticsMetricBox(label, value, subtitle) {
@@ -187,6 +356,7 @@ export function form(name, children) {
 export function field(label, control) {
   const id = "field-" + Math.random().toString(16).slice(2);
   control.id = id;
+  control.setAttribute("aria-label", label);
   return el("label", "field", [el("span", null, label), control]);
 }
 
@@ -208,6 +378,7 @@ export function textarea(name, value) {
 export function select(name, options, selectedValue) {
   const n = document.createElement("select");
   n.name = name;
+  n.id = name;
   options.forEach(function (p) {
     const o = document.createElement("option");
     o.value = p[0];
@@ -233,16 +404,26 @@ export function button(text, className, data, disabled) {
       }
     });
   } else if (typeof text === "string" || typeof text === "number") {
-    n.textContent = text;
+    n.textContent = String(text);
   } else if (text) {
     n.appendChild(text);
   }
   if (data) {
     Object.keys(data).forEach(function (k) {
-      n.dataset[k] = data[k];
+      if (k.startsWith("aria-") || k.startsWith("data-") || k === "role" || k === "title" || k === "tabindex") {
+        n.setAttribute(k, data[k]);
+      } else {
+        n.dataset[k] = data[k];
+      }
     });
   }
   if (disabled) n.disabled = true;
+  if (!n.textContent.trim() && !n.getAttribute("aria-label") && data && data.action) {
+    var context = n.closest && n.closest(".story-card");
+    var storyTitle = context && context.querySelector("h2") && context.querySelector("h2").textContent.trim();
+    var readableAction = accessibleActionName(data.action, data);
+    n.setAttribute("aria-label", readableAction + (storyTitle ? " — " + storyTitle : ""));
+  }
   return n;
 }
 
@@ -255,7 +436,10 @@ export function submitButton(text, className) {
 }
 
 export function segmentButton(text, value, activeValue, action) {
-  return button(text, activeValue === value ? "active" : "", { action: action || "filter", value: value });
+  var active = activeValue === value;
+  var n = button(text, active ? "active" : "", { action: action || "filter", value: value });
+  n.setAttribute("aria-pressed", String(active));
+  return n;
 }
 
 export function list(items, className, renderItem) {
@@ -291,24 +475,26 @@ export function unique(items) {
   });
 }
 
-export function formatNumber(v) {
-  return new Intl.NumberFormat("en", { notation: v > 9999 ? "compact" : "standard" }).format(v);
-}
-
-export function formatDate(v) {
-  if (!v) return "";
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(v));
-}
-
-export function formatDateDDMMYYYY(v) {
-  if (!v) return "";
-  var d = new Date(v);
-  if (isNaN(d.getTime())) return "";
-  var day = String(d.getDate()).padStart(2, "0");
-  var month = String(d.getMonth() + 1).padStart(2, "0");
-  var year = d.getFullYear();
-  return day + "/" + month + "/" + year;
-}
+export {
+  t,
+  formatNumber,
+  formatDate,
+  formatDateDDMMYYYY,
+  formatDateTime,
+  formatTime,
+  formatRelativeTime,
+  normalizeStoryType,
+  isChitrank,
+  formatStoryType,
+  normalizeLanguage,
+  normalizeGenre,
+  normalizeStoryStatus,
+  normalizeChapterStatus,
+  CANONICAL_GENRES,
+  CANONICAL_LANGUAGES,
+  CANONICAL_STORY_STATUSES,
+  CANONICAL_CHAPTER_STATUSES
+} from "./i18n.js";
 
 export function showConfirm(options) {
   var title = options.title || "Confirm";
@@ -369,8 +555,9 @@ export function showConfirm(options) {
       overlay.classList.remove("active");
       setTimeout(function () {
         overlay.remove();
-        if (previousActiveElement && typeof previousActiveElement.focus === "function") {
-          previousActiveElement.focus();
+        var prevEl = /** @type {HTMLElement | null} */ (previousActiveElement);
+        if (prevEl && typeof prevEl.focus === "function") {
+          prevEl.focus();
         }
         resolve(value);
         if (value && typeof options.onConfirm === "function") {
@@ -413,9 +600,10 @@ export function showConfirm(options) {
 
 
 function append(parent, child) {
+  if (child == null) return;
   if (typeof child === "string" || typeof child === "number") {
     parent.appendChild(document.createTextNode(String(child)));
-  } else {
+  } else if (child instanceof Node) {
     parent.appendChild(child);
   }
 }
@@ -424,6 +612,11 @@ function applyAttrs(node, attrs) {
   if (!attrs) return;
   Object.keys(attrs).forEach(function (k) {
     if (k === "action") node.dataset.action = attrs[k];
+    else if (k === "id") {
+      node.dataset.id = attrs[k];
+      node.setAttribute("id", attrs[k]);
+    }
+    else if (k === "storyId") node.dataset.storyId = attrs[k];
     else if (k === "required") node.required = true;
     else if (k === "disabled") {
       if (attrs[k]) node.disabled = true;
@@ -517,3 +710,43 @@ export function calculateGenreAverages(stories) {
 
   return list.sort((a, b) => b.avgViews - a.avgViews);
 }
+
+export function setFormFeedback(container, message, type) {
+  if (!container) return;
+  var existing = container.querySelectorAll(".form-feedback");
+  existing.forEach(function (e) { e.remove(); });
+
+  if (!message) return;
+
+  var feedback = document.createElement("p");
+  feedback.className = "form-feedback " + (type || "info");
+  feedback.setAttribute("role", type === "error" ? "alert" : "status");
+  feedback.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
+  feedback.textContent = message;
+
+  var submitBtn = container.querySelector("button[type='submit']");
+  var actionsRow = container.querySelector(".editor-actions-row, .settings-field-row, .settings-field-row-wrap");
+  if (submitBtn) {
+    submitBtn.parentNode.insertBefore(feedback, submitBtn);
+  } else if (actionsRow) {
+    actionsRow.parentNode.insertBefore(feedback, actionsRow);
+  } else {
+    container.appendChild(feedback);
+  }
+}
+
+export function setButtonLoading(btn, isLoading, loadingText) {
+  if (!btn) return;
+  if (isLoading) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.textContent;
+    btn.textContent = loadingText || "Saving...";
+  } else {
+    btn.disabled = false;
+    if (btn.dataset.originalText) {
+      btn.textContent = btn.dataset.originalText;
+      delete btn.dataset.originalText;
+    }
+  }
+}
+

@@ -2,12 +2,24 @@ use axum::Json;
 use crate::errors::AppError;
 use serde::Serialize;
 
+/// Public frontend configuration.
+///
+/// SB-04: this response must contain ONLY values that are safe to serve to an
+/// unauthenticated caller. `ADMIN_EMAIL` and `MODERATOR_EMAILS` used to be included,
+/// which leaked the administrator's address and the full moderator roster to anyone.
+///
+/// They are server-side authorization inputs (see `routes::profile::update_profile_role`,
+/// which grants the `admin` role to any account whose auth email matches ADMIN_EMAIL),
+/// so publishing them turned the escalation gate into a lookup: on a Supabase project
+/// with email confirmation disabled, an attacker could register the known admin address
+/// and then claim the role through the intended endpoint.
+///
+/// Role authorization is enforced server-side; the client never needs these values.
+/// Add no further fields without checking whether they are client-visible by design.
 #[derive(Debug, Serialize)]
 pub struct ConfigResponse {
     pub supabase_url: String,
     pub supabase_anon_key: String,
-    pub admin_email: String,
-    pub moderator_emails: Vec<String>,
 }
 
 /// GET /api/config — returns public Supabase config to the frontend
@@ -23,18 +35,8 @@ pub async fn get_config() -> Result<Json<ConfigResponse>, AppError> {
         AppError::internal_server_error("Server configuration error: SUPABASE_ANON_KEY is missing.")
     })?;
 
-    let admin_email = std::env::var("ADMIN_EMAIL").unwrap_or_default();
-    let mod_emails_str = std::env::var("MODERATOR_EMAILS").unwrap_or_default();
-    let moderator_emails: Vec<String> = mod_emails_str
-        .split(',')
-        .map(|s| s.trim().to_lowercase())
-        .filter(|s| !s.is_empty())
-        .collect();
-
     Ok(Json(ConfigResponse {
         supabase_url,
         supabase_anon_key,
-        admin_email,
-        moderator_emails,
     }))
 }

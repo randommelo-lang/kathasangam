@@ -83,12 +83,8 @@ test('Threaded Comments and Character Limit verification', async ({ page }) => {
 
   // 2. Navigate to SAMYATI story details
   await page.click('.story-card:has-text("SAMYATI")');
-  await page.waitForTimeout(1000);
-
   // 3. Click "Start Reading" to open the reader
   await page.click('button:has-text("Start Reading")');
-  await page.waitForTimeout(2000);
-
   // 4. Verify comment textarea has maxlength="5000"
   const commentTextarea = page.locator('form[data-form="commentForm"] textarea[name="comment"]');
   await expect(commentTextarea).toBeVisible();

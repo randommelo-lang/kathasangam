@@ -12,26 +12,30 @@ export function handleCommunityClick(ctx, action, target, e) {
     const storyId = target.dataset.storyId;
     if (!storyId) return true;
 
-    ctx.apiPost("/bookmarks", { story_id: storyId })
-      .then(res => {
-        // Toggle in state.bookmarkIds
-        ctx.state.bookmarkIds = ctx.state.bookmarkIds || [];
-        const index = ctx.state.bookmarkIds.indexOf(storyId);
-        if (index === -1) {
-          ctx.state.bookmarkIds.push(storyId);
-          ctx.notify("Story bookmarked!");
-        } else {
-          ctx.state.bookmarkIds.splice(index, 1);
-          ctx.notify("Bookmark removed.");
-        }
-        // Invalidate cached bookmarks list
-        ctx.state.bookmarks = null;
-        ctx.render();
-      })
-      .catch(err => {
-        console.error("Bookmark toggle failed:", err);
-        ctx.notify("Error toggling bookmark: " + (err.message || err));
-      });
+    const prevBookmarkIds = (ctx.state.bookmarkIds || []).slice();
+    const isBookmarked = prevBookmarkIds.indexOf(storyId) !== -1;
+    ctx.state.bookmarkIds = isBookmarked
+      ? prevBookmarkIds.filter(function (id) { return id !== storyId; })
+      : prevBookmarkIds.concat([storyId]);
+    ctx.state.bookmarks = null;
+    ctx.render();
+
+    const doBookmark = function () {
+      ctx.apiPost("/bookmarks", { story_id: storyId })
+        .then(function (res) {
+          ctx.notify(isBookmarked ? "Bookmark removed." : "Story bookmarked!", "success");
+        })
+        .catch(function (err) {
+          console.error("Bookmark toggle failed:", err);
+          ctx.state.bookmarkIds = prevBookmarkIds;
+          ctx.state.bookmarks = null;
+          ctx.render();
+          ctx.notify((err.message || "Failed to update bookmark.") + " Action reverted.", "error", {
+            onRetry: doBookmark
+          });
+        });
+    };
+    doBookmark();
     return true;
   }
 
@@ -43,31 +47,45 @@ export function handleCommunityClick(ctx, action, target, e) {
     const storyId = target.dataset.storyId;
     if (!storyId) return true;
 
-    ctx.apiPost("/stories/" + storyId + "/like")
-      .then(res => {
-        ctx.state.likedStoryIds = ctx.state.likedStoryIds || [];
-        const index = ctx.state.likedStoryIds.indexOf(storyId);
-        if (res.liked) {
-          if (index === -1) ctx.state.likedStoryIds.push(storyId);
-          ctx.notify("Story liked!");
-        } else {
-          if (index !== -1) ctx.state.likedStoryIds.splice(index, 1);
-          ctx.notify("Story unliked.");
-        }
-        if (ctx.state.stories) {
-          const story = ctx.state.stories.find(function (s) { return s.id === storyId; });
-          if (story) {
+    const prevLikedStoryIds = (ctx.state.likedStoryIds || []).slice();
+    const isLiked = prevLikedStoryIds.indexOf(storyId) !== -1;
+    ctx.state.likedStoryIds = isLiked
+      ? prevLikedStoryIds.filter(function (id) { return id !== storyId; })
+      : prevLikedStoryIds.concat([storyId]);
+
+    const story = ctx.state.stories ? ctx.state.stories.find(function (s) { return s.id === storyId; }) : null;
+    const prevLikes = story ? (story.likes || 0) : 0;
+    if (story) {
+      story.likes = isLiked ? Math.max(0, prevLikes - 1) : prevLikes + 1;
+    }
+    ctx.render();
+
+    const doLike = function () {
+      ctx.apiPost("/stories/" + storyId + "/like")
+        .then(function (res) {
+          if (story && typeof res.likes === "number") {
             story.likes = res.likes;
+            ctx.render();
           }
-        }
-        ctx.render();
-      })
-      .catch(err => {
-        console.error("Like toggle failed:", err);
-        ctx.notify("Error toggling like: " + (err.message || err));
-      });
+          if (res.liked && typeof ctx.recordLikeGiven === "function") {
+            ctx.recordLikeGiven();
+          }
+          ctx.notify(res.liked ? "Story liked!" : "Story unliked.", "success");
+        })
+        .catch(function (err) {
+          console.error("Like toggle failed:", err);
+          ctx.state.likedStoryIds = prevLikedStoryIds;
+          if (story) story.likes = prevLikes;
+          ctx.render();
+          ctx.notify((err.message || "Failed to update like.") + " Action reverted.", "error", {
+            onRetry: doLike
+          });
+        });
+    };
+    doLike();
     return true;
   }
+
 
   if (action === "openAddToReadingListModal") {
     if (!ctx.state.user) {

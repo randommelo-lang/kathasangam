@@ -1,15 +1,27 @@
 {
   "name": "kathasangam",
-  "version": "1.0.0",
+  "version": "0.5.0",
   "description": "KathaSangam web platform browser testing suite",
   "main": "index.html",
   "type": "module",
   "scripts": {
+    "build": "node scripts/build-frontend.mjs",
+    "build:frontend": "node scripts/build-frontend.mjs",
     "test": "playwright test",
+    "test:integration": "playwright test --config=playwright.integration.config.js",
     "test:ui": "playwright test --ui",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "lint": "eslint js/auth/**/*.js js/auth.js js/achievements.js js/i18n.js js/perf.js",
+    "format:check": "prettier --check js/auth/**/*.js js/auth.js js/achievements.js js/i18n.js js/perf.js eslint.config.js tsconfig.json .prettierrc.json",
+    "typecheck": "tsc --project tsconfig.json",
+    "check:syntax": "node --check js/auth.js && node --check js/auth/securitySettings.js && node --check js/auth/session.js && node --check js/auth/authModal.js && node --check js/auth/mfaLogin.js && node --check js/auth/accountMenu.js && node --check js/controllers/profileController.js",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run check:syntax"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0"
+    "@playwright/test": "^1.49.0",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "^7.0.2"
   }
 }

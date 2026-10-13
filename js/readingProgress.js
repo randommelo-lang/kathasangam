@@ -1,5 +1,6 @@
 import { state, ui } from "./state.js";
 import { apiPost } from "./api.js";
+import { recordChapterRead } from "./achievements.js";
 
 let ctx = null;
 
@@ -17,6 +18,9 @@ export function getStoryReadingProgress(storyId) {
 }
 
 export function saveReadingProgress(storyId, chapterId, pageIndex) {
+  if (chapterId) {
+    recordChapterRead(state.user, chapterId);
+  }
   if (state.user) {
     apiPost("/progress", {
       story_id: storyId,

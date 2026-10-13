@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "files": [
+    "js/globals.d.ts",
+    "js/auth/securitySettings.js",
+    "js/auth/authModal.js",
+    "js/auth/mfaLogin.js",
+    "js/auth/session.js",
+    "js/auth/accountMenu.js",
+    "js/auth.js"
+  ]
+}

@@ -1,5 +1,6 @@
 use crate::models::*;
 use crate::db::AuthUser;
+use serde::{Deserialize, Serialize};
 use axum::{
     extract::{Path, State, Query},
     Json,
@@ -318,8 +319,8 @@ pub async fn create_report(
     }
 
     let target_type = body.target_type.to_lowercase();
-    if target_type != "story" && target_type != "chapter" && target_type != "comment" {
-        return Err(AppError::bad_request("Invalid report target type. Must be story, chapter, or comment."));
+    if target_type != "story" && target_type != "chapter" && target_type != "comment" && target_type != "user" {
+        return Err(AppError::bad_request("Invalid report target type. Must be story, chapter, comment, or user."));
     }
 
     let severity = body.severity.as_deref().unwrap_or("medium").to_lowercase();
@@ -546,14 +547,26 @@ pub async fn run_text_scan(
                 .await?;
             target_text = paragraphs.into_iter().map(|(p,)| p).collect::<Vec<String>>().join(" ");
         } else if report.target_type == "comment" {
-            let text: Option<(String,)> = sqlx::query_as("SELECT text FROM comments WHERE id = $1")
+            // SB-07: the column is `content` (see migrations/0003:126), not `text`. The wrong
+// name made the whole moderation scan abort on any comment-type report, and the
+// resulting Postgres error was returned to the client verbatim.
+let text: Option<(String,)> = sqlx::query_as("SELECT content FROM comments WHERE id = $1")
                 .bind(report.target_id)
                 .fetch_optional(&pool)
                 .await?;
             if let Some((t,)) = text {
                 target_text = t;
             }
+        } else if report.target_type == "user" {
+            let bio: Option<(Option<String>,)> = sqlx::query_as("SELECT bio FROM profiles WHERE id = $1")
+                .bind(report.target_id)
+                .fetch_optional(&pool)
+                .await?;
+            if let Some((Some(b),)) = bio {
+                target_text = b;
+            }
         }
+
 
         let lower_text = target_text.to_lowercase();
         let mut matched_term = None;
@@ -604,3 +617,54 @@ pub async fn run_text_scan(
         details,
     }))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct PruneRetentionRequest {
+    pub days_older_than: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PruneRetentionResponse {
+    pub resolved_reports_pruned: u64,
+    pub audit_logs_pruned: u64,
+    pub message: String,
+}
+
+/// POST /api/moderation/prune-retention – Prune closed reports and audit logs older than threshold
+pub async fn prune_retention_logs(
+    auth: AuthUser,
+    State(pool): State<PgPool>,
+    Json(body): Json<PruneRetentionRequest>,
+) -> Result<Json<PruneRetentionResponse>, AppError> {
+    if !check_is_staff(&pool, auth.user_id).await? {
+        return Err(AppError::forbidden("Staff permission required to prune retention logs."));
+    }
+
+    let days = body.days_older_than.unwrap_or(180).max(30);
+
+    // Prune closed / resolved reports older than retention threshold
+    let reports_res = sqlx::query(
+        "DELETE FROM reports \
+         WHERE status IN ('resolved', 'dismissed') \
+         AND created_at < NOW() - ($1 * INTERVAL '1 day')"
+    )
+    .bind(days)
+    .execute(&pool)
+    .await?;
+
+    // Prune audit logs older than retention threshold
+    let audit_res = sqlx::query(
+        "DELETE FROM moderation_audit_logs \
+         WHERE created_at < NOW() - ($1 * INTERVAL '1 day')"
+    )
+    .bind(days)
+    .execute(&pool)
+    .await?;
+
+    Ok(Json(PruneRetentionResponse {
+        resolved_reports_pruned: reports_res.rows_affected(),
+        audit_logs_pruned: audit_res.rows_affected(),
+        message: format!("Successfully pruned records older than {} days according to retention policy.", days),
+    }))
+}
+

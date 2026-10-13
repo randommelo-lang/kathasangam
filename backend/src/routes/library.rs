@@ -34,7 +34,7 @@ pub async fn get_library(
     .fetch_all(&pool)
     .await?;
 
-    let results = build_story_responses_batch(&pool, &rows, Some(&auth))
+    let results = build_story_responses_batch(&pool, &rows, Some(auth.user_id))
         .await?;
 
     Ok(Json(results))
@@ -43,7 +43,7 @@ pub async fn get_library(
 /// GET /api/library/ids – just the list of followed story IDs
 pub async fn get_library_ids(
     State(pool): State<PgPool>,
-    AuthUser { user_id }: AuthUser,
+    AuthUser { user_id, .. }: AuthUser,
 ) -> Result<Json<Vec<Uuid>>, AppError> {
     let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT story_id FROM library WHERE user_id = $1")
         .bind(user_id)
@@ -56,7 +56,7 @@ pub async fn get_library_ids(
 /// POST /api/library/follow
 pub async fn toggle_follow(
     State(pool): State<PgPool>,
-    AuthUser { user_id }: AuthUser,
+    AuthUser { user_id, .. }: AuthUser,
     Json(body): Json<FollowRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let exists: Option<(Uuid,)> =

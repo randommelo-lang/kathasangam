@@ -1,4 +1,4 @@
-import { button, el, formatDate } from "../components.js";
+import { button, el, formatDate, formatTime } from "../components.js";
 
 export function getDraftKey(chapterId) {
   return "kathasangam_draft_" + chapterId;
@@ -20,13 +20,28 @@ export function loadDraft(draftKey) {
   }
 }
 
+export function formatSaveTime(date) {
+  var d = date || new Date();
+  return formatTime(d);
+}
+
+export function updateSaveStatus(statusText, statusType) {
+  var el = document.getElementById("editorSaveStatus");
+  if (!el) return;
+  el.textContent = statusText;
+  el.className = "editor-save-status " + (statusType || "saved");
+}
+
 export function setupAutosave(inputElements, draftKey, getDraftData, delay = 800) {
   let timer = null;
   const trigger = () => {
+    updateSaveStatus("🟡 Unsaved changes", "unsaved");
     clearTimeout(timer);
     timer = setTimeout(() => {
       const data = getDraftData();
       saveDraft(draftKey, data);
+      const timeStr = formatSaveTime();
+      updateSaveStatus("💾 Autosaved locally at " + timeStr, "saved");
     }, delay);
   };
   inputElements.forEach(el => {
@@ -34,6 +49,7 @@ export function setupAutosave(inputElements, draftKey, getDraftData, delay = 800
   });
   return trigger;
 }
+
 
 export function showRecoveryBanner({
   ctx,

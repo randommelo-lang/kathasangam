@@ -1,6 +1,13 @@
 # Dependencies
 node_modules/
 
+# Environment variables & secrets
+.env
+.env.*
+*.env
+!*.env.example
+backend/.env
+
 # Executables and large binaries
 *.exe
 meilisearch-windows-amd64.exe
@@ -13,13 +20,20 @@ data.ms.old/
 *.db-wal
 
 # Build artifacts & test reports
+dist/
 playwright-report/
 test-results/
 scratch/
+.cache/
 
-# Backend targets & logs
+# User uploads (keep directory via .gitkeep)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Backend targets, logs & temp files
 backend/target/
-backend/.env
+*.log
+logs/
 backend/server.err.log
 backend/server.out.log
 backend/server_log.txt
@@ -32,3 +46,7 @@ backend/test_output.webp
 Thumbs.db
 .vscode/
 .idea/
+*.swp
+*~
+*.tmp
+*.temp

@@ -6,10 +6,12 @@
 
 import { state, ui } from "./state.js";
 import { log } from "./logger.js";
-import { api, apiDelete, apiPatch, apiPost, apiPut, adminEmail, loadSupabaseConfig, moderatorEmails, supabaseClient, getSupabaseClient } from "./api.js";
+import { api, apiDelete, apiPatch, apiPost, apiPut, uploadFileWithProgress, loadSupabaseConfig, supabaseClient, getSupabaseClient } from "./api.js";
 import { getRoute, hydrateGenres as hydrateGenresModule, render as renderModule } from "./router.js";
 import { renderEditor as renderEditorModule, saveChapterFromEditor as saveChapterFromEditorModule } from "./editor.js";
-import { el, button, select, input, textarea, showConfirm, calculateStars } from "./components.js";
+import { el, button, select, input, textarea, showConfirm, calculateStars, setFormFeedback, setButtonLoading } from "./components.js";
+import { getMetrics, isLowBandwidth, markRouteStart, markRouteEnd, trackInteraction } from "./perf.js";
+import { recordDailyVisit, recordStoryPublished, recordChapterRead, recordStoryCompleted, recordLikeGiven } from "./achievements.js";
 
 // Import view modules
 import { renderDiscover } from "./views/discover.js";
@@ -18,14 +20,13 @@ import { renderReader } from "./views/reader.js";
 import { renderStudio } from "./views/studio.js";
 import { renderModeration } from "./views/moderation.js";
 import { renderStoryDetails } from "./views/story.js";
-import { renderMessages } from "./views/messages.js";
 import { canDeleteStory, storyCard } from "./views/shared.js";
 
 // Import controller modules
 import { handleDiscoverClick } from "./controllers/discoverController.js";
 import { handleLibraryClick } from "./controllers/libraryController.js";
-import { handleReaderClick, handleReaderInput, handleReaderSubmit, initReaderController, updateReaderScrollProgress } from "./controllers/readerController.js";
-import { handleStudioClick, handleStudioSubmit } from "./controllers/studioController.js";
+import { handleReaderClick, handleReaderInput, handleReaderSubmit, initReaderController, updateReaderScrollProgress, openReportModal } from "./controllers/readerController.js";
+import { handleStudioClick, handleStudioSubmit, handleStudioInput } from "./controllers/studioController.js";
 import { handleModerationClick, handleModerationInput } from "./controllers/moderationController.js";
 import { handleProfileClick } from "./controllers/profileController.js";
 import { handleCommunityClick, handleCommunitySubmit } from "./controllers/communityController.js";
@@ -63,6 +64,8 @@ import {
   openStoryModal,
   openStorySettingsModal,
   closeStoryModal,
+  handleStoryClick,
+  handleStoryInput,
   initStoryController
 } from "./controllers/storyController.js";
 
@@ -97,10 +100,26 @@ window.state = state;
 window.ui = ui;
 window.updateHeroNotificationUI = updateHeroNotificationUI;
 window.render = render;
+window.updateAuthUI = updateAuthUI;
+window.setFormFeedback = setFormFeedback;
+window.setButtonLoading = setButtonLoading;
+window.handleLibraryClick = handleLibraryClick;
+window.handleProfileClick = handleProfileClick;
+window.openReportModal = openReportModal;
+window.apiPost = apiPost;
+window.api = api;
+window.perfMetrics = {
+  getMetrics: getMetrics,
+  isLowBandwidth: isLowBandwidth,
+  markRouteStart: markRouteStart,
+  markRouteEnd: markRouteEnd,
+  trackInteraction: trackInteraction
+};
 
 var ctx = {
   state: state,
   ui: ui,
+  perf: window.perfMetrics,
   view: view,
   pageTitle: pageTitle,
   genreFilter: genreFilter,
@@ -109,7 +128,11 @@ var ctx = {
   apiPatch: apiPatch,
   apiPost: apiPost,
   apiPut: apiPut,
+  uploadFileWithProgress: uploadFileWithProgress,
   notify: notify,
+  openReportModal: openReportModal,
+  setFormFeedback: setFormFeedback,
+  setButtonLoading: setButtonLoading,
   render: render,
   renderDiscover: renderDiscover,
   renderLibrary: renderLibrary,
@@ -118,7 +141,6 @@ var ctx = {
   renderStudio: renderStudio,
   renderModeration: renderModeration,
   renderStoryDetails: renderStoryDetails,
-  renderMessages: renderMessages,
   renderEditor: renderEditor,
   renderProfileSettings: renderProfileSettings,
   getCurrentStudioStory: getCurrentStudioStory,
@@ -134,6 +156,7 @@ var ctx = {
   calculateActiveReaderProgress: calculateActiveReaderProgress,
   paginateText: paginateText,
   filteredStories: filteredStories,
+  loadDiscoveryPage: loadDiscoveryPage,
   canDeleteStory: function (story) { return canDeleteStory(ctx, story); },
   openStoryModal: openStoryModal,
   openStorySettingsModal: openStorySettingsModal,
@@ -154,7 +177,14 @@ var ctx = {
   handleSignOut: handleSignOut,
   fetchProfile: fetchProfile,
   changeUserRole: changeUserRole,
-  updateReaderScrollProgress: function () { return updateReaderScrollProgress(ctx); }
+  updateReaderScrollProgress: function () { return updateReaderScrollProgress(ctx); },
+
+  // Achievement Trackers
+  recordDailyVisit: function () { return recordDailyVisit(state.user); },
+  recordStoryPublished: function (story) { return recordStoryPublished(state.user, story); },
+  recordChapterRead: function (chapterId) { return recordChapterRead(state.user, chapterId); },
+  recordStoryCompleted: function (storyId) { return recordStoryCompleted(state.user, storyId); },
+  recordLikeGiven: function () { return recordLikeGiven(state.user); }
 };
 
 // ── Bootstrap ──
@@ -174,10 +204,16 @@ async function bootstrap() {
   // Initialize auth module after Supabase client is configured
   initAuthModule(ctx);
 
+  // Track daily visit & consecutive streak
+  recordDailyVisit(state.user);
+
+  syncDiscoverFromUrl();
+
   render();
 
   loadAll().then(function () {
     hydrateGenres();
+    recordDailyVisit(state.user);
     render();
     startNotificationPolling();
   }).catch(function (err) {
@@ -188,22 +224,46 @@ async function bootstrap() {
 
 function loadAll() {
   var isAuthenticated = !!(state.user || state.accessToken);
+  var initialDiscoveryId = ++discoveryRequestId;
   var canLoadReports = isAuthenticated && canModerateRole();
   const client = getSupabaseClient();
   var mfaPromise = (client && isAuthenticated)
     ? client.auth.mfa.listFactors().catch(function () { return { data: { all: [] } }; })
     : Promise.resolve({ data: { all: [] } });
 
+  var storyParams = new URLSearchParams();
+  storyParams.set("limit", "24");
+  var q = searchInput ? searchInput.value.trim() : "";
+  if (q) storyParams.set("q", q);
+  if (genreFilter && genreFilter.value && genreFilter.value !== "all") storyParams.set("genre", genreFilter.value);
+  if (ui.filterType && ui.filterType !== "all") storyParams.set("type", ui.filterType);
+  if (ui.filterStatus && ui.filterStatus !== "all") storyParams.set("status", ui.filterStatus);
+  if (ui.filterLanguage && ui.filterLanguage !== "all") storyParams.set("language", ui.filterLanguage);
+  if (ui.filterRecency && ui.filterRecency !== "all") storyParams.set("recency", ui.filterRecency);
+  if (ui.filterSort && ui.filterSort !== "newest") storyParams.set("sort_by", ui.filterSort);
+
   return Promise.all([
-    api("/stories").catch(function () { return []; }),
+    api("/stories?" + storyParams.toString()).catch(function (err) {
+      if (initialDiscoveryId === discoveryRequestId) state.discoveryError = err;
+      return { items: [], next_cursor: null, has_more: false };
+    }),
     isAuthenticated ? api("/library/ids").catch(function () { return []; }) : Promise.resolve([]),
     canLoadReports ? api("/reports?status=open&limit=5&offset=0").catch(function () { return { items: [], total: 0 }; }) : Promise.resolve({ items: [], total: 0 }),
     isAuthenticated ? api("/notifications").catch(function () { return []; }) : Promise.resolve([]),
     api("/stats").catch(function () { return { published: 0, views: 0, followers: 0, open_reports: 0 }; }),
     isAuthenticated ? api("/progress").catch(function () { return []; }) : Promise.resolve([]),
-    mfaPromise
+    mfaPromise,
+    api("/stories/recommended").catch(function () { return null; })
   ]).then(function (results) {
-    state.stories = results[0];
+    var storyPage = results[0] || { items: [], next_cursor: null, has_more: false };
+    if (initialDiscoveryId === discoveryRequestId) {
+      state.stories = storyPage.items || [];
+      state.discoveryCursor = storyPage.next_cursor || null;
+      state.discoveryHasMore = !!storyPage.has_more;
+      state.genreOptions = storyPage.genres || [];
+      state.languageOptions = storyPage.languages || [];
+      state.discoveryLoading = false;
+    }
     state.library = results[1];
     var reps = results[2] || { items: [], total: 0 };
     var repsArray = reps.items || [];
@@ -215,7 +275,115 @@ function loadAll() {
     state.progress = results[5] || [];
     var mfaRes = results[6] || { data: { all: [] } };
     state.mfaFactors = (mfaRes.data && mfaRes.data.all) || [];
-    if (state.stories.length && !ui.currentStoryId) ui.currentStoryId = state.stories[0].id;
+    state.recommendations = results[7] || null;
+  });
+}
+
+function syncDiscoverToUrl() {
+  if (ui.currentView !== "discover") return;
+  var params = new URLSearchParams();
+  var q = searchInput ? searchInput.value.trim() : "";
+  if (q) params.set("q", q);
+  if (genreFilter && genreFilter.value && genreFilter.value !== "all") params.set("genre", genreFilter.value);
+  if (ui.filterType && ui.filterType !== "all") params.set("type", ui.filterType);
+  if (ui.filterStatus && ui.filterStatus !== "all") params.set("status", ui.filterStatus);
+  if (ui.filterLanguage && ui.filterLanguage !== "all") params.set("language", ui.filterLanguage);
+  if (ui.filterRecency && ui.filterRecency !== "all") params.set("recency", ui.filterRecency);
+  if (ui.filterSort && ui.filterSort !== "newest") params.set("sort_by", ui.filterSort);
+  var qs = params.toString();
+  if (!qs && (window.location.hash === "" || window.location.hash === "#")) return;
+  var newHash = qs ? "#discover?" + qs : "#discover";
+  if (window.location.hash !== newHash) {
+    history.replaceState(null, "", newHash);
+  }
+}
+
+function syncDiscoverFromUrl() {
+  var hash = window.location.hash;
+  var qIdx = hash.indexOf("?");
+  if (qIdx === -1) return false;
+  var params = new URLSearchParams(hash.slice(qIdx + 1));
+  var changed = false;
+
+  var q = params.get("q") || "";
+  if (searchInput && searchInput.value !== q) {
+    searchInput.value = q;
+    changed = true;
+  }
+  var genre = params.get("genre") || "all";
+  if (genreFilter && genreFilter.value !== genre) {
+    genreFilter.value = genre;
+    changed = true;
+  }
+  var type = params.get("type") || params.get("format") || "all";
+  if (ui.filterType !== type) {
+    ui.filterType = type;
+    changed = true;
+  }
+  var status = params.get("status") || "all";
+  if (ui.filterStatus !== status) {
+    ui.filterStatus = status;
+    changed = true;
+  }
+  var lang = params.get("language") || params.get("lang") || "all";
+  if (ui.filterLanguage !== lang) {
+    ui.filterLanguage = lang;
+    changed = true;
+  }
+  var recency = params.get("recency") || "all";
+  if (ui.filterRecency !== recency) {
+    ui.filterRecency = recency;
+    changed = true;
+  }
+  var sort = params.get("sort_by") || params.get("sort") || "newest";
+  if (ui.filterSort !== sort) {
+    ui.filterSort = sort;
+    changed = true;
+  }
+  return changed;
+}
+
+var discoveryRequestId = 0;
+function loadDiscoveryPage(reset) {
+  if (reset) {
+    state.stories = [];
+    state.discoveryCursor = null;
+    state.discoveryHasMore = false;
+  }
+  syncDiscoverToUrl();
+  var requestId = ++discoveryRequestId;
+  var routeAtRequest = window.location.hash;
+  state.discoveryRequestId = requestId;
+  state.discoveryLoading = true;
+  state.discoveryError = null;
+  render();
+  var params = new URLSearchParams();
+  params.set("limit", "24");
+  var q = searchInput.value.trim();
+  if (q) params.set("q", q);
+  if (genreFilter.value && genreFilter.value !== "all") params.set("genre", genreFilter.value);
+  if (ui.filterType && ui.filterType !== "all") params.set("type", ui.filterType);
+  if (ui.filterStatus && ui.filterStatus !== "all") params.set("status", ui.filterStatus);
+  if (ui.filterLanguage && ui.filterLanguage !== "all") params.set("language", ui.filterLanguage);
+  if (ui.filterRecency && ui.filterRecency !== "all") params.set("recency", ui.filterRecency);
+  if (ui.filterSort) params.set("sort_by", ui.filterSort);
+  if (!reset && state.discoveryCursor) params.set("cursor", state.discoveryCursor);
+  return api("/stories?" + params.toString()).then(function (page) {
+    if (requestId !== discoveryRequestId || routeAtRequest !== window.location.hash) return;
+    var items = page.items || [];
+    state.stories = reset ? items : (state.stories || []).concat(items);
+    state.discoveryCursor = page.next_cursor || null;
+    state.discoveryHasMore = !!page.has_more;
+    state.genreOptions = page.genres || state.genreOptions || [];
+    state.languageOptions = page.languages || state.languageOptions || [];
+    hydrateGenres();
+  }).catch(function (err) {
+    if (requestId === discoveryRequestId && routeAtRequest === window.location.hash) state.discoveryError = err;
+  }).finally(function () {
+    if (requestId !== discoveryRequestId) return;
+    state.discoveryLoading = false;
+    if (routeAtRequest !== window.location.hash) return;
+    render();
   });
 }
 
@@ -223,12 +391,26 @@ bootstrap();
 
 // ── Events ──
 function bindGlobalEvents() {
-  window.addEventListener("hashchange", function () { ui.currentView = getRoute(); render(); });
+  window.addEventListener("hashchange", function () {
+    ui.currentView = getRoute();
+    if (ui.currentView === "discover") {
+      var changed = syncDiscoverFromUrl();
+      if (changed) {
+        loadDiscoveryPage(true);
+        return;
+      }
+    }
+    render();
+    view.focus();
+  });
   searchInput.addEventListener("input", function () {
     if (ui.currentView !== "discover") { ui.currentView = "discover"; window.location.hash = "discover"; }
-    render();
+    discoveryRequestId += 1;
+    state.discoveryLoading = false;
+    clearTimeout(searchInput._discoverTimer);
+    searchInput._discoverTimer = setTimeout(function () { loadDiscoveryPage(true); }, 250);
   });
-  genreFilter.addEventListener("change", render);
+  genreFilter.addEventListener("change", function () { loadDiscoveryPage(true); });
   view.addEventListener("click", handleViewClick);
   view.addEventListener("input", handleViewInput);
   view.addEventListener("change", handleViewInput);
@@ -332,8 +514,15 @@ function bindAuthEvents() {
     var nav = e.target.closest("[data-action='accountNav']");
     if (nav) {
       closeAccountMenu();
-      ui.currentView = nav.dataset.view;
-      window.location.hash = nav.dataset.view;
+      var viewName = nav.dataset.view;
+      if (viewName === "achievements") {
+        ui.currentView = "profile";
+        ui.profileSubTab = "achievements";
+        window.location.hash = "profile?tab=achievements";
+      } else {
+        ui.currentView = viewName;
+        window.location.hash = viewName;
+      }
       render();
       return;
     }
@@ -372,6 +561,11 @@ function bindAuthEvents() {
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !authModal.hidden) closeAuthModal();
     if (e.key === "Escape" && storyModal && !storyModal.hidden) closeStoryModal();
+    if (e.key === "Escape" && ui.showOnboardingModal) {
+      localStorage.setItem("kathasangam_onboarding_dismissed", "true");
+      ui.showOnboardingModal = false;
+      render();
+    }
     if (e.key === "Escape") {
       closeAccountMenu();
       closeNotificationMenu();
@@ -392,9 +586,26 @@ function bindAuthEvents() {
         toggleFullscreen();
       }
 
+      if (e.key === "Escape") {
+        if (ui.showSettingsDrawer) {
+          ui.showSettingsDrawer = false;
+          var drawer = document.querySelector(".reader-settings-drawer");
+          if (drawer) drawer.classList.remove("active");
+          var btn = document.querySelector(".reader-settings-btn");
+          if (btn) btn.setAttribute("aria-expanded", "false");
+        }
+      }
+
       var story = getCurrentStory();
+      if (!story || !story.id) return;
       var isComic = story.type === "Chitrānk";
-      if (e.key === "ArrowLeft") {
+      if (e.key === "[" || e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        moveChapter(-1);
+      } else if (e.key === "]" || e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        moveChapter(1);
+      } else if (e.key === "ArrowLeft") {
         if (isComic && ui.readerMode === "pages") {
           e.preventDefault();
           moveComicPage(-1);
@@ -416,15 +627,29 @@ function bindAuthEvents() {
 
   document.addEventListener("click", function (e) {
     if (!authArea.contains(e.target)) closeAccountMenu();
+    var rolePicker = document.querySelector(".auth-role-picker");
+    if (rolePicker && !rolePicker.contains(e.target)) {
+      var rolePopup = rolePicker.querySelector(".auth-role-popup");
+      var roleBtn = rolePicker.querySelector(".auth-role-badge-select");
+      if (rolePopup) rolePopup.hidden = true;
+      if (roleBtn) roleBtn.setAttribute("aria-expanded", "false");
+    }
     var notifArea = document.getElementById("heroNotificationArea");
     if (notifArea && !notifArea.contains(e.target)) closeNotificationMenu();
 
     if (ui.showSettingsDrawer) {
       var drawer = document.querySelector(".reader-settings-drawer");
       var comfortBtn = e.target.closest('[data-action="toggleSettingsDrawer"]');
-      if (drawer && !drawer.contains(e.target) && !comfortBtn) {
+      var insideDrawer = e.target.closest(".reader-settings-drawer") || (drawer && drawer.contains(e.target));
+      if (!insideDrawer && !comfortBtn) {
         ui.showSettingsDrawer = false;
-        render();
+        if (drawer) {
+          drawer.classList.remove("active");
+          var btn = document.querySelector(".reader-settings-btn");
+          if (btn) btn.setAttribute("aria-expanded", "false");
+        } else {
+          render();
+        }
       }
     }
   });
@@ -453,9 +678,26 @@ function toggleFullscreen() {
 }
 
 document.addEventListener("fullscreenchange", function () {
+  var isFs = !!document.fullscreenElement;
+  var viewEl = document.getElementById("view");
+  if (viewEl) {
+    if (isFs) viewEl.classList.add("is-fullscreen");
+    else viewEl.classList.remove("is-fullscreen");
+  }
+  var frame = document.querySelector(".reader-frame");
+  if (frame) {
+    if (isFs) {
+      frame.classList.add("is-fullscreen");
+      frame.scrollTop = 0;
+      var rc = frame.querySelector(".reader-content");
+      if (rc) rc.scrollTop = 0;
+    } else {
+      frame.classList.remove("is-fullscreen");
+    }
+  }
   var btn = document.querySelector('[data-action="toggleFullscreen"]');
   if (btn) {
-    btn.textContent = document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen";
+    btn.textContent = isFs ? "Exit Fullscreen" : "Fullscreen";
   }
 });
 
@@ -474,6 +716,7 @@ function handleViewClick(e) {
   // Delegate actions to specific controllers
   if (handleDiscoverClick(ctx, action, target, e)) return;
   if (handleLibraryClick(ctx, action, target, e)) return;
+  if (handleStoryClick(ctx, action, target, e)) return;
   if (handleReaderClick(ctx, action, target, e)) return;
   if (handleStudioClick(ctx, action, target, e)) return;
   if (handleModerationClick(ctx, action, target, e)) return;
@@ -483,7 +726,9 @@ function handleViewClick(e) {
 
 function handleViewInput(e) {
   var action = e.target.dataset.action;
-  if (!action) return;
+  if (!action && !e.target.classList.contains("studio-chapter-search")) return;
+  if (handleStoryInput(ctx, action, e.target, e)) return;
+  if (handleStudioInput(ctx, action, e.target, e)) return;
   if (handleReaderInput(ctx, action, e.target, e)) return;
   if (handleModerationInput(ctx, action, e.target, e)) return;
 }
@@ -500,47 +745,18 @@ function handleViewSubmit(e) {
 function renderEditor() { renderEditorModule(ctx); }
 
 function filteredStories() {
-  var query = searchInput.value.trim().toLowerCase();
-  var genre = genreFilter.value;
-  var results = state.stories.filter(function (s) {
-    var st = (s.status || "").toLowerCase();
-    var hasPublishedChapter = s.chapters && s.chapters.some(function (ch) { return ch.status === "published"; });
-    if ((st === "draft" || st === "unpublished") && !hasPublishedChapter) return false;
-    var hay = [s.title, s.author, s.genre, s.description].join(" ").toLowerCase();
-    var matchesSearch = !query || hay.indexOf(query) !== -1;
-    var matchesGenre = genre === "all" || (s.genre && s.genre.split(",").map(function (g) { return g.trim().toLowerCase(); }).indexOf(genre.toLowerCase()) !== -1);
-    var matchesType = ui.filterType === "all" || s.type === ui.filterType;
-    var matchesStatus = !ui.filterStatus || ui.filterStatus === "all" || (st === ui.filterStatus.toLowerCase() || (ui.filterStatus.toLowerCase() === "ongoing" && (st === "ongoing" || st === "active" || st === "draft")));
-    var matchesLanguage = !ui.filterLanguage || ui.filterLanguage === "all" || (s.language && s.language.toLowerCase() === ui.filterLanguage.toLowerCase());
-    return matchesSearch && matchesGenre && matchesType && matchesStatus && matchesLanguage;
-  });
-
-  if (ui.filterSort === "newest") {
-    results.sort(function (a, b) {
-      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-    });
-  } else if (ui.filterSort === "reads") {
-    results.sort(function (a, b) {
-      return (b.views || 0) - (a.views || 0);
-    });
-  } else if (ui.filterSort === "likes") {
-    results.sort(function (a, b) {
-      return (b.likes || 0) - (a.likes || 0);
-    });
-  } else if (ui.filterSort === "rating") {
-    results.sort(function (a, b) {
-      return parseFloat(calculateStars(b)) - parseFloat(calculateStars(a));
-    });
-  }
-
-  return results;
+  return state.stories || [];
 }
 
 function getCurrentStory() {
-  if (!state.stories) {
-    return { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
+  if (!state.stories || !state.stories.length) {
+    return null;
   }
-  return state.stories.find(function (s) { return s.id === ui.currentStoryId; }) || state.stories[0] || { id: "", title: "", author: "", type: "Web Novel", chapters: [], tags: [], description: "", cover: "", genre: "", language: "", license: "", status: "", followers: 0, views: 0, likes: 0, earnings: 0, progress: 0 };
+  var hash = window.location.hash || "";
+  var params = new URLSearchParams(hash.split("?")[1] || "");
+  var targetId = params.get("id") || params.get("story") || ui.currentStoryId;
+  if (!targetId) return null;
+  return state.stories.find(function (s) { return s.id === targetId; }) || null;
 }
 
 function getCurrentStudioStory() {
@@ -652,6 +868,7 @@ function paginateText(content) {
   if (pages.length === 0) {
     pages.push([{ text: "", align: "left" }]);
   }
+  pages.push([{ isEndCard: true }]);
   return pages;
 }
 
@@ -661,6 +878,10 @@ function moveTextPage(step) {
   var pages = paginateText(chapter.content || []);
   ui.currentTextPageIndex = Math.max(0, Math.min(pages.length - 1, ui.currentTextPageIndex + step));
   render();
+  var rc = document.querySelector(".reader-content");
+  if (rc) rc.scrollTop = 0;
+  var frame = document.querySelector(".reader-frame");
+  if (frame) frame.scrollTop = 0;
   syncCurrentProgress();
 }
 
@@ -673,9 +894,80 @@ function canModerateRole() {
   return ["moderator", "admin"].indexOf(state.role) !== -1;
 }
 
-function notify(message) {
+function notify(message, type, options) {
+  if (typeof type === "object" && type !== null) {
+    options = type;
+    type = options.type;
+  }
+  options = options || {};
+  type = type || options.type;
+
+  if (!type || typeof type !== "string") {
+    var lower = String(message || "").toLowerCase();
+    if (lower.indexOf("fail") !== -1 || lower.indexOf("error") !== -1) {
+      type = "error";
+    } else if (lower.indexOf("success") !== -1 || lower.indexOf("saved") !== -1 || lower.indexOf("restored") !== -1) {
+      type = "success";
+    } else {
+      type = "info";
+    }
+  }
+
+  if (type === "warning") type = "warn";
+  if (["success", "error", "warn", "info"].indexOf(type) === -1) {
+    type = "info";
+  }
+
+  if (!alerts) alerts = document.getElementById("alerts");
+  if (!alerts) return;
+
   alerts.innerHTML = "";
-  alerts.appendChild(el("div", "toast", message));
+  alerts.setAttribute("role", type === "error" ? "alert" : "status");
+  alerts.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
+
+  var toast = document.createElement("div");
+  toast.className = "toast toast-" + type;
+
+  var iconMap = {
+    success: "✓",
+    error: "✕",
+    warn: "⚠",
+    info: "ℹ"
+  };
+
+  var iconSpan = document.createElement("span");
+  iconSpan.className = "toast-icon";
+  iconSpan.setAttribute("aria-hidden", "true");
+  iconSpan.textContent = iconMap[type] || "ℹ";
+  toast.appendChild(iconSpan);
+
+  var msgSpan = document.createElement("span");
+  msgSpan.className = "toast-msg";
+  msgSpan.textContent = message;
+  toast.appendChild(msgSpan);
+
+  if (options && typeof options.onRetry === "function") {
+    var retryBtn = document.createElement("button");
+    retryBtn.type = "button";
+    retryBtn.className = "toast-action-btn";
+    retryBtn.textContent = options.retryText || "Retry";
+    retryBtn.addEventListener("click", function (evt) {
+      evt.stopPropagation();
+      alerts.innerHTML = "";
+      clearTimeout(notify.timer);
+      options.onRetry();
+    });
+    toast.appendChild(retryBtn);
+  }
+
+  alerts.appendChild(toast);
   clearTimeout(notify.timer);
-  notify.timer = setTimeout(function () { alerts.innerHTML = ""; }, 2800);
+
+  var duration = options.duration || (type === "error" || (options && options.onRetry) ? 5000 : 3000);
+  notify.timer = setTimeout(function () {
+    alerts.innerHTML = "";
+  }, duration);
 }
+
+window.notify = notify;
+

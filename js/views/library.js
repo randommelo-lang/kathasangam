@@ -337,17 +337,31 @@ export function populateBookmarks(ctx, container) {
   if (ctx.state.bookmarks && ctx.state.bookmarks.length) {
     container.appendChild(storyGrid(ctx, ctx.state.bookmarks));
   } else {
-    container.appendChild(
-      emptyState(
-        "Your bookmarks shelf is empty",
-        "Bookmark stories from their details pages to save them here for quick access later.",
-        el("button", {
-          class: "btn primary",
-          onclick: function() { window.location.hash = "discover"; }
-        }, "Browse Stories"),
-        "M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z"
-      )
+    var guideContainer = el("div", "empty-state-guide", [
+      el("span", "empty-state-guide-item", [
+        el("span", "icon icon-bell icon-sm"),
+        " Follow: Receive alerts when authors release new chapters"
+      ]),
+      el("span", "empty-state-guide-item", [
+        el("span", "icon icon-bookmark icon-sm"),
+        " Bookmark: Save stories to resume reading anytime"
+      ]),
+      el("span", "empty-state-guide-item", [
+        el("span", "icon icon-playlist icon-sm"),
+        " Playlists: Organize stories into custom collections"
+      ])
+    ]);
+    var emptyEl = emptyState(
+      "Your bookmarks shelf is empty",
+      "Bookmark stories from their details pages to save them here for quick access later across all your devices.",
+      el("button", {
+        class: "btn primary",
+        onclick: function() { window.location.hash = "discover"; }
+      }, "Browse Stories"),
+      "M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z"
     );
+    emptyEl.insertBefore(guideContainer, emptyEl.querySelector("button"));
+    container.appendChild(emptyEl);
   }
 }
 

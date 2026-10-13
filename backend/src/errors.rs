@@ -83,30 +83,41 @@ impl AppError {
     }
 }
 
+// SB-06: internal error details must never reach the client.
+//
+// These conversions previously forwarded `err.to_string()` verbatim into the JSON
+// response body. That leaked Postgres schema details (table/column/constraint names),
+// filesystem paths, and jsonwebtoken token-validation state to any caller, and made
+// the authentication and database layout materially easier to probe. Log the detail
+// server-side; return a generic message to the client.
+
 // Convert from sqlx::Error
 impl From<sqlx::Error> for AppError {
     fn from(err: sqlx::Error) -> Self {
-        AppError::InternalServerError(err.to_string())
+        tracing::error!(error = %err, "database error");
+        AppError::InternalServerError("An internal error occurred.".to_string())
     }
 }
 
 // Convert from std::io::Error
 impl From<std::io::Error> for AppError {
     fn from(err: std::io::Error) -> Self {
-        AppError::InternalServerError(err.to_string())
+        tracing::error!(error = %err, "filesystem error");
+        AppError::InternalServerError("An internal error occurred.".to_string())
     }
 }
 
 // Convert from jsonwebtoken::errors::Error
 impl From<jsonwebtoken::errors::Error> for AppError {
     fn from(err: jsonwebtoken::errors::Error) -> Self {
-        AppError::Unauthorized(err.to_string())
+        tracing::debug!(error = %err, "token validation error");
+        AppError::Unauthorized("Invalid or expired session. Please log in again.".to_string())
     }
 }
 
 // Convert from uuid::Error (useful for parsing ID parameters)
 impl From<uuid::Error> for AppError {
-    fn from(err: uuid::Error) -> Self {
-        AppError::BadRequest(err.to_string())
+    fn from(_err: uuid::Error) -> Self {
+        AppError::BadRequest("Invalid identifier supplied.".to_string())
     }
 }

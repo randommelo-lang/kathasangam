@@ -90,8 +90,6 @@ test('NSFW Content and Age Verification flow', async ({ page }) => {
   // 1. Set age under 18 (e.g. year 2015)
   await page.fill('input[name="date_of_birth"]', '2015-01-01');
   await page.click('button:has-text("Update Preferences")');
-  await page.waitForTimeout(1500);
-
   // Verify NSFW Content settings select says "Hidden (under 18)"
   await expect(page.locator('text=Hidden (under 18)')).toBeVisible();
   await expect(page.locator('select[name="nsfw_preference"]')).not.toBeVisible();
@@ -99,22 +97,22 @@ test('NSFW Content and Age Verification flow', async ({ page }) => {
   // 2. Set age 18+ (e.g. year 1995)
   await page.fill('input[name="date_of_birth"]', '1995-01-01');
   await page.click('button:has-text("Update Preferences")');
-  await page.waitForTimeout(1500);
-
   // Verify NSFW Content select dropdown now appears
   await expect(page.locator('select[name="nsfw_preference"]')).toBeVisible();
   
   // Update to Blur preference
   await page.selectOption('select[name="nsfw_preference"]', 'blur');
   await page.click('button:has-text("Update Preferences")');
-  await page.waitForTimeout(1500);
-
   // Go to Author Studio and Create NSFW Story
   await page.goto('/#studio');
   await page.click('button:has-text("New Story")');
   await page.fill('input[name="title"]', 'NSFW Test Story Title');
   await page.fill('input[name="genre"]', 'Romance');
-  await page.selectOption('select[name="isNsfw"]', 'true');
+  if (await page.locator('select[name="eligibility"]').count() > 0) {
+    await page.selectOption('select[name="eligibility"]', '18+');
+  } else {
+    await page.selectOption('select[name="isNsfw"]', 'true');
+  }
   await page.fill('textarea[name="description"]', 'This is a mature test story.');
   await page.click('form[data-form="storyForm"] button[type="submit"]');
   // Wait for the creation modal to close
@@ -129,8 +127,6 @@ test('NSFW Content and Age Verification flow', async ({ page }) => {
 
   // Go to Discover feed to view it
   await page.goto('/#discover');
-  await page.waitForTimeout(1000);
-
   // Verify our story is rendered
   const storyCard = page.locator('.story-card:has-text("NSFW Test Story Title")');
   await expect(storyCard).toBeVisible();
@@ -143,11 +139,8 @@ test('NSFW Content and Age Verification flow', async ({ page }) => {
   await page.goto('/#settings');
   await page.selectOption('select[name="nsfw_preference"]', 'show');
   await page.click('button:has-text("Update Preferences")');
-  await page.waitForTimeout(1500);
-
   // Verify cover is no longer blurred
   await page.goto('/#discover');
-  await page.waitForTimeout(1000);
   const storyCardShow = page.locator('.story-card:has-text("NSFW Test Story Title")');
   await expect(storyCardShow.locator('.nsfw-blur-overlay')).not.toBeVisible();
 });

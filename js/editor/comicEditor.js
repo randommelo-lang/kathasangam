@@ -1,5 +1,5 @@
 import { button, el, makeCalendarIcon } from "../components.js";
-import { getDraftKey, loadDraft, setupAutosave, showRecoveryBanner } from "./autosave.js";
+import { getDraftKey, loadDraft, setupAutosave, showRecoveryBanner, updateSaveStatus, formatSaveTime } from "./autosave.js";
 import { importComicPdf, importComicImages } from "./importers.js";
 
 function setFormFeedback(message, type) {
@@ -11,6 +11,8 @@ function setFormFeedback(message, type) {
   if (!message) return;
   
   const feedback = el("p", "form-feedback " + (type || "info"), message);
+  feedback.setAttribute("role", type === "error" ? "alert" : "status");
+  feedback.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
   const actionsRow = panel.querySelector(".editor-actions-row");
   if (actionsRow) {
     actionsRow.parentNode.insertBefore(feedback, actionsRow);
@@ -52,12 +54,15 @@ export function saveComicChapter(ctx, title, status, scheduledAt) {
   setFormFeedback("", "");
   const activeAction = status === "published" ? "publishChapter" : "saveChapterDraft";
   setButtonsLoading(true, activeAction);
+  updateSaveStatus("⏳ Saving to cloud...", "saving");
 
   const draftKey = getDraftKey(ctx.ui.editingChapterId);
   ctx.apiPut("/chapters/" + ctx.ui.editingChapterId, payload).then(function () {
     setButtonsLoading(false, activeAction);
-    setFormFeedback("Chapter saved successfully!", "success");
-    ctx.notify("Chapter saved.");
+    const timeStr = formatSaveTime();
+    updateSaveStatus("🟢 Saved to cloud at " + timeStr, "saved");
+    setFormFeedback("Chapter saved successfully at " + timeStr + "!", "success");
+    ctx.notify("Chapter saved at " + timeStr + ".", "success");
     localStorage.removeItem(draftKey);
     return ctx.api("/stories");
   }).then(function (s) {
@@ -69,8 +74,15 @@ export function saveComicChapter(ctx, title, status, scheduledAt) {
     }, 1000);
   }).catch(function (err) {
     setButtonsLoading(false, activeAction);
+    updateSaveStatus("🔴 Error saving to cloud", "error");
     console.error(err);
-    setFormFeedback((err.message || "Failed to save chapter.") + " Please check your input and try again.", "error");
+    var errMsg = err.message || "Failed to save chapter.";
+    setFormFeedback(errMsg + " Please check your input and try again.", "error");
+    ctx.notify(errMsg, "error", {
+      onRetry: function () {
+        saveComicChapter(ctx, title, status, scheduledAt);
+      }
+    });
   });
 }
 
@@ -301,6 +313,7 @@ export function renderComicEditor(ctx, story, chapter) {
   });
 
   const actionsButtons = [];
+  actionsButtons.push(button("Preview", "btn secondary", { action: "previewChapter", id: chapter.id, "aria-label": "Preview chapter" }));
   if (chapter.status === "published") {
     actionsButtons.push(
       button("Update Published", "btn primary orange-glow-btn", { action: "publishChapter" }),
@@ -317,9 +330,14 @@ export function renderComicEditor(ctx, story, chapter) {
 
   const actionsRow = el("div", "editor-actions-row", actionsButtons);
 
+  const saveStatusPill = el("span", { id: "editorSaveStatus", class: "editor-save-status saved" }, "🟢 Saved to cloud");
+
   const editorPanel = el("section", "panel editor-panel", [
     el("div", "editor-header", [
-      el("h2", null, "Chapter Editor"),
+      el("div", { style: "display: flex; align-items: center; gap: 12px;" }, [
+        el("h2", null, "Chapter Editor"),
+        saveStatusPill
+      ]),
       el("span", "mini-meta", "Story: " + story.title + " (Comic Layout Editor)")
     ]),
     banner,

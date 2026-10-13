@@ -27,7 +27,7 @@ pub async fn list_bookmarks(
     .fetch_all(&pool)
     .await?;
 
-    let results = build_story_responses_batch(&pool, &rows, Some(&auth)).await?;
+    let results = build_story_responses_batch(&pool, &rows, Some(auth.user_id)).await?;
     Ok(Json(results))
 }
 

@@ -479,7 +479,6 @@
 :root.light .filter-group select {
   color-scheme: light;
 }
-}
 .filter-toggle-btn.active {
   background: #f36b15 !important;
   color: #fff !important;
@@ -637,6 +636,9 @@
 .icon-trash { mask-image: url('../icons/trash-icon.svg'); -webkit-mask-image: url('../icons/trash-icon.svg'); }
 .icon-bell { mask-image: url('../icons/filled-bell-icon.svg'); -webkit-mask-image: url('../icons/filled-bell-icon.svg'); }
 .icon-bookmark { mask-image: url('../icons/bookmark-icon.svg'); -webkit-mask-image: url('../icons/bookmark-icon.svg'); }
+.icon-playlist { mask-image: url('../icons/playlist.svg'); -webkit-mask-image: url('../icons/playlist.svg'); }
+.icon-warning { mask-image: url('../icons/warning.svg'); -webkit-mask-image: url('../icons/warning.svg'); }
+.icon-error { mask-image: url('../icons/error.svg'); -webkit-mask-image: url('../icons/error.svg'); }
 
 /* ─── Scheduled Publishing ─── */
 .badge-status.scheduled {
@@ -1261,9 +1263,114 @@ h2 svg.icon {
   border-color: var(--line) !important;
 }
 
+:root.light .studio-stat-card {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+:root.light .studio-story-card {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+:root.light .schedule-card {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
 :root.light .studio-chart-table-container {
   background: var(--surface) !important;
   border-color: var(--line) !important;
+}
+
+:root.light .studio-story-switcher-bar {
+  background: var(--surface-3) !important;
+  border-color: var(--line) !important;
+}
+
+:root.light .studio-chapter-tabs {
+  background: var(--surface-3) !important;
+  border-color: var(--line) !important;
+}
+
+:root.light .studio-tab-btn {
+  color: var(--text-muted);
+}
+
+:root.light .studio-tab-btn:hover {
+  color: var(--ink);
+  background: rgba(44, 34, 30, 0.06);
+}
+
+:root.light .studio-tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+:root.light .studio-tab-count {
+  background: rgba(44, 34, 30, 0.1);
+  color: var(--ink);
+}
+
+:root.light .studio-tab-btn.active .studio-tab-count {
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+:root.light .timeline-list::before {
+  background: var(--line) !important;
+}
+
+:root.light .timeline-item {
+  background: var(--surface-3) !important;
+  border-color: var(--line) !important;
+}
+
+:root.light .timeline-item:hover {
+  background: var(--surface-2) !important;
+  border-color: var(--line) !important;
+}
+
+:root.light .chapter-reorder-btn {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+:root.light .studio-story-switcher-select {
+  background-color: var(--surface) !important;
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+  color-scheme: light;
+}
+
+:root.light .studio-story-switcher-select option {
+  background-color: var(--surface) !important;
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+}
+
+:root.light .danger-zone-panel {
+  background: var(--surface) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+:root.light .danger-zone-body {
+  background: var(--surface) !important;
+  border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+:root.light .preview-modal-header,
+:root.light .preview-modal-footer {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+:root.light .studio-chapter-search {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
 }
 
 :root.light .studio-chart-table th {
@@ -1325,6 +1432,475 @@ h2 svg.icon {
   background: #ffffff;
   color: #1f2937;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+/* ─── Guided Story Switcher Bar ─── */
+.studio-story-switcher-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.studio-switcher-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.studio-story-switcher-select {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background-color: rgba(20, 20, 20, 0.9);
+  color: var(--text);
+  cursor: pointer;
+  max-width: 280px;
+}
+
+.studio-switcher-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.studio-switcher-badge.format {
+  background: rgba(243, 107, 21, 0.15);
+  color: var(--accent);
+}
+.studio-switcher-badge.status {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+.studio-switcher-badge.count {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+/* ─── Segmented Chapter Tabs ─── */
+.studio-chapter-tabs {
+  display: flex;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.studio-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.studio-tab-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.studio-tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(243, 107, 21, 0.3);
+}
+
+.studio-tab-count {
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+}
+
+.studio-tab-btn.active .studio-tab-count {
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+/* ─── Chapter Search & Guidance ─── */
+.studio-chapter-search-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.studio-chapter-search {
+  flex: 1;
+  max-width: 320px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.studio-chapter-search:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(243, 107, 21, 0.2);
+}
+
+.studio-reorder-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ─── Chapter Reordering Controls ─── */
+.chapter-reorder-btn {
+  padding: 4px 8px !important;
+  font-size: 0.85rem !important;
+  line-height: 1 !important;
+  min-width: 28px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text) !important;
+  border-radius: 4px !important;
+}
+
+.chapter-reorder-btn:hover:not(:disabled) {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+.chapter-reorder-btn:disabled {
+  opacity: 0.3 !important;
+  cursor: not-allowed !important;
+}
+
+/* ─── Reader-Accurate Chapter Preview Modal ─── */
+.chapter-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.chapter-preview-modal {
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  background: var(--surface, #181818);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+.preview-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.preview-modal-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.preview-modal-header .preview-meta {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.preview-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 40px;
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.preview-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* ─── Danger Zone Panel ─── */
+.danger-zone-panel {
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  background: rgba(239, 68, 68, 0.04) !important;
+  margin-top: 32px;
+}
+
+.danger-zone-header h3 {
+  color: #ef4444;
+  margin: 0 0 4px 0;
+  font-size: 1.1rem;
+}
+
+.danger-zone-header p {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 16px 0;
+}
+
+.danger-zone-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.danger-zone-desc strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #ef4444;
+  margin-bottom: 2px;
+}
+
+.danger-zone-desc p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ─── Editor Persistent Save Status ─── */
+.editor-save-status {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.editor-save-status.saved {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.editor-save-status.unsaved {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.editor-save-status.saving {
+  color: var(--accent);
+  background: rgba(243, 107, 21, 0.12);
+}
+
+.editor-save-status.error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* ─── Studio & Filter Drawer Responsive Breakpoints ─── */
+@media (max-width: 768px) {
+  .studio-header-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .studio-story-switcher-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .studio-story-switcher-select {
+    max-width: 100%;
+    width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .studio-switcher-badge {
+    align-self: flex-start;
+  }
+
+  .studio-btn-row {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .studio-btn-row .btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .studio-chapter-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 6px;
+  }
+
+  .studio-tab-btn {
+    min-height: 44px;
+    padding: 8px 16px;
+    flex-shrink: 0;
+  }
+
+  .studio-chapter-search-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .studio-chapter-search {
+    max-width: 100%;
+    width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .timeline-list {
+    padding-left: 0;
+  }
+
+  .timeline-list::before {
+    display: none;
+  }
+
+  .timeline-badge {
+    position: static;
+    transform: none;
+    margin-bottom: 6px;
+    display: inline-flex;
+  }
+
+  .timeline-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 12px;
+  }
+
+  .timeline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 10px;
+  }
+
+  .timeline-actions .btn {
+    min-height: 40px;
+  }
+
+  .chapter-reorder-btn {
+    min-width: 40px !important;
+    min-height: 40px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .danger-zone-body {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .danger-zone-body .btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .chapter-preview-backdrop {
+    padding: 10px;
+  }
+
+  .chapter-preview-modal {
+    width: calc(100% - 16px);
+    max-height: 92vh;
+    border-radius: 10px;
+  }
+
+  .preview-modal-header {
+    padding: 12px 16px;
+  }
+
+  .preview-modal-body {
+    padding: 18px 16px;
+    font-size: 1rem;
+  }
+
+  .preview-modal-footer {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .preview-modal-footer .btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .filter-drawer {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px 12px;
+  }
+
+  .filter-group select,
+  .filter-group input {
+    width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .analytics-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 }
 
 

@@ -40,3 +40,20 @@ pub async fn update_progress(
 
     Ok(Json(serde_json::json!({ "message": "Progress updated." })))
 }
+
+/// DELETE /api/progress
+pub async fn clear_all_progress(
+    auth: AuthUser,
+    State(pool): State<PgPool>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    sqlx::query("DELETE FROM reading_progress WHERE user_id = $1")
+        .bind(auth.user_id)
+        .execute(&pool)
+        .await?;
+
+    Ok(Json(serde_json::json!({
+        "status": "success",
+        "message": "All reading history and chapter progress have been cleared."
+    })))
+}
+

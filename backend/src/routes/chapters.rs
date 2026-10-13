@@ -9,7 +9,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use chrono::NaiveDateTime;
 
-use crate::db::AuthUser;
+use crate::db::{AuthUser, OptionalAuthUser};
 use crate::models::*;
 use crate::errors::AppError;
 
@@ -60,7 +60,8 @@ async fn verify_story_owner_or_admin(
 
 /// GET /api/stories/:story_id/chapters
 pub async fn list_chapters(
-    auth: Option<AuthUser>,
+    // SB-05: was `Option<AuthUser>`, which turned a banned user into an anonymous one.
+    auth: OptionalAuthUser,
     State(pool): State<PgPool>,
     Path(story_id): Path<Uuid>,
 ) -> Result<Json<Vec<ChapterResponse>>, AppError> {
@@ -72,8 +73,8 @@ pub async fn list_chapters(
     let story_author_id = story.and_then(|s| s.0);
 
     let mut show_all = false;
-    if let Some(ref user) = auth {
-        if Some(user.user_id) == story_author_id {
+    if let Some(uid) = auth.user_id {
+        if Some(uid) == story_author_id {
             show_all = true;
         }
     }
@@ -169,13 +170,16 @@ pub async fn list_chapters(
             let comment_rows = comment_map.remove(&ch.id).unwrap_or_default();
             let comments = comment_rows
                 .into_iter()
-                .map(|(id, user_id, text, username, paragraph_index, parent_id)| CommentResponse {
-                    id,
-                    user_id,
-                    user: username,
-                    text,
-                    paragraph_index,
-                    parent_id,
+                .map(|(id, user_id, text, username, paragraph_index, parent_id)| {
+                    let is_deleted = text == "[deleted]" || user_id.is_none();
+                    CommentResponse {
+                        id,
+                        user_id,
+                        user: if is_deleted { "[deleted]".to_string() } else { username },
+                        text,
+                        paragraph_index,
+                        parent_id,
+                    }
                 })
                 .collect();
 
@@ -263,7 +267,7 @@ pub async fn create_chapter(
         .await?;
 
     if let Some((story_type,)) = story_type {
-        if story_type == "Chitrānk" {
+        if crate::routes::stories::is_chitrank(&story_type) {
             let page_id = Uuid::new_v4();
             sqlx::query("INSERT INTO chapter_pages (id, chapter_id, page_index, label, bg) VALUES ($1,$2,0,'Draft page','linear-gradient(135deg, #263746, #287c76 52%, #f2d492)')")
                 .bind(page_id).bind(ch_id)
@@ -496,7 +500,7 @@ pub async fn update_chapter(
         .fetch_one(&mut *tx)
         .await?;
 
-    if story_type == "Chitrānk" {
+    if crate::routes::stories::is_chitrank(&story_type) {
         // Delete old pages
         sqlx::query("DELETE FROM chapter_pages WHERE chapter_id = $1")
             .bind(chapter_id)
@@ -636,5 +640,37 @@ pub async fn list_scheduled_chapters(
     }).collect();
 
     Ok(Json(result))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ReorderChaptersRequest {
+    pub chapter_ids: Vec<Uuid>,
+}
+
+/// PUT /api/stories/:story_id/chapters/reorder
+pub async fn reorder_chapters(
+    auth: AuthUser,
+    State(pool): State<PgPool>,
+    Path(story_id): Path<Uuid>,
+    Json(body): Json<ReorderChaptersRequest>,
+) -> Result<StatusCode, AppError> {
+    verify_story_owner_or_admin(&pool, auth.user_id, story_id).await?;
+
+    if body.chapter_ids.is_empty() {
+        return Ok(StatusCode::OK);
+    }
+
+    let mut tx = pool.begin().await?;
+    for (order, ch_id) in body.chapter_ids.iter().enumerate() {
+        sqlx::query("UPDATE chapters SET sort_order = $1 WHERE id = $2 AND story_id = $3")
+            .bind(order as i32)
+            .bind(ch_id)
+            .bind(story_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+
+    Ok(StatusCode::OK)
 }
 

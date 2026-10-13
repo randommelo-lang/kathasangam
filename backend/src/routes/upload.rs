@@ -7,6 +7,73 @@ use tokio::io::AsyncWriteExt;
 
 const MAX_UPLOAD_SIZE: usize = 10 * 1024 * 1024; // 10 MB
 
+const VALID_IMAGE_EXTENSIONS: [&str; 5] = ["webp", "png", "jpg", "jpeg", "gif"];
+const STORAGE_BUCKET: &str = "kathasangam";
+
+/// Validates that a stored media reference is one this application could have produced.
+///
+/// SB-08: story `cover` values were previously accepted verbatim and later handed to
+/// [`delete_uploaded_file`], which builds a service-role `DELETE` from whatever follows
+/// `/storage/v1/object/public/` in the URL. An author could therefore set a cover of
+/// `…/public/kathasangam/../<other-bucket>/<file>` and delete arbitrary objects
+/// anywhere in the Supabase project just by deleting or editing their story.
+///
+/// Accepted forms:
+/// * empty — clears the reference
+/// * `/uploads/<file>.<ext>` — local storage
+/// * `<SUPABASE_URL>/storage/v1/object/public/kathasangam/<file>.<ext>`
+/// * a built-in `linear-gradient(...)` placeholder
+///
+/// Rejects any `..`, any additional path separator, any query or fragment, and any
+/// extension outside [`VALID_IMAGE_EXTENSIONS`].
+pub fn is_valid_stored_media_url(url: &str) -> bool {
+    let url = url.trim();
+
+    if url.is_empty() {
+        return true;
+    }
+
+    // Built-in placeholder covers assigned by `random_cover()`.
+    if url.starts_with("linear-gradient(") && url.ends_with(')') {
+        return true;
+    }
+
+    let is_valid_filename = |filename: &str| -> bool {
+        if filename.is_empty()
+            || filename.contains('/')
+            || filename.contains('\\')
+            || filename.contains("..")
+            || filename.contains('?')
+            || filename.contains('#')
+        {
+            return false;
+        }
+        filename
+            .rsplit('.')
+            .next()
+            .map(|ext| VALID_IMAGE_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+            .unwrap_or(false)
+    };
+
+    if let Some(filename) = url.strip_prefix("/uploads/") {
+        return is_valid_filename(filename);
+    }
+
+    if let Ok(supabase_url) = std::env::var("SUPABASE_URL") {
+        if !supabase_url.is_empty() {
+            let prefix = format!(
+                "{}/storage/v1/object/public/{}/",
+                supabase_url, STORAGE_BUCKET
+            );
+            if let Some(filename) = url.strip_prefix(&prefix) {
+                return is_valid_filename(filename);
+            }
+        }
+    }
+
+    false
+}
+
 async fn compress_image_with_bun(
     raw_temp_path: &str,
     compressed_temp_path: &str,
@@ -287,6 +354,35 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
     Err(AppError::bad_request("No file field found in upload request."))
 }
 
+/// Returns true only for `<STORAGE_BUCKET>/<filename>` where `filename` is a single
+/// path segment carrying an allowed image extension.
+///
+/// Rejects traversal segments, backslashes, URL-encoded separators, empty segments,
+/// and any bucket name other than the configured one.
+fn is_safe_storage_object_path(path: &str) -> bool {
+    let (bucket, filename) = match path.split_once('/') {
+        Some(parts) => parts,
+        None => return false,
+    };
+
+    if bucket != STORAGE_BUCKET || filename.is_empty() {
+        return false;
+    }
+    if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
+        return false;
+    }
+    // Reject percent-encoding so `%2e%2e%2f` cannot slip past the literal checks above.
+    if filename.contains('%') {
+        return false;
+    }
+
+    filename
+        .rsplit('.')
+        .next()
+        .map(|ext| VALID_IMAGE_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
 /// Helper to delete a file from either Supabase Storage or local uploads folder based on its URL
 pub async fn delete_uploaded_file(file_url: &str) {
     if file_url.is_empty() {
@@ -306,6 +402,20 @@ pub async fn delete_uploaded_file(file_url: &str) {
                 // we want "kathasangam/some-uuid.webp"
                 if let Some(pos) = file_url.find("/storage/v1/object/public/") {
                     let path_part = &file_url[pos + "/storage/v1/object/public/".len()..];
+
+                    // SB-08 defence in depth: refuse anything that is not exactly
+                    // `<bucket>/<filename>`. This function issues a service-role DELETE,
+                    // so a `..` segment or a different bucket name would authorise
+                    // deleting objects the caller does not own.
+                    if !is_safe_storage_object_path(path_part) {
+                        tracing::warn!(
+                            "Refusing to delete storage object: path {:?} is outside the {} bucket or is not a plain filename",
+                            path_part,
+                            STORAGE_BUCKET
+                        );
+                        return;
+                    }
+
                     let delete_url = format!("{}/storage/v1/object/{}", url, path_part);
 
                     let client = reqwest::Client::new();
@@ -335,8 +445,20 @@ pub async fn delete_uploaded_file(file_url: &str) {
             }
         }
     } else if file_url.starts_with("/uploads/") {
-        // Local file fallback
+        // Local file fallback.
         // E.g., file_url = "/uploads/some-uuid.webp"
+        //
+        // SB-08: the filename was previously passed straight to `remove_file`, so a
+        // value like "/uploads/../../etc/passwd" escaped the uploads directory and
+        // deleted arbitrary files on the host. Validate the whole reference first.
+        if !is_valid_stored_media_url(file_url) {
+            tracing::warn!(
+                "Refusing to delete local upload: {:?} is not a valid stored media reference",
+                file_url
+            );
+            return;
+        }
+
         let relative_path = &file_url[1..]; // "uploads/some-uuid.webp"
         if std::path::Path::new(relative_path).exists() {
             if let Err(e) = tokio::fs::remove_file(relative_path).await {
@@ -348,3 +470,75 @@ pub async fn delete_uploaded_file(file_url: &str) {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // SB-08 regression tests. These lock in the containment that prevents a
+    // service-role storage DELETE or a local remove_file from escaping the bucket.
+
+    #[test]
+    fn rejects_traversal_in_supabase_object_path() {
+        assert!(!is_safe_storage_object_path(
+            "kathasangam/../secrets/private.json"
+        ));
+        assert!(!is_safe_storage_object_path("kathasangam/../../etc/passwd"));
+    }
+
+    #[test]
+    fn rejects_other_buckets() {
+        assert!(!is_safe_storage_object_path("other-bucket/file.webp"));
+        assert!(!is_safe_storage_object_path("../other-bucket/file.webp"));
+    }
+
+    #[test]
+    fn rejects_percent_encoding_and_backslashes() {
+        assert!(!is_safe_storage_object_path("kathasangam/%2e%2e%2fadmin.webp"));
+        assert!(!is_safe_storage_object_path("kathasangam/a\\b.webp"));
+    }
+
+    #[test]
+    fn rejects_extra_path_segments() {
+        assert!(!is_safe_storage_object_path("kathasangam/nested/file.webp"));
+    }
+
+    #[test]
+    fn rejects_disallowed_extension() {
+        assert!(!is_safe_storage_object_path("kathasangam/evil.html"));
+        assert!(!is_safe_storage_object_path("kathasangam/evil.svg"));
+    }
+
+    #[test]
+    fn accepts_plain_image_object() {
+        assert!(is_safe_storage_object_path("kathasangam/6f1c.webp"));
+        assert!(is_safe_storage_object_path("kathasangam/6f1c.PNG"));
+    }
+
+    #[test]
+    fn media_url_validator_accepts_local_uploads() {
+        assert!(is_valid_stored_media_url("/uploads/abc-123.webp"));
+        assert!(is_valid_stored_media_url("/uploads/abc-123.png"));
+    }
+
+    #[test]
+    fn media_url_validator_rejects_traversal() {
+        assert!(!is_valid_stored_media_url("/uploads/../../etc/passwd"));
+        assert!(!is_valid_stored_media_url("/uploads/../secrets.env"));
+        assert!(!is_valid_stored_media_url("/uploads/nested/evil.webp"));
+    }
+
+    #[test]
+    fn media_url_validator_rejects_arbitrary_hosts() {
+        assert!(!is_valid_stored_media_url("https://evil.example/x.webp"));
+        assert!(!is_valid_stored_media_url("https://attacker.supabase.co/storage/v1/object/public/kathasangam/a.webp"));
+    }
+
+    #[test]
+    fn media_url_validator_accepts_placeholder_and_empty() {
+        assert!(is_valid_stored_media_url(""));
+        assert!(is_valid_stored_media_url(
+            "linear-gradient(135deg, #7b3a12 0%, #e57c33 46%, #fdc5a0 47%, #263746 100%)"
+        ));
+    }
+}

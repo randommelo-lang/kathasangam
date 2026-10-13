@@ -1246,7 +1246,7 @@ test.describe('KathaSangam Smoke Tests', () => {
     await expect(likedBtn).toBeVisible();
   });
 
-  test('Forgot password flow with 6-digit OTP code and password reset', async ({ page }) => {
+  test('Forgot password flow with email reset link and password reset', async ({ page }) => {
     setupConsoleLogging(page);
     await page.goto('/');
 
@@ -1264,6 +1264,11 @@ test.describe('KathaSangam Smoke Tests', () => {
     const forgotForm = page.locator('#forgotPasswordForm');
     await expect(forgotForm).toBeVisible();
 
+    // Verify copy does not mention 6-digit recovery code and button says "Send Reset Link"
+    await expect(forgotForm).not.toContainText('6-digit recovery code');
+    const submitBtn = forgotForm.locator('button[type="submit"]');
+    await expect(submitBtn).toHaveText('Send Reset Link');
+
     // Mock the recover API call
     await page.route('**/auth/v1/recover', async route => {
       await route.fulfill({
@@ -1277,18 +1282,24 @@ test.describe('KathaSangam Smoke Tests', () => {
     await page.fill('#forgotPasswordForm input[name="email"]', 'testrecovery@example.com');
     await page.click('#forgotPasswordForm button[type="submit"]');
 
-    // Verify recovery OTP form is visible
-    const otpForm = page.locator('#forgotPasswordOtpForm');
-    await expect(otpForm).toBeVisible();
-    await expect(page.locator('#authSuccess')).toContainText('recovery code has been sent');
+    // Verify confirmation sent state is visible (Check Your Email card)
+    const sentState = page.locator('#forgotPasswordSentState');
+    await expect(sentState).toBeVisible();
+    await expect(sentState.locator('#forgotSentEmail')).toHaveText('testrecovery@example.com');
+    await expect(page.locator('#authModalTitle')).toHaveText('Check Your Email');
 
-    // 5. Enter 6-digit verification code
-    await page.fill('#forgotPasswordOtpForm input[name="code"]', '123456');
-    await page.click('#forgotPasswordOtpForm button[type="submit"]');
+    // 5. Simulate clicking the email reset link by triggering PASSWORD_RECOVERY
+    await page.evaluate(() => {
+      window.supabase.createClient().auth.__triggerAuthStateChange('PASSWORD_RECOVERY', {
+        user: { id: 'test-recovery-user', email: 'testrecovery@example.com' },
+        access_token: 'mock-recovery-token'
+      });
+    });
 
     // Verify reset password form is visible
     const resetForm = page.locator('#resetPasswordForm');
     await expect(resetForm).toBeVisible();
+    await expect(page.locator('#authModalTitle')).toHaveText('Reset Password');
 
     // Mock update user API
     await page.route('**/auth/v1/user', async route => {
@@ -1465,8 +1476,6 @@ test.describe('KathaSangam Smoke Tests', () => {
 
     // 4. Scroll down page
     await page.evaluate(() => window.scrollTo(0, 800));
-    await page.waitForTimeout(300);
-
     // 5. Verify progress line width has increased above 0% and is visible
     await expect(progressLine).toBeVisible();
     const scrolledWidthStr = await progressLine.evaluate(el => el.style.width);
@@ -1520,8 +1529,6 @@ test.describe('KathaSangam Smoke Tests', () => {
 
     // 2. Search for the ongoing story title
     await page.fill('#searchInput', 'Active Adventure Realm');
-    await page.waitForTimeout(200);
-
     // 3. Verify the ongoing story card is visible in Discover results
     const storyCard = page.locator('.story-card', { hasText: 'Active Adventure Realm' });
     await expect(storyCard).toBeVisible();
@@ -1620,7 +1627,6 @@ test.describe('KathaSangam Smoke Tests', () => {
     await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
     await page.fill('#loginForm input[name="password"]', 'Password123!');
     await page.click('#loginForm button[type="submit"]');
-    await page.waitForTimeout(500);
     const notifBtn = page.locator('.hero-bell-btn');
     await expect(notifBtn).toBeVisible();
     await notifBtn.click();
@@ -1656,8 +1662,6 @@ test.describe('KathaSangam Smoke Tests', () => {
     await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
     await page.fill('#loginForm input[name="password"]', 'Password123!');
     await page.click('#loginForm button[type="submit"]');
-    await page.waitForTimeout(500);
-
     const studioLink = page.locator('nav a:has-text("Studio")');
     await expect(studioLink).toBeVisible();
     await studioLink.click();
@@ -1700,8 +1704,6 @@ test.describe('KathaSangam Smoke Tests', () => {
     await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
     await page.fill('#loginForm input[name="password"]', 'Password123!');
     await page.click('#loginForm button[type="submit"]');
-    await page.waitForTimeout(500);
-
     const studioLink = page.locator('nav a:has-text("Studio")');
     await expect(studioLink).toBeVisible();
     await studioLink.click();
@@ -1731,8 +1733,6 @@ test.describe('KathaSangam Smoke Tests', () => {
     await page.fill('#loginForm input[name="email"]', 'testplaywright@example.com');
     await page.fill('#loginForm input[name="password"]', 'Password123!');
     await page.click('#loginForm button[type="submit"]');
-    await page.waitForTimeout(500);
-
     // Open first story
     const storyCard = page.locator('.story-card').first();
     await expect(storyCard).toBeVisible();
@@ -1747,8 +1747,6 @@ test.describe('KathaSangam Smoke Tests', () => {
     const settingsBtn = page.locator('button[data-action="toggleSettingsDrawer"]').first();
     await expect(settingsBtn).toBeVisible();
     await settingsBtn.click();
-    await page.waitForTimeout(200);
-
     // Find and click Fullscreen button
     const fullscreenBtn = page.locator('button[data-action="toggleFullscreen"]').first();
     await expect(fullscreenBtn).toBeVisible();
@@ -1761,8 +1759,6 @@ test.describe('KathaSangam Smoke Tests', () => {
     const nextBtn = page.locator('button[data-action="textPage"][data-step="1"]').first();
     if (await nextBtn.isVisible()) {
       await nextBtn.click();
-      await page.waitForTimeout(200);
-
       // Verify fullscreen element status is unchanged
       const isFullscreenAfter = await page.evaluate(() => !!document.fullscreenElement);
       expect(isFullscreenAfter).toBe(isFullscreenBefore);

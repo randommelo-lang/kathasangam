@@ -1,14 +1,35 @@
 export function handleLibraryClick(ctx, action, target, e) {
   if (action === "follow") {
-    ctx.apiPost("/library/follow", { story_id: target.dataset.id })
-      .then(function (r) {
-        ctx.notify(r.message);
-        return ctx.api("/library/ids");
-      })
-      .then(function (ids) {
-        ctx.state.library = ids;
-        ctx.render();
-      });
+    var storyId = target.dataset.id;
+    if (!storyId) return true;
+
+    var prevLibrary = (ctx.state.library || []).slice();
+    var isFollowing = prevLibrary.indexOf(storyId) !== -1;
+    ctx.state.library = isFollowing
+      ? prevLibrary.filter(function (id) { return id !== storyId; })
+      : prevLibrary.concat([storyId]);
+    ctx.render();
+
+    var doFollow = function () {
+      ctx.apiPost("/library/follow", { story_id: storyId })
+        .then(function (r) {
+          ctx.notify(r.message || (isFollowing ? "Unfollowed story" : "Following story"), "success");
+          return ctx.api("/library/ids");
+        })
+        .then(function (ids) {
+          ctx.state.library = ids;
+          ctx.render();
+        })
+        .catch(function (err) {
+          console.error("Follow toggle failed:", err);
+          ctx.state.library = prevLibrary;
+          ctx.render();
+          ctx.notify("Failed to update library: " + (err.message || "Unknown error") + ". Action reverted.", "error", {
+            onRetry: doFollow
+          });
+        });
+    };
+    doFollow();
     return true;
   }
 
@@ -17,11 +38,15 @@ export function handleLibraryClick(ctx, action, target, e) {
     var sortOrder = Number(target.dataset.sortOrder);
     var notifId = target.dataset.notifId;
     
-    ctx.apiDelete("/notifications/" + notifId).then(function () {
-      ctx.state.notifications = ctx.state.notifications.filter(function (notif) { return notif.id !== notifId; });
-      ctx.updateHeroNotificationUI();
-    }).catch(function (err) {
+    var prevNotifs = (ctx.state.notifications || []).slice();
+    ctx.state.notifications = prevNotifs.filter(function (notif) { return notif.id !== notifId; });
+    ctx.updateHeroNotificationUI();
+
+    ctx.apiDelete("/notifications/" + notifId).catch(function (err) {
       console.error("Failed to delete notification:", err);
+      ctx.state.notifications = prevNotifs;
+      ctx.updateHeroNotificationUI();
+      ctx.notify(err.message || "Failed to dismiss notification.", "error");
     });
 
     var story = ctx.state.stories.find(function (s) { return s.id === storyId; });
@@ -46,15 +71,23 @@ export function handleLibraryClick(ctx, action, target, e) {
 
   if (action === "clearGeneralNotificationFromLibrary") {
     var notifId = target.dataset.notifId;
+    var prevNotifsGeneral = (ctx.state.notifications || []).slice();
+    ctx.state.notifications = prevNotifsGeneral.filter(function (notif) { return notif.id !== notifId; });
+    ctx.updateHeroNotificationUI();
+    ctx.render();
+
     ctx.apiDelete("/notifications/" + notifId).then(function () {
-      ctx.state.notifications = ctx.state.notifications.filter(function (notif) { return notif.id !== notifId; });
-      ctx.updateHeroNotificationUI();
-      ctx.render();
+      ctx.notify("Notification dismissed.", "info");
     }).catch(function (err) {
       console.error("Failed to delete notification:", err);
+      ctx.state.notifications = prevNotifsGeneral;
+      ctx.updateHeroNotificationUI();
+      ctx.render();
+      ctx.notify(err.message || "Failed to dismiss notification.", "error");
     });
     return true;
   }
+
 
   return false;
 }

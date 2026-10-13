@@ -2,7 +2,7 @@
 
 KathaSangam is a web publishing platform for serialized **Web Novels** and **Chitrānk**. Readers can discover, follow, read, bookmark, and discuss stories; authors can write, schedule, and publish chapters; moderators can review reports and manage community safety.
 
-The project is a vanilla JavaScript single-page application backed by a Rust/Axum API. Supabase provides authentication and PostgreSQL, while Meilisearch provides full-text story search.
+The project is a vanilla JavaScript single-page application backed by a Rust/Axum API. Supabase provides authentication and PostgreSQL; PostgreSQL also handles story search, so the application does not require a separate search server.
 
 ## What is included
 
@@ -10,7 +10,7 @@ The project is a vanilla JavaScript single-page application backed by a Rust/Axu
 - Text and Chitrānk readers with scroll/page modes, comfort controls, comments, likes, progress saving, and chapter access states.
 - Author Studio for story metadata, text/Chitrānk chapter editing, file import, draft recovery, scheduling, analytics, collaborators, and internal notes.
 - Library features: followed stories, bookmarks, reading progress, notifications, and reading lists.
-- Community features: public profiles, author follows, direct messages, tips, and reports.
+- Community features: public profiles, author follows, tips, and reports.
 - Moderation tools for report review, bulk actions, audit logs, keyword scans, and user bans.
 - Backend safeguards including JWT validation, role/ownership checks, rate limiting, CORS allowlisting, security headers, structured request logs, and image-upload validation/compression.
 
@@ -22,13 +22,12 @@ Browser SPA (HTML, CSS, ES modules)
             ▼
 Rust Axum API ──────► Supabase PostgreSQL
       │       └─────► Supabase Auth (JWT)
-      ├─────────────► Meilisearch
       └─────────────► local /uploads media directory
 ```
 
-For local development, the backend also serves the frontend files, so the unified local URL is `http://localhost:3000`.
+For local development, the backend also serves the frontend files in debug mode, so the unified local URL is `http://localhost:3000`.
 
-> **Security note:** this combined server is a local-development convenience, not the preferred production boundary. The backend currently serves the frontend from its parent project directory; do not expose a development checkout this way. In production, deploy the static frontend from a dedicated public build directory (or static host) and expose only the API and upload paths from the Rust service. Keep `.env` files, source code, Git metadata, test artifacts, and other non-public files outside any web-served directory.
+In production, the Render static site serves an explicit frontend build directory, and the API service returns 404 for other paths. Keep `.env` files, Git metadata, and test artifacts outside web-served output.
 
 ## Tech stack
 
@@ -37,7 +36,7 @@ For local development, the backend also serves the frontend files, so the unifie
 | Frontend | HTML, CSS, vanilla JavaScript ES modules |
 | Backend | Rust, Axum, Tokio, SQLx |
 | Database and identity | Supabase PostgreSQL and Supabase Auth |
-| Search | Meilisearch |
+| Search | PostgreSQL `ILIKE` queries |
 | Browser tests | Playwright |
 | Deployment configuration | Render |
 
@@ -50,7 +49,7 @@ For local development, the backend also serves the frontend files, so the unifie
 ├── css/                    # feature-oriented stylesheets
 ├── icons/                  # application icons and static visual assets
 ├── backend/
-│   ├── src/                # Axum app, routes, middleware, models, search
+│   ├── src/                # Axum app, routes, middleware, models, PostgreSQL search
 │   ├── migrations/         # PostgreSQL/Supabase schema migrations
 │   └── uploads/            # locally served uploaded media
 ├── tests/                  # Playwright end-to-end tests and helpers
@@ -63,7 +62,6 @@ For local development, the backend also serves the frontend files, so the unifie
 - Node.js 18+ and npm
 - Python 3 for the Playwright test setup helpers
 - A Supabase project with PostgreSQL and Auth configured
-- Meilisearch for production-quality story search (recommended)
 
 ## Configuration
 
@@ -73,7 +71,7 @@ Copy the sanitized template to create your local configuration, then replace eve
 Copy-Item backend/.env.example backend/.env
 ```
 
-See [backend/.env.example](backend/.env.example) for the required API, Supabase, Meilisearch, role, and optional runtime-security variables. Never commit `backend/.env` or its credentials.
+See [backend/.env.example](backend/.env.example) for the required API, Supabase, role, and optional runtime-security variables. Never commit `backend/.env` or its credentials.
 
 `SUPABASE_JWT_SECRET` is named for compatibility with the deployment configuration; the backend uses it as the ES256 PEM decoding key for Supabase access tokens. The API applies the SQL migrations in `backend/migrations/` during startup.
 
@@ -85,7 +83,7 @@ Install the browser-test dependency once:
 npm install
 ```
 
-Start Meilisearch if available, then start the backend from its directory:
+Start the backend from its directory:
 
 ```powershell
 cd backend
@@ -111,7 +109,7 @@ npm run test:headed
 npm run test:ui
 ```
 
-Run the tests only against a safe development or dedicated test Supabase project: they create accounts, stories, bookmarks, reading lists, messages, and NSFW preference data.
+Run the tests only against a safe development or dedicated test Supabase project: they create accounts, stories, bookmarks, reading lists, and NSFW preference data.
 
 ## API overview
 
@@ -121,7 +119,7 @@ All application routes are under `/api`.
 | --- | --- |
 | Stories and chapters | `/stories`, `/stories/:id`, `/stories/:id/chapters`, `/chapters/:id` |
 | Reader interactions | `/comments`, `/progress`, `/bookmarks`, `/library`, `/reading-lists` |
-| Community | `/profiles/:username`, `/follow/user/:id`, `/messages`, `/notifications` |
+| Community | `/profiles/:username`, `/follow/user/:id`, `/notifications` |
 | Author collaboration | `/stories/:id/collaborators`, `/stories/:id/internal-notes` |
 | Moderation | `/reports`, `/moderation/ban`, `/moderation/scan` |
 | Platform | `/config`, `/health`, `/upload/image`, `/stats` |
@@ -136,9 +134,12 @@ Consult `backend/src/main.rs` for the complete route map and `backend/src/models
 
 ## Deployment
 
-- `render.yaml` deploys the Rust API and a static frontend on Render.
+- `render.yaml` deploys the Rust API and a static frontend on Render. Story search uses the existing Supabase PostgreSQL database; there is no additional search service to provision or pay for.
+- The frontend build script publishes only `index.html`, `styles.css`, `css/`, `icons/`, and `js/` into `dist/public/`. The static site serves that allowlisted output; unrecognized URL paths return 404, while the SPA root and API/upload rewrites continue to work.
+- The API service sets `SERVE_FRONTEND=false`; its fallback returns 404 instead of exposing the repository checkout. Local `cargo run` keeps frontend serving enabled in debug mode.
+- Story search uses PostgreSQL case-insensitive matching across titles, author names, descriptions, and tags. Search availability follows the existing database health status.
 
-Keep the API hostname, `ALLOWED_ORIGINS`, Supabase redirect URLs, and Meilisearch settings aligned for each environment.
+Keep the API hostname, `ALLOWED_ORIGINS`, and Supabase redirect URLs aligned for each environment.
 
 ## Open-source acknowledgements
 
@@ -150,7 +151,6 @@ KathaSangam is built with open-source software. We are grateful to the maintaine
 | [SQLx](https://github.com/launchbadge/sqlx), [Serde](https://serde.rs/), [Serde JSON](https://github.com/serde-rs/json), [Chrono](https://github.com/chronotope/chrono), [UUID](https://github.com/uuid-rs/uuid), [Bytes](https://github.com/tokio-rs/bytes) | PostgreSQL access, serialization, time handling, identifiers, and byte buffers |
 | [Reqwest](https://github.com/seanmonstar/reqwest), [jsonwebtoken](https://github.com/Keats/jsonwebtoken), [base64](https://github.com/marshallpierce/rust-base64), [dotenvy](https://github.com/allan2/dotenvy), [Governor](https://github.com/boinkor-net/governor), [Tracing](https://github.com/tokio-rs/tracing) | HTTP client, JWT handling, configuration, rate limiting, and observability |
 | [Supabase](https://supabase.com/) and [supabase-js](https://github.com/supabase/supabase-js) | Authentication, PostgreSQL integration, storage integration, and browser client |
-| [Meilisearch](https://github.com/meilisearch/meilisearch) | Story search indexing and full-text search |
 | [PDF.js](https://github.com/mozilla/pdf.js) | Browser PDF parsing and Chitrānk/text import support |
 | [Mammoth.js](https://github.com/mwilliamson/mammoth.js) | Browser DOCX text extraction for chapter imports |
 | [QRCode.js](https://github.com/davidshimjs/qrcodejs) | Bundled QR-code generation utility |

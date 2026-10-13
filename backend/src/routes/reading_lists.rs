@@ -83,7 +83,25 @@ pub async fn get_reading_list(
     .fetch_all(&pool)
     .await?;
 
-    let stories = build_story_responses_batch(&pool, &rows, Some(&auth)).await?;
+    let mut stories = build_story_responses_batch(&pool, &rows, Some(auth.user_id)).await?;
+
+    // SB-16: get_story (stories.rs) and list_stories both enforce an NSFW gate —
+    // the caller must be the author, or 18+ with an explicit non-"hide" preference.
+    // This route applied no such gate, so NSFW titles, descriptions and covers leaked
+    // to minors, anonymous visitors, and users who set their preference to "hide".
+    let (is_eighteen_plus, nsfw_pref) = (
+        crate::routes::stories::is_user_eighteen_plus(&pool, auth.user_id).await,
+        crate::routes::stories::get_user_nsfw_preference(&pool, auth.user_id).await,
+    );
+    stories.retain(|s| {
+        if s.is_nsfw {
+            let is_author = s.author_id == Some(auth.user_id)
+                || s.collaborators.iter().any(|c| c.user_id == auth.user_id && c.status == "accepted");
+            is_author || (is_eighteen_plus && nsfw_pref != "hide")
+        } else {
+            true
+        }
+    });
 
     Ok(Json(ReadingListDetailResponse {
         id: list_meta.id,

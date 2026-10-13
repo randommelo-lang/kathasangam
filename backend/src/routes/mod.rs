@@ -10,10 +10,8 @@ pub mod tips;
 pub mod upload;
 pub mod progress;
 pub mod health;
-pub mod messages;
 pub mod bookmarks;
 pub mod reading_lists;
 pub mod collaborators;
 pub mod internal_notes;
-
 

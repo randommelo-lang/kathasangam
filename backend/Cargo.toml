@@ -1,6 +1,6 @@
 [package]
 name = "kathasangam-backend"
-version = "0.1.0"
+version = "0.5.0"
 edition = "2021"
 default-run = "kathasangam-backend"
 
@@ -46,7 +46,7 @@ dotenvy = "0.15"
 jsonwebtoken = "9"
 base64 = "0.22"
 
-# HTTP Client for Meilisearch
+# HTTP Client for external services
 reqwest = { version = "0.12", features = ["json"] }
 
 # Rate Limiter
@@ -55,6 +55,5 @@ governor = "0.10.4"
 # Observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-
 
 

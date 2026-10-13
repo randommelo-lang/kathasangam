@@ -1,6 +1,148 @@
 import { saveChapterFromEditor as saveChapterFromEditorModule } from "../editor.js";
+import { importTextFile as importTextFileModule } from "../editor/importers.js";
+import { setFormFeedback, setButtonLoading, formatDateTime } from "../components.js";
 
 export function handleStudioClick(ctx, action, target, e) {
+  if (action === "switchStudioStory") {
+    ctx.ui.currentStoryId = target.value;
+    ctx.render();
+    return true;
+  }
+  if (action === "setStudioChapterTab") {
+    ctx.ui.studioChapterTab = target.dataset.tab;
+    ctx.render();
+    return true;
+  }
+  if (action === "previewChapter") {
+    ctx.ui.previewingChapterId = target.dataset.id;
+    ctx.render();
+    return true;
+  }
+  if (action === "closeChapterPreview") {
+    ctx.ui.previewingChapterId = null;
+    ctx.render();
+    return true;
+  }
+  if (action === "loadMoreStudioChapters") {
+    ctx.ui.studioChapterLimit = (ctx.ui.studioChapterLimit || 30) + 30;
+    ctx.render();
+    return true;
+  }
+  if (action === "moveChapterUp") {
+    var story = ctx.getCurrentStudioStory();
+    if (!story || !story.chapters) return true;
+    var chId = target.dataset.id;
+    var idx = story.chapters.findIndex(function(c) { return c.id === chId; });
+    if (idx > 0) {
+      var prevChapters = story.chapters.slice();
+      var temp = story.chapters[idx];
+      story.chapters[idx] = story.chapters[idx - 1];
+      story.chapters[idx - 1] = temp;
+      var newIds = story.chapters.map(function(c) { return c.id; });
+      ctx.render();
+
+      var doReorderUp = function () {
+        ctx.apiPut("/stories/" + story.id + "/chapters/reorder", { chapter_ids: newIds })
+          .then(function() {
+            ctx.notify("Chapters reordered.", "success");
+            return ctx.api("/stories");
+          })
+          .then(function(s) {
+            ctx.state.stories = s;
+            ctx.render();
+          })
+          .catch(function(err) {
+            console.error("Reorder failed:", err);
+            story.chapters = prevChapters;
+            ctx.render();
+            ctx.notify((err.message || "Failed to reorder chapters.") + " Reverted to previous order.", "error", {
+              onRetry: doReorderUp
+            });
+          });
+      };
+      doReorderUp();
+    }
+    return true;
+  }
+  if (action === "moveChapterDown") {
+    var story = ctx.getCurrentStudioStory();
+    if (!story || !story.chapters) return true;
+    var chId = target.dataset.id;
+    var idx = story.chapters.findIndex(function(c) { return c.id === chId; });
+    if (idx !== -1 && idx < story.chapters.length - 1) {
+      var prevChaptersDown = story.chapters.slice();
+      var tempDown = story.chapters[idx];
+      story.chapters[idx] = story.chapters[idx + 1];
+      story.chapters[idx + 1] = tempDown;
+      var newIdsDown = story.chapters.map(function(c) { return c.id; });
+      ctx.render();
+
+      var doReorderDown = function () {
+        ctx.apiPut("/stories/" + story.id + "/chapters/reorder", { chapter_ids: newIdsDown })
+          .then(function() {
+            ctx.notify("Chapters reordered.", "success");
+            return ctx.api("/stories");
+          })
+          .then(function(s) {
+            ctx.state.stories = s;
+            ctx.render();
+          })
+          .catch(function(err) {
+            console.error("Reorder failed:", err);
+            story.chapters = prevChaptersDown;
+            ctx.render();
+            ctx.notify((err.message || "Failed to reorder chapters.") + " Reverted to previous order.", "error", {
+              onRetry: doReorderDown
+            });
+          });
+      };
+      doReorderDown();
+    }
+    return true;
+  }
+
+  if (action === "importChapterPrompt") {
+    var story = ctx.getCurrentStudioStory();
+    if (!story || !story.id) {
+      ctx.notify("Please select or create a story first.");
+      return true;
+    }
+    var fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".docx,.txt,.pdf";
+    fileInput.onchange = function(evt) {
+      var file = evt.target.files[0];
+      if (!file) return;
+      var baseTitle = file.name.replace(/\.[^/.]+$/, "");
+      ctx.notify("Importing document...");
+      var dummyStatus = { textContent: "" };
+      importTextFileModule(file, dummyStatus, function(paras) {
+        ctx.apiPost("/stories/" + story.id + "/chapters", { title: baseTitle })
+          .then(function(newCh) {
+            var chId = newCh.id || (newCh.data && newCh.data.id);
+            return ctx.apiPut("/chapters/" + chId, {
+              title: baseTitle,
+              content: paras,
+              status: "draft"
+            });
+          })
+          .then(function() {
+            ctx.notify('Chapter "' + baseTitle + '" imported successfully as a draft.');
+            return ctx.api("/stories");
+          })
+          .then(function(s) {
+            ctx.state.stories = s;
+            ctx.render();
+          })
+          .catch(function(err) {
+            console.error(err);
+            ctx.notify(err.message || "Failed to import chapter.");
+          });
+      });
+    };
+    fileInput.click();
+    return true;
+  }
   if (action === "manageStory") {
     ctx.ui.currentStoryId = target.dataset.id;
     ctx.ui.currentView = "studio";
@@ -38,37 +180,50 @@ export function handleStudioClick(ctx, action, target, e) {
       var file = evt.target.files[0];
       if (!file) return;
       
-      ctx.notify("Uploading cover image...");
-      
-      var fd = new FormData();
-      fd.append("file", file);
-      
-      ctx.api("/upload/image", {
-        method: "POST",
-        body: fd
-      }).then(function(resp) {
-        if (!resp || !resp.url) throw new Error("Upload failed");
-        return ctx.apiPut("/stories/" + story.id, { cover: resp.url });
-      }).then(function() {
-        return ctx.api("/stories");
-      }).then(function(s) {
-        ctx.state.stories = s;
-        ctx.notify("Cover image updated successfully!");
-        ctx.render();
-      }).catch(function(err) {
-        console.error(err);
-        if (err.status === 413) {
-          ctx.notify("Upload failed: File is too large (max 5MB).");
-        } else if (err.status === 415) {
-          ctx.notify("Upload failed: Invalid format. Only PNG, JPG, WEBP, and GIF allowed.");
-        } else {
-          ctx.notify(err.message || "Failed to upload cover.");
-        }
-      });
+      var doUpload = function () {
+        ctx.notify("Uploading cover image (0%)...", "info");
+
+        var uploadPromise = ctx.uploadFileWithProgress
+          ? ctx.uploadFileWithProgress("/upload/image", file, function (percent) {
+              ctx.notify("Uploading cover image (" + percent + "%)...", "info");
+            })
+          : (function () {
+              var fd = new FormData();
+              fd.append("file", file);
+              return ctx.api("/upload/image", { method: "POST", body: fd });
+            })();
+
+        uploadPromise.then(function(resp) {
+          if (!resp || !resp.url) throw new Error("Upload failed");
+          ctx.notify("Saving cover...", "info");
+          return ctx.apiPut("/stories/" + story.id, { cover: resp.url });
+        }).then(function() {
+          return ctx.api("/stories");
+        }).then(function(s) {
+          ctx.state.stories = s;
+          ctx.notify("Cover image updated successfully!", "success");
+          ctx.render();
+        }).catch(function(err) {
+          console.error(err);
+          var errMsg = "Failed to upload cover.";
+          if (err.status === 413) {
+            errMsg = "Upload failed: File is too large (max 5MB).";
+          } else if (err.status === 415) {
+            errMsg = "Upload failed: Invalid format. Only PNG, JPG, WEBP, and GIF allowed.";
+          } else if (err.message) {
+            errMsg = err.message;
+          }
+          ctx.notify(errMsg, "error", {
+            onRetry: doUpload
+          });
+        });
+      };
+      doUpload();
     };
     fileInput.click();
     return true;
   }
+
   if (action === "deleteCover") {
     var story = ctx.getCurrentStudioStory();
     if (!story || !story.id) {
@@ -246,7 +401,7 @@ export function handleStudioClick(ctx, action, target, e) {
           closeModal();
           confirmBtn.disabled = false;
           confirmBtn.innerHTML = '<svg class="icon calendar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: middle; display: inline-block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>Confirm Schedule';
-          ctx.notify("Chapter scheduled for " + selectedDate.toLocaleString() + ".");
+          ctx.notify("Chapter scheduled for " + formatDateTime(selectedDate) + ".");
           return ctx.api("/stories");
         }).then(function(s) {
           ctx.state.stories = s;
@@ -275,7 +430,7 @@ export function handleStudioClick(ctx, action, target, e) {
           closeModal();
           confirmBtn.disabled = false;
           confirmBtn.innerHTML = '<svg class="icon calendar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: middle; display: inline-block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>Confirm Schedule';
-          ctx.notify("Chapter scheduled for " + selectedDate.toLocaleString() + ".");
+          ctx.notify("Chapter scheduled for " + formatDateTime(selectedDate) + ".");
           return ctx.api("/stories");
         }).then(function(s) {
           ctx.state.stories = s;
@@ -534,39 +689,6 @@ export function handleStudioClick(ctx, action, target, e) {
   return false;
 }
 
-function setFormFeedback(form, message, type) {
-  if (!form) return;
-  var existing = form.querySelectorAll(".form-feedback");
-  existing.forEach(function (e) { e.remove(); });
-  
-  if (!message) return;
-  
-  var feedback = document.createElement("p");
-  feedback.className = "form-feedback " + (type || "info");
-  feedback.textContent = message;
-  
-  var submitBtn = form.querySelector("button[type='submit']");
-  if (submitBtn) {
-    submitBtn.parentNode.insertBefore(feedback, submitBtn);
-  } else {
-    form.appendChild(feedback);
-  }
-}
-
-function setButtonLoading(btn, isLoading, originalText) {
-  if (!btn) return;
-  if (isLoading) {
-    btn.disabled = true;
-    btn.dataset.originalText = btn.textContent;
-    btn.textContent = originalText || "Saving...";
-  } else {
-    btn.disabled = false;
-    if (btn.dataset.originalText) {
-      btn.textContent = btn.dataset.originalText;
-    }
-  }
-}
-
 export function handleStudioSubmit(ctx, formName, target, e) {
   if (formName === "storyForm") {
     var fd = new FormData(target);
@@ -578,7 +700,10 @@ export function handleStudioSubmit(ctx, formName, target, e) {
     
     setFormFeedback(target, "", "");
 
-    var isNsfw = fd.get("isNsfw") === "true";
+    var eligibility = fd.get("eligibility") || fd.get("content_rating") || (fd.get("isNsfw") === "true" ? "18+" : "All ages");
+    var isNsfw = eligibility === "18+" || fd.get("isNsfw") === "true";
+    var rawTags = (fd.get("tags") || "").split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+    var isPromoted = fd.get("isPromoted") === "true";
 
     if (!title || !genre || !language) {
       setFormFeedback(target, "Title, Genre, and Language are required. Please check your inputs and try again.", "error");
@@ -592,9 +717,12 @@ export function handleStudioSubmit(ctx, formName, target, e) {
       title: title,
       type: type,
       genre: genre,
+      tags: rawTags,
       language: language,
       description: description,
-      isNsfw: isNsfw
+      isNsfw: isNsfw,
+      eligibility: eligibility,
+      isPromoted: isPromoted
     }).then(function (resp) {
       setButtonLoading(submitBtn, false);
       setFormFeedback(target, "Story created successfully!", "success");
@@ -604,10 +732,12 @@ export function handleStudioSubmit(ctx, formName, target, e) {
     }).then(function (s) {
       ctx.state.stories = s;
       ctx.hydrateGenres();
-      setTimeout(function () {
-        ctx.closeStoryModal();
-        ctx.render();
-      }, 1000);
+      ctx.closeStoryModal();
+      if (typeof ctx.recordStoryPublished === "function") {
+        ctx.recordStoryPublished({ type: type, title: title });
+      }
+      ctx.notify("Story created successfully.");
+      ctx.render();
     }).catch(function (err) {
       setButtonLoading(submitBtn, false);
       console.error(err);
@@ -627,7 +757,10 @@ export function handleStudioSubmit(ctx, formName, target, e) {
     
     setFormFeedback(target, "", "");
 
-    var isNsfw = fd.get("isNsfw") === "true";
+    var eligibility = fd.get("eligibility") || fd.get("content_rating") || (fd.get("isNsfw") === "true" ? "18+" : "All ages");
+    var isNsfw = eligibility === "18+" || fd.get("isNsfw") === "true";
+    var rawTags = (fd.get("tags") || "").split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+    var isPromoted = fd.get("isPromoted") === "true";
 
     if (!title || !genre || !language) {
       setFormFeedback(target, "Title, Genre, and Language are required. Please check your inputs and try again.", "error");
@@ -640,11 +773,14 @@ export function handleStudioSubmit(ctx, formName, target, e) {
     ctx.apiPut("/stories/" + storyId, {
       title: title,
       genre: genre,
+      tags: rawTags,
       description: description,
       status: status,
       language: language,
       license: license,
-      isNsfw: isNsfw
+      isNsfw: isNsfw,
+      eligibility: eligibility,
+      isPromoted: isPromoted
     }).then(function (resp) {
       setButtonLoading(submitBtn, false);
       setFormFeedback(target, "Story settings saved successfully!", "success");
@@ -718,6 +854,30 @@ export function handleStudioSubmit(ctx, formName, target, e) {
     }).finally(function () {
       submitBtn.disabled = false;
     });
+    return true;
+  }
+  return false;
+}
+
+var studioChapterSearchTimer = null;
+export function handleStudioInput(ctx, action, target, e) {
+  if (action === "searchStudioChapters" || target.classList.contains("studio-chapter-search")) {
+    var val = target.value;
+    clearTimeout(studioChapterSearchTimer);
+    studioChapterSearchTimer = setTimeout(function () {
+      ctx.ui.studioChapterSearchQuery = val;
+      ctx.render();
+      var searchEl = ctx.view.querySelector(".studio-chapter-search");
+      if (searchEl) {
+        searchEl.focus();
+        searchEl.setSelectionRange(searchEl.value.length, searchEl.value.length);
+      }
+    }, 180);
+    return true;
+  }
+  if (action === "switchStudioStory" || target.dataset.action === "switchStudioStory") {
+    ctx.ui.currentStoryId = target.value;
+    ctx.render();
     return true;
   }
   return false;

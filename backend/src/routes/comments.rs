@@ -6,12 +6,46 @@ use axum::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::db::AuthUser;
+use crate::db::{AuthUser, OptionalAuthUser};
 use crate::models::*;
 use crate::errors::AppError;
 
+/// Returns true when the user holds a moderator or administrator role.
+async fn is_staff(pool: &PgPool, user_id: Uuid) -> bool {
+    let role: Option<(String,)> = sqlx::query_as("SELECT role::text FROM profiles WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .unwrap_or(None);
+    matches!(role, Some((r,)) if r == "admin" || r == "moderator")
+}
+
+/// Rejects access to a chapter that is a draft or is scheduled for a future release.
+/// Used to close SB-09 on the comment route, which previously exposed discussions
+/// attached to unpublished chapters.
+async fn require_published_chapter(_pool: &PgPool, chapter: &ChapterRow) -> Result<(), AppError> {
+    let status = chapter.status.to_lowercase();
+    let scheduled_future = chapter
+        .scheduled_at
+        .map(|at| at > chrono::Utc::now().naive_utc())
+        .unwrap_or(false);
+
+    if status == "published" && !scheduled_future {
+        Ok(())
+    } else {
+        Err(AppError::forbidden(
+            "You do not have permission to view comments on this chapter.",
+        ))
+    }
+}
+
 /// GET /api/chapters/:story_id/:index/comments
 pub async fn list_comments(
+    // SB-09: this route took no `AuthUser` and applied no status filter, so it
+    // returned comments attached to draft and not-yet-published scheduled chapters
+    // to anyone who enumerated (story_id, sort_order). The original audit fixed the
+    // equivalent leak in list_chapters but missed this parallel path.
+    auth: OptionalAuthUser,
     State(pool): State<PgPool>,
     Path((story_id, index)): Path<(Uuid, i64)>,
 ) -> Result<Json<Vec<CommentResponse>>, AppError> {
@@ -22,6 +56,19 @@ pub async fn list_comments(
             .fetch_optional(&pool)
             .await?
             .ok_or_else(|| AppError::not_found("Chapter not found"))?;
+
+    // Only the author, an accepted collaborator, or staff may see an unpublished chapter.
+    if let Some(uid) = auth.user_id {
+        let privileged = crate::routes::collaborators::check_collaborator_access(&pool, uid, story_id)
+            .await
+            .unwrap_or(false)
+            || is_staff(&pool, uid).await;
+        if !privileged {
+            require_published_chapter(&pool, &ch).await?;
+        }
+    } else {
+        require_published_chapter(&pool, &ch).await?;
+    }
 
     let rows: Vec<(Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>)> =
         sqlx::query_as(
@@ -37,13 +84,16 @@ pub async fn list_comments(
 
     Ok(Json(
         rows.into_iter()
-            .map(|(id, user_id, text, username, paragraph_index, parent_id)| CommentResponse {
-                id,
-                user_id,
-                user: username,
-                text,
-                paragraph_index,
-                parent_id,
+            .map(|(id, user_id, text, username, paragraph_index, parent_id)| {
+                let is_deleted = text == "[deleted]" || user_id.is_none();
+                CommentResponse {
+                    id,
+                    user_id,
+                    user: if is_deleted { "[deleted]".to_string() } else { username },
+                    text,
+                    paragraph_index,
+                    parent_id,
+                }
             })
             .collect(),
     ))
@@ -52,7 +102,7 @@ pub async fn list_comments(
 /// POST /api/chapters/:story_id/:index/comments
 pub async fn create_comment(
     State(pool): State<PgPool>,
-    AuthUser { user_id }: AuthUser,
+    AuthUser { user_id, .. }: AuthUser,
     Path((story_id, index)): Path<(Uuid, i64)>,
     Json(body): Json<CreateCommentRequest>,
 ) -> Result<(StatusCode, Json<CommentResponse>), AppError> {
@@ -142,13 +192,13 @@ pub async fn delete_comment(
     Path(comment_id): Path<Uuid>,
     Query(query): Query<DeleteQuery>,
 ) -> Result<StatusCode, AppError> {
-    // 1. Fetch the comment to check user_id and content
-    let comment: Option<(Option<Uuid>, String)> = sqlx::query_as("SELECT user_id, content FROM comments WHERE id = $1")
+    // 1. Fetch the comment to check user_id, content, and parent_id
+    let comment: Option<(Option<Uuid>, String, Option<Uuid>)> = sqlx::query_as("SELECT user_id, content, parent_id FROM comments WHERE id = $1")
         .bind(comment_id)
         .fetch_optional(&pool)
         .await?;
 
-    let (comment_user_id, comment_content) = comment
+    let (comment_user_id, comment_content, comment_parent_id) = comment
         .ok_or_else(|| AppError::not_found("Comment not found"))?;
 
     // 2. Check if current user is the owner
@@ -207,11 +257,33 @@ pub async fn delete_comment(
         }
     }
 
-    // 4. Delete the comment
-    sqlx::query("DELETE FROM comments WHERE id = $1")
-        .bind(comment_id)
-        .execute(&mut *tx)
-        .await?;
+    // 4. Soft-delete if comment has replies so conversation tree is preserved; else hard-delete
+    let reply_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM comments WHERE parent_id = $1"
+    )
+    .bind(comment_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if reply_count.0 > 0 {
+        sqlx::query("UPDATE comments SET content = '[deleted]', user_id = NULL WHERE id = $1")
+            .bind(comment_id)
+            .execute(&mut *tx)
+            .await?;
+    } else {
+        sqlx::query("DELETE FROM comments WHERE id = $1")
+            .bind(comment_id)
+            .execute(&mut *tx)
+            .await?;
+
+        // If parent was soft-deleted and now has no remaining replies, prune it as well
+        if let Some(pid) = comment_parent_id {
+            sqlx::query("DELETE FROM comments WHERE id = $1 AND content = '[deleted]' AND NOT EXISTS (SELECT 1 FROM comments WHERE parent_id = $1)")
+                .bind(pid)
+                .execute(&mut *tx)
+                .await?;
+        }
+    }
 
     tx.commit().await?;
 

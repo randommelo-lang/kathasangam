@@ -1,6 +1,13 @@
 export const state = {
   role: "reader",
   stories: null,
+  discoveryCursor: null,
+  discoveryHasMore: false,
+  discoveryLoading: false,
+  discoveryError: null,
+  discoveryRequestId: 0,
+  genreOptions: [],
+  languageOptions: [],
   library: [],
   reports: [],
   notifications: [],
@@ -14,7 +21,8 @@ export const state = {
   bookmarks: null,
   bookmarkIds: null,
   likedStoryIds: null,
-  readingLists: null
+  readingLists: null,
+  recommendations: null
 };
 
 export const ui = {
@@ -28,6 +36,7 @@ export const ui = {
   filterType: "all",
   filterStatus: "all",
   filterLanguage: "all",
+  filterRecency: "all",
   filterSort: "newest",
   showFilterDrawer: false,
   activeChartMetric: "reads",
@@ -37,9 +46,10 @@ export const ui = {
   readerFont: "sans",
   readerLineHeight: "1.6",
   readerWidth: "800px",
+  comicFit: "standard",
+  comicZoom: 100,
+  storyChapterSearch: "",
+  storyChapterSort: "asc",
   showSettingsDrawer: false,
-  activeLibraryTab: "bookmarks",
-  activeConversationUserId: null,
-  activeConversationUser: null
+  activeLibraryTab: "bookmarks"
 };
-

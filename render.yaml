@@ -18,10 +18,22 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: MEILI_URL
-        value: http://localhost:7700
-      - key: MEILI_MASTER_KEY
+      - key: SERVE_FRONTEND
+        value: "false"
+      # SB-01: never honour mock access tokens in production. The release build
+      # already defaults this to false; set it explicitly so the intent survives
+      # a future change to the debug fallback.
+      - key: ALLOW_MOCK_AUTH
+        value: "false"
+      # SB-12: require a second factor on account deletion, data export and role
+      # changes. Users without an enrolled factor must enrol before those actions.
+      - key: MFA_REQUIRED_FOR_SENSITIVE_ACTIONS
+        value: "true"
+      # SB-10/SB-17: headers such as cf-ipcountry are only believed from these peers.
+      - key: TRUSTED_PROXIES
         sync: false
+      - key: ALLOWED_ORIGINS
+        value: "https://kathasangam-frontend.onrender.com"
       - key: ADMIN_EMAIL
         sync: false
       - key: MODERATOR_EMAILS
@@ -31,7 +43,8 @@ services:
   - type: web
     name: kathasangam-frontend
     runtime: static
-    staticPublishPath: .
+    buildCommand: node scripts/build-frontend.mjs
+    staticPublishPath: ./dist/public
     routes:
       - type: rewrite
         source: /api/*
@@ -40,5 +53,15 @@ services:
         source: /uploads/*
         destination: https://kathasangam-backend.onrender.com/uploads/*
       - type: rewrite
-        source: /*
+        source: /
         destination: /index.html
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.onrender.com https://onrender.com https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; frame-ancestors 'none';"
+      - path: /*.(js|css|png|jpg|jpeg|gif|webp|svg|woff|woff2|ico)
+        name: Cache-Control
+        value: "public, max-age=31536000, immutable"
+      - path: /index.html
+        name: Cache-Control
+        value: "public, max-age=0, must-revalidate"

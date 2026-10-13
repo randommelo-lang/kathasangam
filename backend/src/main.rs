@@ -1,13 +1,13 @@
 mod db;
 mod models;
 mod routes;
-mod search;
 mod middleware;
 pub mod errors;
 
 use std::io;
 
 use axum::{
+    http::StatusCode,
     routing::{get, patch, post, delete, put},
     Router,
 };
@@ -48,9 +48,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let db_url = std::env::var("DATABASE_URL")?;
 
     let pool = PgPoolOptions::new()
-        .max_connections(3)
+        .max_connections(5)
+        .acquire_timeout(std::time::Duration::from_secs(30))
         .connect(&db_url)
-
         .await
         .map_err(|e| io::Error::other(format!("Failed to connect to PostgreSQL: {}", e)))?;
 
@@ -63,18 +63,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .await
         .map_err(|e| io::Error::other(format!("Database migration failed: {}", e)))?;
     tracing::info!("✅ Database migrations completed");
-
-    // Initialize Meilisearch index & backfill asynchronously
-    let pool_clone = pool.clone();
-    tokio::spawn(async move {
-        if let Err(e) = crate::search::init_search_index().await {
-            tracing::error!("⚠️ Meilisearch initialization failed: {}", e);
-        } else if let Err(e) = crate::search::backfill_all_stories(&pool_clone).await {
-            tracing::error!("⚠️ Meilisearch backfill failed: {}", e);
-        } else {
-            tracing::info!("✅ Meilisearch search index synced & ready!");
-        }
-    });
 
     // Auto-publisher: checks every 60 seconds for scheduled chapters
     let publish_pool = pool.clone();
@@ -153,6 +141,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             get(routes::stories::list_stories)
                 .post(routes::stories::create_story),
         )
+        .route(
+            "/stories/recommended",
+            get(routes::stories::recommended_stories),
+        )
 
         .route(
             "/stories/:id",
@@ -167,6 +159,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route(
             "/stories/:id/liked",
             get(routes::stories::check_liked),
+        )
+        .route(
+            "/stories/:id/rate",
+            post(routes::stories::rate_story),
+        )
+        .route(
+            "/stories/:id/rating",
+            get(routes::stories::get_story_rating),
         )
         .route(
             "/stories/:id/view",
@@ -184,6 +184,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             "/stories/:story_id/chapters",
             get(routes::chapters::list_chapters)
                 .post(routes::chapters::create_chapter),
+        )
+        .route(
+            "/stories/:story_id/chapters/reorder",
+            put(routes::chapters::reorder_chapters),
         )
 
         .route(
@@ -299,6 +303,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             "/moderation/scan",
             post(routes::reports::run_text_scan),
         )
+        .route(
+            "/moderation/prune-retention",
+            post(routes::reports::prune_retention_logs),
+        )
 
         // NOTIFICATIONS
         .route(
@@ -315,18 +323,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route(
             "/progress",
             get(routes::progress::get_progress)
-                .post(routes::progress::update_progress),
-        )
-
-        // DIRECT MESSAGES
-        .route(
-            "/messages",
-            get(routes::messages::list_conversations)
-                .post(routes::messages::send_message),
-        )
-        .route(
-            "/messages/:user_id",
-            get(routes::messages::get_message_history),
+                .post(routes::progress::update_progress)
+                .delete(routes::progress::clear_all_progress),
         )
 
         // BOOKMARKS
@@ -376,6 +374,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .delete(routes::profile::delete_profile),
         )
         .route(
+            "/profile/export",
+            get(routes::profile::export_user_data),
+        )
+        .route(
             "/profile/role",
             patch(routes::profile::update_profile_role),
         )
@@ -402,6 +404,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route(
             "/health",
             get(routes::health::health_check),
+        )
+        // Full diagnostics (SB-14): staff-only, exposes version and pool statistics.
+        .route(
+            "/health/details",
+            get(routes::health::health_details),
         )
         .layer(axum::middleware::from_fn_with_state(
             rate_limiter.clone(),
@@ -438,28 +445,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             base_cors.allow_origin(tower_http::cors::AllowOrigin::predicate(
                 move |origin: &axum::http::HeaderValue, _request_parts: &axum::http::request::Parts| {
                     if let Ok(origin_str) = origin.to_str() {
-                        // 1. Check exact match in ALLOWED_ORIGINS
-                        if origins.iter().any(|o| o == origin_str) {
-                            return true;
-                        }
-                        
-                        for o in &origins {
-                            let clean_o = o.trim_start_matches("https://")
-                                .trim_start_matches("http://")
-                                .trim_start_matches("www.");
-                            let clean_origin = origin_str.trim_start_matches("https://")
-                                .trim_start_matches("http://")
-                                .trim_start_matches("www.");
-                            if clean_origin == clean_o {
-                                return true;
-                            }
-                        }
+                        // Origins include their scheme and port; configured entries match exactly.
+                        if origins.iter().any(|o| o == origin_str) { return true; }
                         // 2. Allow local loopback origins
                         if origin_str.starts_with("http://localhost:") || origin_str.starts_with("http://127.0.0.1:") {
-                            return true;
-                        }
-                        // 3. Allow Vercel preview domains
-                        if origin_str.ends_with(".vercel.app") {
                             return true;
                         }
                     }
@@ -471,7 +460,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             base_cors.allow_origin(tower_http::cors::AllowOrigin::predicate(
                 move |origin: &axum::http::HeaderValue, _request_parts: &axum::http::request::Parts| {
                     if let Ok(origin_str) = origin.to_str() {
-                        if origin_str.starts_with("http://localhost:") || origin_str.starts_with("http://127.0.0.1:") || origin_str.ends_with(".vercel.app") {
+                        if origin_str.starts_with("http://localhost:") || origin_str.starts_with("http://127.0.0.1:") {
                             return true;
                         }
                     }
@@ -484,11 +473,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let uploads_service =
         ServeDir::new("uploads");
 
-    let frontend_service =
-        ServeDir::new("..")
-            .append_index_html_on_directories(true);
-
-
     let app = Router::new()
 
         .nest("/api", api)
@@ -498,8 +482,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             uploads_service,
         )
 
-        .fallback_service(frontend_service)
-
         .layer(axum::middleware::from_fn(middleware::security_headers_middleware))
 
         .layer(axum::middleware::from_fn(middleware::request_tracing_middleware))
@@ -507,6 +489,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .layer(cors_layer)
 
         .with_state(pool);
+
+    // The separate Render static site serves the production frontend. Never
+    // let the public API service expose the repository checkout as a fallback.
+    let serve_frontend = std::env::var("SERVE_FRONTEND")
+        .map(|value| value.eq_ignore_ascii_case("true"))
+        .unwrap_or(cfg!(debug_assertions));
+    let app = if serve_frontend {
+        app.fallback_service(ServeDir::new("..").append_index_html_on_directories(true))
+    } else {
+        app.fallback(|| async { StatusCode::NOT_FOUND })
+    };
 
     let addr = "0.0.0.0:3000";
 

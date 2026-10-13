@@ -11,6 +11,8 @@ function setEditorFeedback(message, type) {
   
   const feedback = document.createElement("p");
   feedback.className = "form-feedback " + (type || "info");
+  feedback.setAttribute("role", type === "error" ? "alert" : "status");
+  feedback.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
   feedback.textContent = message;
   
   const actionsRow = panel.querySelector(".editor-actions-row");
@@ -30,6 +32,7 @@ export function saveChapterFromEditor(ctx, status) {
   const newTitle = titleEl.value.trim();
   if (!newTitle) {
     setEditorFeedback("Chapter title cannot be empty. Please check your input and try again.", "error");
+    titleEl.focus();
     return;
   }
 
@@ -37,6 +40,11 @@ export function saveChapterFromEditor(ctx, status) {
   const isComic = story && story.type === "Chitrānk";
 
   if (isComic) {
+    var pages = ctx.ui.editingPages || [];
+    if (status === "published" && (!pages || pages.length === 0)) {
+      setEditorFeedback("Comic chapter must contain at least one page before publishing. Please upload or extract pages.", "error");
+      return;
+    }
     saveComicChapter(ctx, newTitle, status);
   } else {
     const contentEl = document.querySelector(".editor-textarea");
@@ -71,6 +79,12 @@ export function saveChapterFromEditor(ctx, status) {
         paragraphs.push(text);
       }
     });
+
+    if (status === "published" && paragraphs.length === 0) {
+      setEditorFeedback("Chapter content cannot be empty before publishing. Please write some paragraphs first.", "error");
+      contentEl.focus();
+      return;
+    }
 
     saveTextChapter(ctx, newTitle, paragraphs, status);
   }

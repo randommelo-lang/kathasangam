@@ -28,6 +28,8 @@ pub struct StoryRow {
     pub progress: i32,
     pub created_at: NaiveDateTime,
     pub is_nsfw: bool,
+    #[sqlx(default)]
+    pub content_rating: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -55,6 +57,32 @@ pub struct StoryResponse {
     pub collaborators: Vec<CollaboratorResponse>,
     #[serde(rename = "isNsfw")]
     pub is_nsfw: bool,
+    #[serde(rename = "isPromoted", default)]
+    pub is_promoted: bool,
+    #[serde(rename = "content_rating", default)]
+    pub content_rating: String,
+    #[serde(rename = "eligibility", default)]
+    pub eligibility: String,
+    #[serde(default)]
+    pub rating: Option<f64>,
+    #[serde(default)]
+    pub ratings_count: i64,
+    #[serde(default)]
+    pub user_rating: Option<i16>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RateStoryRequest {
+    pub rating: i16,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StoryRatingResponse {
+    pub story_id: Uuid,
+    pub average_rating: f64,
+    pub ratings_count: i64,
+    pub user_rating: Option<i16>,
+    pub distribution: std::collections::BTreeMap<i16, i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,8 +94,13 @@ pub struct CreateStoryRequest {
     pub language: Option<String>,
     pub description: String,
     pub cover: Option<String>,
+    pub tags: Option<Vec<String>>,
     #[serde(rename = "isNsfw")]
     pub is_nsfw: Option<bool>,
+    #[serde(rename = "isPromoted")]
+    pub is_promoted: Option<bool>,
+    pub eligibility: Option<String>,
+    pub content_rating: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,6 +115,10 @@ pub struct UpdateStoryRequest {
     pub tags: Option<Vec<String>>,
     #[serde(rename = "isNsfw")]
     pub is_nsfw: Option<bool>,
+    #[serde(rename = "isPromoted")]
+    pub is_promoted: Option<bool>,
+    pub eligibility: Option<String>,
+    pub content_rating: Option<String>,
 }
 
 
@@ -94,6 +131,29 @@ pub struct StoryQuery {
     pub status: Option<String>,
     pub language: Option<String>,
     pub sort_by: Option<String>,
+    pub recency: Option<String>,
+    pub cursor: Option<String>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StoryPage {
+    pub items: Vec<StoryResponse>,
+    pub genres: Vec<String>,
+    pub languages: Vec<String>,
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RecommendationResponse {
+    pub items: Vec<StoryResponse>,
+    pub headline: String,
+    pub reason: String,
+    #[serde(rename = "isPersonalized")]
+    pub is_personalized: bool,
+    #[serde(rename = "hasEnoughData")]
+    pub has_enough_data: bool,
 }
 
 // ── Chapter ──
@@ -244,7 +304,7 @@ pub struct BulkUpdateReportsRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateReportRequest {
-    pub target_type: String, // "story", "chapter", "comment"
+    pub target_type: String, // "story", "chapter", "comment", "user"
     pub target_id: Uuid,
     pub reason: String,
     pub severity: Option<String>,
@@ -380,36 +440,6 @@ pub struct UpdateProgressRequest {
     pub story_id: Uuid,
     pub chapter_id: Uuid,
     pub page_index: i32,
-}
-
-// ── Direct Messages ──
-
-#[derive(Debug, Serialize, sqlx::FromRow, Clone)]
-pub struct DirectMessageRow {
-    pub id: Uuid,
-    pub sender_id: Uuid,
-    pub sender_name: Option<String>,
-    pub receiver_id: Uuid,
-    pub receiver_name: Option<String>,
-    pub content: String,
-    pub created_at: NaiveDateTime,
-    pub is_read: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SendMessageRequest {
-    pub receiver_id: Uuid,
-    pub content: String,
-}
-
-#[derive(Debug, Serialize, sqlx::FromRow, Clone)]
-pub struct ConversationSummary {
-    pub other_user_id: Uuid,
-    pub other_username: String,
-    pub other_avatar_url: Option<String>,
-    pub last_message: String,
-    pub last_message_at: NaiveDateTime,
-    pub unread_count: i64,
 }
 
 // ── Bookmarks ──

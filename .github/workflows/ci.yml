@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run check:syntax
+      - run: npm run build
+      - run: npm audit --audit-level=high
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - name: Format check (advisory)
+        run: cargo fmt --manifest-path backend/Cargo.toml -- --check || true
+      - name: Clippy (advisory)
+        # Not `-D warnings`: the tree carries pre-existing style debt (type_complexity,
+        # needless borrows) in files unrelated to any change, so blocking on it would
+        # fail every run. This surfaces *new* findings in the job log while the backlog
+        # is worked down. Flip to `-D warnings` once the tree is clean.
+        run: cargo clippy --manifest-path backend/Cargo.toml --all-targets
+      - name: Unit tests
+        run: cargo test --manifest-path backend/Cargo.toml --bin kathasangam-backend
+      - name: Audit dependencies
+        run: cargo install cargo-audit --locked && cargo audit --file backend/Cargo.lock
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test

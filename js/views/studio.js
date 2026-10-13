@@ -1,4 +1,27 @@
-import { analyticsMetricBox, button, el, formatDate, formatDateDDMMYYYY, formatNumber, generateChartData, generateChapterReadsChart, calculateRetentionFunnel, calculateGenreAverages, iconButton, progress, quickActionTile, svgEl, makeCalendarIcon, makeCollaboratorsIcon, makeDiscussionIcon } from "../components.js";
+import {
+  analyticsMetricBox,
+  button,
+  el,
+  formatDate,
+  formatDateDDMMYYYY,
+  formatDateTime,
+  formatNumber,
+  generateChartData,
+  generateChapterReadsChart,
+  calculateRetentionFunnel,
+  calculateGenreAverages,
+  iconButton,
+  normalizeChapterStatus,
+  normalizeStoryStatus,
+  normalizeStoryType,
+  progress,
+  quickActionTile,
+  svgEl,
+  makeCalendarIcon,
+  makeCollaboratorsIcon,
+  makeDiscussionIcon,
+  t
+} from "../components.js";
 import { storyGrid, storyCardSkeleton } from "./shared.js";
 
 export function renderStudio(ctx) {
@@ -55,46 +78,47 @@ export function renderStudio(ctx) {
     ctx.ui.currentStoryId = active.id;
   }
 
-  // 1. Studio Header Toolbar
+  // 1. Studio Header Toolbar with Guided Story Switcher
   var headerBtn = iconButton("New Story", "btn primary orange-glow-btn", { action: "openStoryModal" }, "icon-plus");
-  
-  // Dropdown to switch stories if they have multiple
-  var storySelector = null;
-  if (userStories.length > 1 && active) {
-    storySelector = el("select", "auth-role-badge-select");
-    storySelector.style.marginLeft = "16px";
-    storySelector.style.padding = "6px 12px";
-    storySelector.style.fontSize = "0.9rem";
-    storySelector.style.border = "1px solid rgba(255,255,255,0.15)";
-    storySelector.style.borderRadius = "4px";
-    storySelector.style.backgroundColor = "rgba(25,25,25,0.8)";
-    storySelector.style.color = "var(--text)";
-    
+
+  var switcherElements = [];
+  if (userStories.length > 0 && active) {
+    var storySelector = el("select", "studio-story-switcher-select");
+    storySelector.dataset.action = "switchStudioStory";
+    storySelector.setAttribute("aria-label", "Switch active series");
     userStories.forEach(function (s) {
       var opt = el("option", null, s.title);
       opt.value = s.id;
       opt.selected = (s.id === active.id);
       storySelector.appendChild(opt);
     });
-    
     storySelector.addEventListener("change", function (e) {
       ctx.ui.currentStoryId = e.target.value;
       ctx.render();
     });
+
+    var formatBadge = el("span", "studio-switcher-badge format", active.type || "Web Novel");
+    formatBadge.dataset.type = active.type || "Web Novel";
+    var statusBadge = el("span", "studio-switcher-badge status", active.status || "Ongoing");
+    var chCount = active.chapters ? active.chapters.length : 0;
+    var countBadge = el("span", "studio-switcher-badge count", chCount + (chCount === 1 ? " chapter" : " chapters"));
+
+    var switcherBar = el("div", "studio-story-switcher-bar", [
+      el("span", "studio-switcher-label", "Active Series:"),
+      storySelector,
+      formatBadge,
+      statusBadge,
+      countBadge
+    ]);
+    switcherElements.push(switcherBar);
   }
 
   var headerTitleArea = el("div", null, [
     el("div", null, [
-      el("h2", null, "Studio Overview"),
-      el("p", null, "Manage your series, outline chapters, and track metrics")
+      el("h2", null, "Author Studio"),
+      el("p", null, "Manage your series, outline chapters, and track readership")
     ])
-  ]);
-  if (storySelector) {
-    headerTitleArea.appendChild(el("div", { style: "margin-top: 10px; display: flex; align-items: center;" }, [
-      el("span", { style: "font-size: 0.85rem; color: var(--text-muted);" }, "Active Series:"),
-      storySelector
-    ]));
-  }
+  ].concat(switcherElements));
 
   var headerToolbar = el("div", "studio-header-toolbar", [
     headerTitleArea,
@@ -136,13 +160,16 @@ export function renderStudio(ctx) {
       coverEl.style.background = "linear-gradient(135deg, #333, #111)";
     }
 
+    var normActiveType = normalizeStoryType(active.type);
+    var normActiveStatus = normalizeStoryStatus(active.status);
+
     var activeCard = el("div", "studio-story-active-card", [
       coverEl,
       el("div", "studio-active-details", [
-        el("span", { class: "studio-active-badge", "data-type": active.type }, active.type),
+        el("span", { class: "studio-active-badge", "data-type": normActiveType }, normActiveType),
         el("div", "studio-active-title-row", [
           el("h3", null, active.title),
-          el("span", "studio-status-ongoing", active.status || "Ongoing")
+          el("span", "studio-status-" + normActiveStatus.id, normActiveStatus.label)
         ]),
         el("div", "studio-active-subtitle", "By " + active.author + " · " + (active.genre || "General")),
         el("p", "studio-active-synopsis", active.description || "No description provided."),
@@ -197,87 +224,194 @@ export function renderStudio(ctx) {
         el("div", "studio-btn-row", [
           iconButton("Continue Writing", "btn primary orange-glow-btn", { action: "continueWriting" }, "icon-pencil"),
           iconButton("Edit Settings", "btn", { action: "editStorySettings", id: active.id }, "icon-gear"),
-          iconButton("View Story", "btn", { action: "openStory", id: active.id }, "icon-book"),
-          iconButton("", "btn danger", { action: "deleteStory", id: active.id }, "icon-trash")
+          iconButton("View Story", "btn", { action: "openStory", id: active.id }, "icon-book")
         ])
       ])
     ]);
 
     middleColumnChildren.push(activeCard);
 
-    // Timeline / Chapter Plan
-    var timelineItems = [];
-    if (active.chapters && active.chapters.length) {
-      timelineItems = active.chapters.map(function (ch, i) {
-        var isCurrent = (ctx.ui.currentChapterIndex === i);
-        var itemClass = "timeline-item" + (isCurrent ? " active-chapter" : "");
-        var statusClass = "badge-status " + (ch.status === "published" ? "published" : ch.status === "scheduled" ? "scheduled" : "draft");
-        
-        var pubDate = ch.createdAt || ch.created_at || ch.scheduledAt;
-        var dateLabel = ch.status === "scheduled" && ch.scheduledAt
-          ? "Scheduled " + formatDateDDMMYYYY(ch.scheduledAt)
-          : pubDate
-          ? "Published " + formatDateDDMMYYYY(pubDate)
-          : "Updated recently";
-        var detailParts = [dateLabel + " · " + (ch.access || "Free")];
-        
-        var detailsChildren = [
-          el("strong", null, ch.title),
-          el("span", null, detailParts.join(""))
-        ];
-        
-        // Show scheduled date below title
-        if (ch.status === "scheduled" && ch.scheduledAt) {
-          var schedDate = new Date(ch.scheduledAt);
-          var formatted = schedDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + " at " + schedDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-          detailsChildren.push(el("span", "schedule-date-label", [makeCalendarIcon("icon icon-sm"), " " + formatted]));
-        }
-        
-        // Build action buttons
-        var actionButtons = [
-          el("span", "timeline-words", (ch.words || "0") + " words"),
-          el("span", statusClass, ch.status)
-        ];
-        
-        // Schedule / Reschedule button
-        if (ch.status === "draft" || ch.status === "scheduled") {
-          actionButtons.push(
-            button(ch.status === "scheduled" ? "⏰" : makeCalendarIcon("icon icon-sm"), "btn btn-sm schedule-btn", { action: "openScheduleModal", id: ch.id, scheduledAt: ch.scheduledAt || "", tooltip: ch.status === "scheduled" ? "Reschedule" : "Schedule" })
-          );
-        }
-        // Publish Now button (for draft and scheduled)
-        if (ch.status !== "published") {
-          actionButtons.push(
-            button("▶", "btn btn-sm publish-now-btn", { action: "publishNow", id: ch.id, tooltip: "Publish Now" })
-          );
-        }
-        // Cancel Schedule (for scheduled)
-        if (ch.status === "scheduled") {
-          actionButtons.push(
-            button("✕", "btn btn-sm danger", { action: "cancelSchedule", id: ch.id, tooltip: "Cancel Schedule" })
-          );
-        }
-        
+    // Segmented Chapter Workspace: All, Drafts, Scheduled, Published
+    var activeChapterTab = ctx.ui.studioChapterTab || "all";
+    var allChapters = active.chapters || [];
+    var draftsCount = allChapters.filter(function(c) { return c.status === "draft"; }).length;
+    var scheduledCount = allChapters.filter(function(c) { return c.status === "scheduled"; }).length;
+    var publishedCount = allChapters.filter(function(c) { return c.status === "published"; }).length;
+
+    var tabAllBtn = el("button", "studio-tab-btn" + (activeChapterTab === "all" ? " active" : ""), [
+      el("span", null, "All Chapters"),
+      el("span", "studio-tab-count", String(allChapters.length))
+    ]);
+    tabAllBtn.dataset.action = "setStudioChapterTab";
+    tabAllBtn.dataset.tab = "all";
+
+    var tabDraftsBtn = el("button", "studio-tab-btn" + (activeChapterTab === "draft" ? " active" : ""), [
+      el("span", null, "Drafts"),
+      el("span", "studio-tab-count", String(draftsCount))
+    ]);
+    tabDraftsBtn.dataset.action = "setStudioChapterTab";
+    tabDraftsBtn.dataset.tab = "draft";
+
+    var tabScheduledBtn = el("button", "studio-tab-btn" + (activeChapterTab === "scheduled" ? " active" : ""), [
+      el("span", null, "Scheduled"),
+      el("span", "studio-tab-count", String(scheduledCount))
+    ]);
+    tabScheduledBtn.dataset.action = "setStudioChapterTab";
+    tabScheduledBtn.dataset.tab = "scheduled";
+
+    var tabPublishedBtn = el("button", "studio-tab-btn" + (activeChapterTab === "published" ? " active" : ""), [
+      el("span", null, "Published"),
+      el("span", "studio-tab-count", String(publishedCount))
+    ]);
+    tabPublishedBtn.dataset.action = "setStudioChapterTab";
+    tabPublishedBtn.dataset.tab = "published";
+
+    var tabsBar = el("div", "studio-chapter-tabs", [
+      tabAllBtn,
+      tabDraftsBtn,
+      tabScheduledBtn,
+      tabPublishedBtn
+    ]);
+
+    var searchInput = el("input", "studio-chapter-search");
+    searchInput.type = "search";
+    searchInput.placeholder = "Search chapters by title…";
+    searchInput.value = ctx.ui.studioChapterSearchQuery || "";
+    searchInput.dataset.action = "searchStudioChapters";
+    searchInput.setAttribute("aria-label", "Search chapters");
+
+    var searchRow = el("div", "studio-chapter-search-row", [
+      searchInput,
+      el("span", "studio-reorder-hint", "Use ↑ / ↓ to adjust publication sequence")
+    ]);
+
+    var searchQuery = (ctx.ui.studioChapterSearchQuery || "").trim().toLowerCase();
+    var filteredChapters = allChapters.filter(function (ch) {
+      if (activeChapterTab === "draft" && ch.status !== "draft") return false;
+      if (activeChapterTab === "scheduled" && ch.status !== "scheduled") return false;
+      if (activeChapterTab === "published" && ch.status !== "published") return false;
+      if (searchQuery) {
+        var matchTitle = (ch.title || "").toLowerCase().indexOf(searchQuery) !== -1;
+        var actualIndex = allChapters.indexOf(ch) + 1;
+        var matchIdx = ("chapter " + actualIndex).indexOf(searchQuery) !== -1;
+        return matchTitle || matchIdx;
+      }
+      return true;
+    });
+
+    var studioPageLimit = ctx.ui.studioChapterLimit || 30;
+    var hasMoreStudioChapters = !searchQuery && filteredChapters.length > studioPageLimit;
+    var displayedChapters = hasMoreStudioChapters ? filteredChapters.slice(0, studioPageLimit) : filteredChapters;
+
+    var timelineItems = displayedChapters.map(function (ch) {
+      var actualIndex = allChapters.indexOf(ch);
+      var isCurrent = (ctx.ui.currentChapterIndex === actualIndex);
+      var itemClass = "timeline-item" + (isCurrent ? " active-chapter" : "");
+      var statusClass = "badge-status " + (ch.status === "published" ? "published" : ch.status === "scheduled" ? "scheduled" : "draft");
+
+      var pubDate = ch.createdAt || ch.created_at || ch.scheduledAt;
+      var dateLabel = ch.status === "scheduled" && ch.scheduledAt
+        ? "Scheduled " + formatDateDDMMYYYY(ch.scheduledAt)
+        : pubDate
+        ? "Published " + formatDateDDMMYYYY(pubDate)
+        : "Draft · Updated recently";
+      var detailParts = [dateLabel + " · " + (ch.access || "Free")];
+
+      var detailsChildren = [
+        el("strong", null, ch.title),
+        el("span", null, detailParts.join(""))
+      ];
+
+      if (ch.status === "scheduled" && ch.scheduledAt) {
+        var schedDate = new Date(ch.scheduledAt);
+        var formatted = formatDateTime(schedDate);
+        detailsChildren.push(el("span", "schedule-date-label", [makeCalendarIcon("icon icon-sm"), " " + formatted]));
+      }
+
+      // Reorder buttons
+      var moveUpBtn = button("↑", "btn btn-sm chapter-reorder-btn", {
+        action: "moveChapterUp",
+        id: ch.id,
+        tooltip: "Move up",
+        "aria-label": "Move chapter " + (actualIndex + 1) + " up"
+      }, actualIndex === 0);
+
+      var moveDownBtn = button("↓", "btn btn-sm chapter-reorder-btn", {
+        action: "moveChapterDown",
+        id: ch.id,
+        tooltip: "Move down",
+        "aria-label": "Move chapter " + (actualIndex + 1) + " down"
+      }, actualIndex === allChapters.length - 1);
+
+      var chStatusInfo = normalizeChapterStatus(ch.status);
+      var actionButtons = [
+        moveUpBtn,
+        moveDownBtn,
+        el("span", "timeline-words", (ch.words || "0") + " words"),
+        el("span", statusClass, chStatusInfo.label),
+        iconButton("", "btn btn-sm", { action: "previewChapter", id: ch.id, tooltip: "Preview Chapter", "aria-label": "Preview " + ch.title }, "icon-eye")
+      ];
+
+      if (ch.status === "draft" || ch.status === "scheduled") {
         actionButtons.push(
-          iconButton("", "btn btn-sm", { action: "editChapter", id: ch.id, tooltip: "Edit Chapter" }, "icon-edit"),
-          iconButton("", "btn btn-sm", { action: "openChapter", index: String(i), tooltip: "Read Chapter" }, "icon-book"),
-          iconButton("", "btn btn-sm danger", { action: "deleteChapter", id: ch.id, tooltip: "Delete Chapter" }, "icon-trash")
+          button(ch.status === "scheduled" ? "⏰" : makeCalendarIcon("icon icon-sm"), "btn btn-sm schedule-btn", { action: "openScheduleModal", id: ch.id, scheduledAt: ch.scheduledAt || "", tooltip: ch.status === "scheduled" ? "Reschedule" : "Schedule", "aria-label": "Schedule " + ch.title })
         );
-        
-        return el("li", itemClass, [
-          el("div", "timeline-badge", String(i + 1)),
-          el("div", "timeline-details", detailsChildren),
-          el("div", "timeline-actions", actionButtons)
-        ]);
-      });
+      }
+      if (ch.status !== "published") {
+        actionButtons.push(
+          button("▶", "btn btn-sm publish-now-btn", { action: "publishNow", id: ch.id, tooltip: "Publish Now", "aria-label": "Publish " + ch.title + " now" })
+        );
+      }
+      if (ch.status === "scheduled") {
+        actionButtons.push(
+          button("✕", "btn btn-sm danger", { action: "cancelSchedule", id: ch.id, tooltip: "Cancel Schedule", "aria-label": "Cancel schedule for " + ch.title })
+        );
+      }
+
+      actionButtons.push(
+        iconButton("", "btn btn-sm", { action: "editChapter", id: ch.id, tooltip: "Edit Chapter", "aria-label": "Edit " + ch.title }, "icon-edit"),
+        iconButton("", "btn btn-sm danger", { action: "deleteChapter", id: ch.id, tooltip: "Delete Chapter", "aria-label": "Delete " + ch.title }, "icon-trash")
+      );
+
+      return el("li", itemClass, [
+        el("div", "timeline-badge", String(actualIndex + 1)),
+        el("div", "timeline-details", detailsChildren),
+        el("div", "timeline-actions", actionButtons)
+      ]);
+    });
+
+    if (hasMoreStudioChapters) {
+      var remainingStudio = filteredChapters.length - displayedChapters.length;
+      timelineItems.push(el("li", { class: "studio-pagination-row", style: "list-style: none; padding: 16px; text-align: center;" }, [
+        button("Show more chapters (" + remainingStudio + " remaining)", "btn secondary btn-sm", {
+          action: "loadMoreStudioChapters",
+          "aria-label": "Show more chapters (" + remainingStudio + " remaining)"
+        })
+      ]));
+    }
+
+    var emptyMessage = "No chapters found. Click 'New Chapter' to begin writing!";
+    if (searchQuery) {
+      emptyMessage = "No chapters found matching \"" + searchQuery + "\".";
+    } else if (activeChapterTab === "draft") {
+      emptyMessage = "No draft chapters. Click 'New Chapter' to begin drafting!";
+    } else if (activeChapterTab === "scheduled") {
+      emptyMessage = "No scheduled chapters. Use the Schedule button on a draft to queue it for release.";
+    } else if (activeChapterTab === "published") {
+      emptyMessage = "No published chapters yet. Publish your drafts to make them available to readers.";
     }
 
     var chapterPlanPanel = el("section", "panel", [
       el("div", "toolbar", [
-        el("h2", null, "Chapter Plan Timeline"),
-        iconButton("New Chapter", "btn btn-sm primary", { action: "newChapter" }, "icon-plus")
+        el("h2", null, "Chapter Workspace"),
+        el("div", { style: "display: flex; gap: 8px;" }, [
+          iconButton("Import Document", "btn btn-sm secondary", { action: "importChapterPrompt", "aria-label": "Import chapter from document" }, "icon-document"),
+          iconButton("New Chapter", "btn btn-sm primary", { action: "newChapter" }, "icon-plus")
+        ])
       ]),
-      timelineItems.length ? el("ul", "timeline-list", timelineItems) : el("div", "empty", "No chapters found. Click 'New Chapter' to begin writing!")
+      tabsBar,
+      searchRow,
+      timelineItems.length ? el("ul", "timeline-list", timelineItems) : el("div", "empty", emptyMessage)
     ]);
 
     middleColumnChildren.push(chapterPlanPanel);
@@ -299,7 +433,7 @@ export function renderStudio(ctx) {
         var diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         var diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         var countdown = diffMs > 0 ? (diffDays > 0 ? diffDays + "d " + diffHours + "h" : diffHours + "h") : "Publishing soon...";
-        var formatted = schedDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + " at " + schedDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+        var formatted = formatDateTime(schedDate);
         
         return el("div", "upcoming-schedule-card", [
           el("div", "upcoming-schedule-info", [
@@ -415,7 +549,7 @@ export function renderStudio(ctx) {
 
       // Format date
       var noteDate = new Date(n.createdAt);
-      var formattedDate = noteDate.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + noteDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      var formattedDate = formatDateTime(noteDate);
 
       var chapterBadge = null;
       if (n.chapterId) {
@@ -479,6 +613,21 @@ export function renderStudio(ctx) {
 
     middleColumnChildren.push(collaboratorsPanel);
     middleColumnChildren.push(internalNotesPanel);
+
+    var dangerZonePanel = el("section", "panel danger-zone-panel", [
+      el("div", "danger-zone-header", [
+        el("h3", null, [el("span", "icon icon-warning icon-sm"), " Danger Zone"]),
+        el("p", null, "Destructive actions that cannot be undone.")
+      ]),
+      el("div", "danger-zone-body", [
+        el("div", "danger-zone-desc", [
+          el("strong", null, "Delete Story"),
+          el("p", null, "Permanently delete \"" + active.title + "\" and all of its draft, scheduled, and published chapters.")
+        ]),
+        iconButton("Delete Story", "btn danger delete-story-btn", { action: "deleteStory", id: active.id, "aria-label": "Delete story" }, "icon-trash")
+      ])
+    ]);
+    middleColumnChildren.push(dangerZonePanel);
   } else {
     // Welcome placeholder card for first story
     var welcomeCard = el("section", "panel", [
@@ -636,7 +785,7 @@ export function renderStudio(ctx) {
           var pctText = el("span", "retention-item-pct", pt.retention + "%");
           var rightPartChildren = [pctText];
           if (pt.highDropOff) {
-            rightPartChildren.push(el("span", "badge-status draft retention-alert-badge", "⚠️ High drop-off (>20%)"));
+            rightPartChildren.push(el("span", "badge-status draft retention-alert-badge", [el("span", "icon icon-warning icon-sm"), " High drop-off (>20%)"]));
           }
           var rightPart = el("div", "retention-item-right", rightPartChildren);
 
@@ -878,4 +1027,78 @@ export function renderStudio(ctx) {
   ]);
 
   ctx.view.appendChild(gridLayout);
+
+  // Reader-Accurate Chapter Preview Modal
+  if (ctx.ui.previewingChapterId && active) {
+    var previewCh = active.chapters && active.chapters.find(function(c) { return c.id === ctx.ui.previewingChapterId; });
+    if (previewCh) {
+      ctx.view.appendChild(renderChapterPreviewModal(ctx, active, previewCh));
+    }
+  }
+}
+
+export function renderChapterPreviewModal(ctx, story, chapter) {
+  var isComic = story.type === "Chitrānk";
+  var themeClass = ctx.ui.readerTheme || "dark";
+  var fontClass = "font-" + (ctx.ui.readerFont || "sans");
+
+  var header = el("div", "preview-modal-header", [
+    el("div", null, [
+      el("h3", null, chapter.title || "Untitled Chapter"),
+      el("span", "preview-meta", story.title + " · " + (isComic ? "Chitrānk Comic" : "Web Novel") + " · Reader-Accurate Preview")
+    ]),
+    button("✕", "btn btn-sm", { action: "closeChapterPreview", "aria-label": "Close preview" })
+  ]);
+
+  var body = el("div", "preview-modal-body reader-content " + themeClass + " " + fontClass);
+  body.style.setProperty("--reader-size", (ctx.ui.readerSize || 18) + "px");
+  body.style.setProperty("--reader-line-height", ctx.ui.readerLineHeight || "1.6");
+  body.style.setProperty("--reader-width", ctx.ui.readerWidth || "800px");
+
+  if (isComic && chapter.pages && chapter.pages.length) {
+    chapter.pages.forEach(function(p, pIdx) {
+      var raw = p.bg || p.image_url || "";
+      if (raw.startsWith("url('") || raw.startsWith('url("')) {
+        raw = raw.replace(/^url\(["']?/, "").replace(/["']?\)$/, "");
+      }
+      var img = el("img", {
+        class: "comic-page-img scroll-img loaded",
+        src: raw,
+        alt: p.label || ("Page " + (pIdx + 1)),
+        style: "max-width: 100%; display: block; margin: 0 auto 16px auto; border-radius: 4px;"
+      });
+      body.appendChild(img);
+    });
+  } else if (chapter.content && chapter.content.length) {
+    chapter.content.forEach(function(para) {
+      var align = "left";
+      var clean = para;
+      if (para.startsWith("[center]")) { align = "center"; clean = para.substring(8); }
+      else if (para.startsWith("[right]")) { align = "right"; clean = para.substring(7); }
+      else if (para.startsWith("[left]")) { align = "left"; clean = para.substring(6); }
+      var p = el("p", null, clean);
+      p.classList.add("align-" + align);
+      body.appendChild(p);
+    });
+  } else {
+    body.appendChild(el("p", { style: "color: var(--text-muted); font-style: italic; text-align: center; margin-top: 40px;" }, "This chapter has no content written yet."));
+  }
+
+  var footer = el("div", "preview-modal-footer", [
+    button("Close Preview", "btn", { action: "closeChapterPreview" }),
+    button("Edit Chapter", "btn primary orange-glow-btn", { action: "editChapter", id: chapter.id })
+  ]);
+
+  var modal = el("div", "chapter-preview-modal", [header, body, footer]);
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-label", "Reader Preview");
+  modal.setAttribute("aria-modal", "true");
+  var backdrop = el("div", "chapter-preview-backdrop", [modal]);
+  backdrop.addEventListener("click", function(e) {
+    if (e.target === backdrop) {
+      ctx.ui.previewingChapterId = null;
+      ctx.render();
+    }
+  });
+  return backdrop;
 }

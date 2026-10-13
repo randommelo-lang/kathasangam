@@ -16,6 +16,45 @@ use std::time::Duration;
 pub struct RateLimiter {
     upload_limiter: GovRateLimiter<String, DefaultKeyedStateStore<String>, DefaultClock>,
     general_limiter: GovRateLimiter<String, DefaultKeyedStateStore<String>, DefaultClock>,
+    // SB-17: per-account limits. The IP-keyed limiters alone mean one IP cannot be
+    // individually throttled and a distributed botnet throttles only itself. Keying
+    // additionally on the authenticated subject bounds a single account's activity
+    // regardless of how many source addresses it rotates through.
+    account_limiter: GovRateLimiter<String, DefaultKeyedStateStore<String>, DefaultClock>,
+    write_limiter: GovRateLimiter<String, DefaultKeyedStateStore<String>, DefaultClock>,
+}
+
+/// Paths that mutate state, subject to the stricter per-account write quota.
+fn is_mutating_path(method: &axum::http::Method, path: &str) -> bool {
+    const MUTATING_METHODS: [axum::http::Method; 4] = [
+        axum::http::Method::POST,
+        axum::http::Method::PUT,
+        axum::http::Method::PATCH,
+        axum::http::Method::DELETE,
+    ];
+    MUTATING_METHODS.contains(method) && !path.contains("/view")
+}
+
+/// Extracts a stable per-account key without verifying the token.
+///
+/// SB-17: this reads the `sub` claim without checking the signature. That is safe for
+/// rate-limiting purposes only — a forged `sub` yields the attacker's own bucket, never
+/// someone else's — and it keeps the limiter off the database hot path. It must never
+/// be used for an authorization decision.
+fn account_key(headers: &HeaderMap) -> Option<String> {
+    let header = headers.get(axum::http::header::AUTHORIZATION)?.to_str().ok()?;
+    let token = header.strip_prefix("Bearer ")?.trim();
+    if token.is_empty() {
+        return None;
+    }
+
+    let mut payload_segment = token.split('.').nth(1)?.to_string();
+    payload_segment.push_str("==");
+    let decoded = base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, payload_segment).ok()?;
+    let claims: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+    let sub = claims.get("sub")?.as_str()?;
+
+    Some(sub.to_string())
 }
 
 impl RateLimiter {
@@ -26,10 +65,20 @@ impl RateLimiter {
         let general_quota = Quota::per_minute(
             NonZeroU32::new(100).unwrap_or(NonZeroU32::MIN),
         );
+        // Per-account budgets, deliberately looser than the per-IP ceiling so a shared
+        // NAT (a campus, a mobile carrier) does not exhaust a legitimate user's quota.
+        let account_quota = Quota::per_minute(
+            NonZeroU32::new(600).unwrap_or(NonZeroU32::MIN),
+        );
+        let write_quota = Quota::per_minute(
+            NonZeroU32::new(120).unwrap_or(NonZeroU32::MIN),
+        );
 
         let limiter = Arc::new(Self {
             upload_limiter: GovRateLimiter::keyed(upload_quota),
             general_limiter: GovRateLimiter::keyed(general_quota),
+            account_limiter: GovRateLimiter::keyed(account_quota),
+            write_limiter: GovRateLimiter::keyed(write_quota),
         });
 
         // Spawn a background task to prune stale entries every 10 minutes (600 seconds)
@@ -39,11 +88,26 @@ impl RateLimiter {
                 tokio::time::sleep(Duration::from_secs(600)).await;
                 limiter_clone.upload_limiter.retain_recent();
                 limiter_clone.general_limiter.retain_recent();
+                limiter_clone.account_limiter.retain_recent();
+                limiter_clone.write_limiter.retain_recent();
             }
         });
 
         limiter
     }
+}
+
+/// Reads a proxy-supplied header (e.g. `cf-ipcountry`) only when the immediate peer is
+/// a trusted proxy. Returns `None` otherwise, so a direct caller cannot forge it.
+pub fn trusted_proxy_header(headers: &HeaderMap, socket_addr: SocketAddr, name: &str) -> Option<String> {
+    if !is_trusted_proxy_ip(&socket_addr.ip()) {
+        return None;
+    }
+    headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 fn is_trusted_proxy_ip(ip: &std::net::IpAddr) -> bool {
@@ -101,6 +165,7 @@ pub async fn rate_limit_middleware(
     // Resolve client IP (trusting headers only from known proxies)
     let ip = resolve_client_ip(&headers, addr);
 
+    let method = request.method().clone();
     let path = request.uri().path();
 
     // Check key against the appropriate limiter
@@ -113,6 +178,27 @@ pub async fn rate_limit_middleware(
     if !allowed {
         tracing::warn!("Rate limit exceeded for IP: {} on path: {}", ip, path);
         return Err(AppError::too_many_requests("Too many requests. Please try again later."));
+    }
+
+    // SB-17: per-account limits, applied on top of the per-IP ceiling.
+    if let Some(account) = account_key(&headers) {
+        let exceeded = if is_mutating_path(&method, path) {
+            limiter.write_limiter.check_key(&account).is_err()
+        } else {
+            limiter.account_limiter.check_key(&account).is_err()
+        };
+
+        if exceeded {
+            tracing::warn!(
+                "Rate limit exceeded for account {} on {} {}",
+                account,
+                method.as_str(),
+                path
+            );
+            return Err(AppError::too_many_requests(
+                "Too many requests. Please try again later.",
+            ));
+        }
     }
 
     Ok(next.run(request).await)
@@ -157,11 +243,27 @@ pub async fn request_tracing_middleware(
             response.headers_mut().insert("x-request-id", val);
         }
 
-        tracing::info!(
-            status = %status.as_u16(),
-            latency_ms = %latency.as_millis(),
-            "HTTP request processed"
-        );
+        let latency_ms = latency.as_millis();
+
+        if status.is_server_error() {
+            tracing::error!(
+                status = %status.as_u16(),
+                latency_ms = %latency_ms,
+                "HTTP 5xx Server Error"
+            );
+        } else if latency_ms > 1000 {
+            tracing::warn!(
+                status = %status.as_u16(),
+                latency_ms = %latency_ms,
+                "Slow HTTP request (>1000ms)"
+            );
+        } else {
+            tracing::info!(
+                status = %status.as_u16(),
+                latency_ms = %latency_ms,
+                "HTTP request processed"
+            );
+        }
 
         response
     }
@@ -173,17 +275,17 @@ pub async fn security_headers_middleware(
     request: Request,
     next: Next,
 ) -> Response {
+    let path = request.uri().path().to_string();
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
 
     let csp_val = "default-src 'self'; \
                    script-src 'self'; \
                    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                   font-src 'self' https://fonts.gstatic.com; \
-                   img-src 'self' data: https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.onrender.com https://onrender.com https:; \
-                   connect-src 'self' https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.onrender.com https://onrender.com; \
+                   font-src 'self' https://fonts.gstatic.com data:; \
+                   img-src 'self' data: blob: https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.onrender.com https://onrender.com https:; \
+                   connect-src 'self' https://*.supabase.co wss://*.supabase.co; \
                    worker-src 'self' blob:; \
-                   child-src 'self' blob:; \
                    frame-ancestors 'none';";
 
     if let Ok(val) = axum::http::HeaderValue::from_str(csp_val) {
@@ -202,6 +304,16 @@ pub async fn security_headers_middleware(
         headers.insert(axum::http::header::REFERRER_POLICY, val);
     }
 
+    // Static asset caching for uploads and stable public files
+    if path.starts_with("/uploads/") {
+        if let Ok(val) = axum::http::HeaderValue::from_str("public, max-age=86400, stale-while-revalidate=604800") {
+            headers.insert(axum::http::header::CACHE_CONTROL, val);
+        }
+    } else if path.ends_with(".js") || path.ends_with(".css") || path.ends_with(".woff2") || path.ends_with(".webp") || path.ends_with(".png") || path.ends_with(".jpg") || path.ends_with(".svg") {
+        if let Ok(val) = axum::http::HeaderValue::from_str("public, max-age=31536000, immutable") {
+            headers.insert(axum::http::header::CACHE_CONTROL, val);
+        }
+    }
+
     response
 }
-

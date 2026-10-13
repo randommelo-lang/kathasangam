@@ -125,7 +125,7 @@ export function updateHeroNotificationUI() {
       if (ctx && ctx.closeAccountMenu) {
         ctx.closeAccountMenu();
       } else {
-        var menu = document.querySelector(".account-dropdown");
+        var menu = /** @type {HTMLElement | null} */ (document.querySelector(".account-dropdown"));
         if (menu) menu.hidden = true;
       }
       dropdown.hidden = !isHidden;
@@ -138,7 +138,7 @@ export function updateHeroNotificationUI() {
 }
 
 export function closeNotificationMenu() {
-  var dropdown = document.querySelector(".notification-dropdown");
+  var dropdown = /** @type {HTMLElement | null} */ (document.querySelector(".notification-dropdown"));
   if (dropdown) dropdown.hidden = true;
 }
 

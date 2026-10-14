@@ -33,7 +33,7 @@ services:
       - key: TRUSTED_PROXIES
         sync: false
       - key: ALLOWED_ORIGINS
-        value: "https://kathasangam-frontend.onrender.com"
+        value: "https://kathasangam-frontend.onrender.com,https://kathasangam.co.in,https://www.kathasangam.co.in"
       - key: ADMIN_EMAIL
         sync: false
       - key: MODERATOR_EMAILS

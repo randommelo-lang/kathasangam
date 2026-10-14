@@ -1,0 +1,10 @@
+# Configuration for cargo-audit (RustSec Advisory Database)
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071: Marvin Attack timing sidechannels in rsa 0.9.10.
+    # Transitive dependency of sqlx-macros-core -> sqlx-mysql.
+    # KathaSangam uses PostgreSQL; MySQL RSA routines are never executed at runtime.
+    # No upstream fix is available for the 0.9.x release series.
+    "RUSTSEC-2023-0071",
+]

@@ -42,7 +42,7 @@ jobs:
       - name: Unit tests
         run: cargo test --manifest-path backend/Cargo.toml --bin kathasangam-backend
       - name: Audit dependencies
-        run: cargo install cargo-audit --locked && cargo audit --file backend/Cargo.lock
+        run: cargo install cargo-audit --locked && cargo audit --file backend/Cargo.lock --ignore RUSTSEC-2023-0071
 
   browser:
     runs-on: ubuntu-latest

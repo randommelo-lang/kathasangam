@@ -261,10 +261,56 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             post(routes::library::toggle_follow),
         )
 
-        // TIPS
+        // TIPS & RAZORPAY
         .route(
             "/stories/:id/tip",
-            post(routes::tips::tip_story),
+            post(routes::tips::create_tip_order),
+        )
+        .route(
+            "/stories/:id/tip/order",
+            post(routes::tips::create_tip_order),
+        )
+        .route(
+            "/stories/:id/tip/verify",
+            post(routes::tips::verify_tip),
+        )
+        .route(
+            "/stories/:id/tips",
+            get(routes::tips::get_story_tips),
+        )
+        .route(
+            "/author/tips",
+            get(routes::tips::get_author_tips),
+        )
+
+        // CREATOR WALLET & PAYOUTS
+        .route(
+            "/wallet",
+            get(routes::wallet::get_wallet),
+        )
+        .route(
+            "/wallet/transactions",
+            get(routes::wallet::get_wallet_transactions),
+        )
+        .route(
+            "/wallet/payout-upi",
+            put(routes::wallet::update_payout_upi),
+        )
+        .route(
+            "/wallet/payout-request",
+            post(routes::wallet::request_payout),
+        )
+        .route(
+            "/admin/payouts",
+            get(routes::wallet::list_admin_payouts),
+        )
+        .route(
+            "/admin/payouts/:id/complete",
+            post(routes::wallet::complete_admin_payout),
+        )
+        .route(
+            "/admin/payouts/:id/reject",
+            post(routes::wallet::reject_admin_payout),
         )
 
         // REPORTS
@@ -315,8 +361,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .delete(routes::notifications::clear_all_notifications),
         )
         .route(
+            "/notifications/read-all",
+            patch(routes::notifications::mark_all_read),
+        )
+        .route(
             "/notifications/:id",
             delete(routes::notifications::delete_notification),
+        )
+        .route(
+            "/notifications/:id/read",
+            patch(routes::notifications::mark_notification_read),
         )
 
         // PROGRESS

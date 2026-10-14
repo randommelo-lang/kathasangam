@@ -5,6 +5,49 @@ All notable changes to the KathaSangam platform are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.5] - 2026-10-14
+
+### Added
+- **Dedicated About Section (`#about`)**:
+  - Continuous single-page markdown document layout highlighting platform vision across India and regional literature.
+  - Interactive Table of Contents bar (`.about-toc-bar`) with smooth scrolling to sections (`#mission-vision`, `#platform-guide`, `#rules-guidelines`, `#open-source-stack`, `#community-channels`).
+  - Section 01: Mission & Vision for serialized fiction and dual formats (Web Novels & Chitrānk webcomics).
+  - Section 02: Platform Guide covering reader comfort, library playlists, author studio, creator tipping, and community safety.
+  - Section 03: Standards & Community Guidelines emphasizing 100% creator IP/copyright ownership, mandatory NSFW content rating tags, and civil discussions.
+  - Section 04: Open Source Technology Stack acknowledging Rust, Axum, Tokio, SQLx, PostgreSQL, Supabase, Mammoth.js, PDF.js, Inter, JetBrains Mono, and [itshover](https://github.com/itshover/itshover).
+  - Section 05: Official Community & Social Media Channels with dedicated redirect cards and external links.
+  - Discover toolbar icon-only About SVG button (`i` inside a circle) in both loaded and skeleton states.
+  - First-time visitor welcome modal with India-focused mission and community channels strip.
+- **Creator Wallet & Razorpay Tipping System**:
+  - Full **Creator Wallet (`#wallet`)** dashboard displaying available balance, total net earnings, total withdrawn, and transparent 5% platform fee note.
+  - Razorpay payment gateway integration supporting UPI, RuPay, and Cards with simulated and production verification.
+  - Story and reader donation modal with preset chips (₹50, ₹100, ₹250, ₹500, Custom) and end-of-chapter tip callout.
+  - Supporter badge displayed in chapter discussions and user profiles for tipping readers.
+  - Direct UPI payout request flow with minimum withdrawal threshold validation and destination UPI ID setting.
+  - Transaction history ledger recording tips, donor names, fees, and payout statuses.
+  - Database Migration `0026_wallet_and_razorpay_tips.sql`.
+- **Persistent Notifications with 3-Month Retention**:
+  - Database Migration `0027_notification_retention_and_indexes.sql`:
+    - Composite database indexes `(user_id, created_at DESC)` and `(created_at)`.
+    - Rolling 90-day automatic retention window pruning entries older than 3 months.
+  - Backend API endpoints `PATCH /api/notifications/:id/read` and `PATCH /api/notifications/read-all`.
+  - Non-destructive clicks: reading a notification marks it read while preserving it in history.
+  - Dynamic relative timestamps and unread-only bell badge indicator.
+- **Custom Vector SVG Assets for Community Channels**:
+  - Added dedicated SVG assets for all official channels: `icons/Nyburs.svg`, `icons/Vync.svg`, `icons/twitter-x-icon.svg`, `icons/gmail-icon.svg`, and `icons/github-icon.svg`.
+  - Dynamic URL overrides via environment variables (`SOCIAL_NYBURS_URL`, `SOCIAL_VYNC_URL`, `SOCIAL_TWITTER_URL`, `SOCIAL_GITHUB_URL`, `SUPPORT_EMAIL`) through `GET /api/config`.
+
+### Changed
+- **Router Resilience for Section Anchors**: Updated `getRoute()` in `js/router.js` to recognize section anchor hashes (`#mission-vision`, `#platform-guide`, `#rules-guidelines`, `#open-source-stack`, `#community-channels`) as child sections of `#about` rather than falling back to `#discover`.
+- **Zero-Emoji Policy**: Enforced strictly zero emojis across the About page, Discover toolbar, modal popups, section badges, and button labels in favor of typography and clean SVGs.
+- **Theme-Aware Icon Contrast**: Implemented CSS filter rules in `css/about.css` and `css/layout.css` ensuring custom SVG icons adapt cleanly to both dark and light themes.
+
+### Fixed
+- Fixed in-page Table of Contents pills in `about-toc-bar` triggering hash changes that caused SPA route redirect to `#discover`.
+- Fixed JSX syntax artifacts in `icons/gmail-icon.svg` (`initial={{ ... }}` and `<path } ...>`) preventing native browser rendering.
+- Fixed Discover toolbar skeleton layout where the About button was not rendered before story data arrived.
+- Restored `renderWallet()` route invocation in `js/router.js`.
+
 ---
 
 ## [0.5.0] - 2026-10-14

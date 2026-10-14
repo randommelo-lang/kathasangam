@@ -29,6 +29,9 @@ export async function loadSupabaseConfig() {
 
     supabaseUrl = config.supabase_url;
     supabaseAnonKey = config.supabase_anon_key;
+    if (config.social_links) {
+      state.socialLinks = Object.assign({}, state.socialLinks, config.social_links);
+    }
 
     if (window.supabase && supabaseAnonKey) {
       const safeAuthLock = async (name, acquireTimeout, fn) => {

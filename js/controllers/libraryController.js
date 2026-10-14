@@ -38,16 +38,19 @@ export function handleLibraryClick(ctx, action, target, e) {
     var sortOrder = Number(target.dataset.sortOrder);
     var notifId = target.dataset.notifId;
     
-    var prevNotifs = (ctx.state.notifications || []).slice();
-    ctx.state.notifications = prevNotifs.filter(function (notif) { return notif.id !== notifId; });
-    ctx.updateHeroNotificationUI();
-
-    ctx.apiDelete("/notifications/" + notifId).catch(function (err) {
-      console.error("Failed to delete notification:", err);
-      ctx.state.notifications = prevNotifs;
+    var notif = (ctx.state.notifications || []).find(function (n) { return n.id === notifId; });
+    if (notif && !notif.is_read) {
+      notif.is_read = true;
+      ctx.apiPatch("/notifications/" + notifId + "/read").catch(function (err) {
+        console.error("Failed to mark notification read:", err);
+      });
       ctx.updateHeroNotificationUI();
-      ctx.notify(err.message || "Failed to dismiss notification.", "error");
-    });
+      if (typeof ctx.renderLibraryNotifications === "function") {
+        ctx.renderLibraryNotifications();
+      } else {
+        ctx.render();
+      }
+    }
 
     var story = ctx.state.stories.find(function (s) { return s.id === storyId; });
     if (story && story.chapters) {
@@ -69,12 +72,34 @@ export function handleLibraryClick(ctx, action, target, e) {
     return true;
   }
 
-  if (action === "clearGeneralNotificationFromLibrary") {
+  if (action === "markNotificationReadFromLibrary") {
+    var notifId = target.dataset.notifId;
+    var notif = (ctx.state.notifications || []).find(function (n) { return n.id === notifId; });
+    if (notif && !notif.is_read) {
+      notif.is_read = true;
+      ctx.apiPatch("/notifications/" + notifId + "/read").catch(function (err) {
+        console.error("Failed to mark notification read:", err);
+      });
+      ctx.updateHeroNotificationUI();
+      if (typeof ctx.renderLibraryNotifications === "function") {
+        ctx.renderLibraryNotifications();
+      } else {
+        ctx.render();
+      }
+    }
+    return true;
+  }
+
+  if (action === "dismissNotificationFromLibrary" || action === "clearGeneralNotificationFromLibrary") {
     var notifId = target.dataset.notifId;
     var prevNotifsGeneral = (ctx.state.notifications || []).slice();
     ctx.state.notifications = prevNotifsGeneral.filter(function (notif) { return notif.id !== notifId; });
     ctx.updateHeroNotificationUI();
-    ctx.render();
+    if (typeof ctx.renderLibraryNotifications === "function") {
+      ctx.renderLibraryNotifications();
+    } else {
+      ctx.render();
+    }
 
     ctx.apiDelete("/notifications/" + notifId).then(function () {
       ctx.notify("Notification dismissed.", "info");
@@ -82,7 +107,11 @@ export function handleLibraryClick(ctx, action, target, e) {
       console.error("Failed to delete notification:", err);
       ctx.state.notifications = prevNotifsGeneral;
       ctx.updateHeroNotificationUI();
-      ctx.render();
+      if (typeof ctx.renderLibraryNotifications === "function") {
+        ctx.renderLibraryNotifications();
+      } else {
+        ctx.render();
+      }
       ctx.notify(err.message || "Failed to dismiss notification.", "error");
     });
     return true;

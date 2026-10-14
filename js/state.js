@@ -22,7 +22,14 @@ export const state = {
   bookmarkIds: null,
   likedStoryIds: null,
   readingLists: null,
-  recommendations: null
+  recommendations: null,
+  socialLinks: {
+    nyburs: "https://www.nyburs.com/home",
+    vync: "https://vync.live/",
+    twitter: "https://twitter.com/kathasangam",
+    github: "https://github.com/randommelo-lang/kathasangam",
+    email: "contact@kathasangam.co.in"
+  }
 };
 
 export const ui = {

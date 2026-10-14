@@ -775,8 +775,8 @@ test.describe('KathaSangam Smoke Tests', () => {
     // 6. Click the notification item, verify dropdown closes and state is updated
     const notifItem = page.locator('text=Test Notification 1');
     
-    // Intercept DELETE request
-    await page.route('**/api/notifications/mock-notif-1', async route => {
+    // Intercept PATCH or DELETE request
+    await page.route('**/api/notifications/mock-notif-1*', async route => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
 

@@ -218,10 +218,12 @@ export function updateAuthUI() {
     dropdown.appendChild(accountMenuButton("Settings", "settings"));
     dropdown.appendChild(accountMenuButton("Library", "library"));
     dropdown.appendChild(accountMenuButton("Author Studio", "studio"));
+    dropdown.appendChild(accountMenuButton("Creator Wallet", "wallet"));
     dropdown.appendChild(accountMenuButton("Achievements", "achievements"));
     if (role === "admin" || role === "moderator") {
       dropdown.appendChild(accountMenuButton("Moderation Workspace", "moderation"));
     }
+    dropdown.appendChild(accountMenuButton("About KathaSangam", "about"));
 
     var divider2 = document.createElement("div");
     divider2.className = "account-dropdown-divider";
@@ -299,7 +301,9 @@ export function updateAuthUI() {
     fallbackDropdown.appendChild(accountMenuButton("Settings", "settings"));
     fallbackDropdown.appendChild(accountMenuButton("Library", "library"));
     fallbackDropdown.appendChild(accountMenuButton("Author Studio", "studio"));
+    fallbackDropdown.appendChild(accountMenuButton("Creator Wallet", "wallet"));
     fallbackDropdown.appendChild(accountMenuButton("Achievements", "achievements"));
+    fallbackDropdown.appendChild(accountMenuButton("About KathaSangam", "about"));
 
     var fallbackDivider2 = document.createElement("div");
     fallbackDivider2.className = "account-dropdown-divider";

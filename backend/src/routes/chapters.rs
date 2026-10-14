@@ -108,8 +108,16 @@ pub async fn list_chapters(
     .bind(&chapter_ids)
     .fetch_all(&pool);
 
-    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>)>(
-        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id \
+    let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>, bool)>(
+        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id, \
+                EXISTS ( \
+                    SELECT 1 FROM tips t \
+                    JOIN chapters ch ON ch.id = c.chapter_id \
+                    JOIN stories s ON s.id = ch.story_id \
+                    WHERE t.user_id = c.user_id \
+                      AND t.status = 'completed' \
+                      AND (t.story_id = s.id OR t.author_id = s.author_id) \
+                ) AS is_supporter \
          FROM comments c \
          LEFT JOIN profiles p ON c.user_id = p.id \
          WHERE c.chapter_id = ANY($1) \
@@ -130,13 +138,13 @@ pub async fn list_chapters(
     for p in all_pages {
         page_map.entry(p.chapter_id).or_default().push(p);
     }
-    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>)>> =
+    let mut comment_map: HashMap<Uuid, Vec<(Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>, bool)>> =
         HashMap::new();
-    for (chapter_id, id, user_id, text, username, paragraph_index, parent_id) in all_comments {
+    for (chapter_id, id, user_id, text, username, paragraph_index, parent_id, is_supporter) in all_comments {
         comment_map
             .entry(chapter_id)
             .or_default()
-            .push((id, user_id, text, username, paragraph_index, parent_id));
+            .push((id, user_id, text, username, paragraph_index, parent_id, is_supporter));
     }
 
     let chapters = rows
@@ -170,7 +178,7 @@ pub async fn list_chapters(
             let comment_rows = comment_map.remove(&ch.id).unwrap_or_default();
             let comments = comment_rows
                 .into_iter()
-                .map(|(id, user_id, text, username, paragraph_index, parent_id)| {
+                .map(|(id, user_id, text, username, paragraph_index, parent_id, is_supporter)| {
                     let is_deleted = text == "[deleted]" || user_id.is_none();
                     CommentResponse {
                         id,
@@ -179,6 +187,7 @@ pub async fn list_chapters(
                         text,
                         paragraph_index,
                         parent_id,
+                        is_supporter: if is_deleted { false } else { is_supporter },
                     }
                 })
                 .collect();

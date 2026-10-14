@@ -73,23 +73,20 @@ function applyCarouselPosition() {
 }
 
 export function renderOnboardingModal(ctx) {
-  var isDismissed = localStorage.getItem("kathasangam_onboarding_dismissed") === "true";
-  if (ctx.ui.showOnboardingModal === false || (ctx.ui.showOnboardingModal === undefined && isDismissed)) {
+  var isDismissed = localStorage.getItem("kathasangam_welcome_popup_v1") === "true" ||
+                    localStorage.getItem("kathasangam_onboarding_dismissed") === "true";
+  if (ctx.ui.showOnboardingModal === false || ctx.ui.showWelcomeModal === false || (ctx.ui.showOnboardingModal === undefined && ctx.ui.showWelcomeModal === undefined && isDismissed)) {
     return null;
   }
 
-  var currentStep = ctx.ui.onboardingStep || 0;
-  if (currentStep < 0) currentStep = 0;
-  if (currentStep > 2) currentStep = 2;
-
   var backdrop = el("div", {
-    class: "onboarding-modal-backdrop",
+    class: "onboarding-modal-backdrop welcome-modal-backdrop",
     id: "onboardingModalBackdrop",
     role: "presentation"
   });
 
   var modal = el("div", {
-    class: "onboarding-modal",
+    class: "onboarding-modal welcome-modal",
     role: "dialog",
     "aria-modal": "true",
     "aria-labelledby": "onboardingModalTitle",
@@ -98,140 +95,92 @@ export function renderOnboardingModal(ctx) {
 
   var header = el("div", "onboarding-modal-header", [
     el("div", null, [
-      el("h2", { class: "onboarding-modal-title", id: "onboardingModalTitle" }, "👋 Welcome to KathaSangam"),
-      el("p", { class: "onboarding-modal-subtitle", id: "onboardingModalSubtitle" }, "Your home for immersive serialized fiction and visual storytelling across South Asia.")
+      el("h2", { class: "onboarding-modal-title", id: "onboardingModalTitle" }, "Welcome to KathaSangam"),
+      el("p", { class: "onboarding-modal-subtitle", id: "onboardingModalSubtitle" }, "India's decentralized storytelling platform for original serialized fiction, web novels, and Chitrānk webcomics across India.")
     ]),
     el("button", {
       class: "onboarding-modal-close",
-      "aria-label": "Close welcome guide",
-      title: "Close welcome guide",
+      "aria-label": "Close welcome summary",
+      title: "Close welcome summary",
       "data-action": "dismissOnboardingGuide"
     }, "✕")
   ]);
   modal.appendChild(header);
 
-  var body = el("div", "onboarding-modal-body");
-
-  if (currentStep === 0) {
-    // Step 1: Formats: Web Novel vs Chitrānk
-    var stepCard = el("div", "onboarding-step-card", [
-      el("h3", "onboarding-step-title", "📖 Formats: Web Novel vs Chitrānk"),
-      el("p", "onboarding-step-desc", "Discover fiction in two distinct, beautifully crafted storytelling formats:"),
+  var body = el("div", "onboarding-modal-body", [
+    el("div", "onboarding-step-card", [
       el("div", "onboarding-feature-list", [
         el("div", "onboarding-feature-item", [
-          el("span", "onboarding-feature-icon", "📖"),
+          el("span", "onboarding-feature-icon", {
+            innerHTML: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path><path d="M6 6h10"></path><path d="M6 10h10"></path></svg>'
+          }),
           el("div", "onboarding-feature-text", [
-            el("strong", null, "Web Novel: "),
-            document.createTextNode("Serialized prose fiction with customizable typography, dark/sepia reading themes, and paragraph-level discussion.")
+            el("strong", null, "Web Novels & Chitrānk: "),
+            document.createTextNode("Immerse yourself in serialized prose fiction and visual webcomics with customizable reading themes and vertical scroll.")
           ])
         ]),
         el("div", "onboarding-feature-item", [
-          el("span", "onboarding-feature-icon", "🎨"),
+          el("span", "onboarding-feature-icon", {
+            innerHTML: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>'
+          }),
           el("div", "onboarding-feature-text", [
-            el("strong", null, "Chitrānk: "),
-            document.createTextNode("Visual webcomics and graphic novels crafted for vertical scrolling, tap-to-advance panel reading, and full-bleed art.")
-          ])
-        ])
-      ]),
-      el("div", "onboarding-format-actions", [
-        button("Explore Web Novels", "btn secondary", { action: "filterAndCloseOnboarding", value: "Web Novel" }),
-        button("Explore Chitrānk Comics", "btn secondary", { action: "filterAndCloseOnboarding", value: "Chitrānk" })
-      ])
-    ]);
-    body.appendChild(stepCard);
-  } else if (currentStep === 1) {
-    // Step 2: Follow vs Bookmark vs Playlists
-    var stepCard = el("div", "onboarding-step-card", [
-      el("h3", "onboarding-step-title", "📚 Follow vs Bookmark vs Playlists"),
-      el("p", "onboarding-step-desc", "Organize your reading library with three focused tools:"),
-      el("div", "onboarding-feature-list", [
-        el("div", "onboarding-feature-item", [
-          el("span", "onboarding-feature-icon", el("span", "icon icon-bell")),
-          el("div", "onboarding-feature-text", [
-            el("strong", null, "Follow Creators: "),
-            document.createTextNode("Subscribe to an author or series to receive notifications the moment a new chapter releases.")
+            el("strong", null, "Direct Creator Support: "),
+            document.createTextNode("Tip creators directly with 95% payout via UPI and Cards, earning dedicated Supporter badges in discussions.")
           ])
         ]),
         el("div", "onboarding-feature-item", [
-          el("span", "onboarding-feature-icon", el("span", "icon icon-bookmark")),
+          el("span", "onboarding-feature-icon", {
+            innerHTML: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>'
+          }),
           el("div", "onboarding-feature-text", [
-            el("strong", null, "Bookmark Stories: "),
-            document.createTextNode("Pin ongoing stories to your Library shelf to track your exact reading progress across devices.")
-          ])
-        ]),
-        el("div", "onboarding-feature-item", [
-          el("span", "onboarding-feature-icon", el("span", "icon icon-playlist")),
-          el("div", "onboarding-feature-text", [
-            el("strong", null, "Curated Playlists: "),
-            document.createTextNode("Build and share custom reading lists (e.g. 'To Read Later', 'Favorite Romance', 'Epic Fantasy').")
+            el("strong", null, "Stories Across India: "),
+            document.createTextNode("Discover vernacular and English serialized fiction crafted by diverse creators across the nation.")
           ])
         ])
       ])
-    ]);
-    body.appendChild(stepCard);
-  } else if (currentStep === 2) {
-    // Step 3: What Signing In Unlocks
-    var stepCard = el("div", "onboarding-step-card", [
-      el("h3", "onboarding-step-title", "✨ What Signing In Unlocks"),
-      el("p", "onboarding-step-desc", "Create a free account or sign in to get the full KathaSangam experience:"),
-      el("div", "onboarding-feature-list", [
-        el("div", "onboarding-feature-item", [
-          el("span", "onboarding-feature-icon", "☁️"),
-          el("div", "onboarding-feature-text", [
-            el("strong", null, "Cross-Device Sync: "),
-            document.createTextNode("Your chapter position, reading preferences, and bookmarks stay saved across your phone, tablet, and PC.")
-          ])
-        ]),
-        el("div", "onboarding-feature-item", [
-          el("span", "onboarding-feature-icon", "💬"),
-          el("div", "onboarding-feature-text", [
-            el("strong", null, "Community Engagement: "),
-            document.createTextNode("Leave paragraph comments, react to theories, and discuss cliffhangers directly with creators.")
-          ])
-        ]),
-        el("div", "onboarding-feature-item", [
-          el("span", "onboarding-feature-icon", "🖋️"),
-          el("div", "onboarding-feature-text", [
-            el("strong", null, "Author Studio: "),
-            document.createTextNode("Write and publish your own original web novels or upload Chitrānk comic episodes with zero friction.")
-          ])
-        ])
-      ])
-    ]);
-    body.appendChild(stepCard);
-  }
+    ])
+  ]);
   modal.appendChild(body);
 
-  // Footer: Stepper dots and Back / Next / Finish buttons
-  var stepper = el("div", { class: "onboarding-stepper", role: "group", "aria-label": "Step " + (currentStep + 1) + " of 3" });
-  for (var i = 0; i < 3; i++) {
-    var dot = el("button", {
-      class: "onboarding-step-dot" + (i === currentStep ? " active" : ""),
-      "data-action": "goToOnboardingStep",
-      "data-step": String(i),
-      "aria-label": "Go to step " + (i + 1) + " of 3"
-    });
-    stepper.appendChild(dot);
-  }
+  var social = (state && state.socialLinks) || {
+    nyburs: "https://www.nyburs.com/home",
+    vync: "https://vync.live/",
+    twitter: "https://twitter.com/kathasangam",
+    github: "https://github.com/randommelo-lang/kathasangam"
+  };
 
-  var leftAction;
-  if (currentStep > 0) {
-    leftAction = button("← Back", "btn secondary", { action: "prevOnboardingStep", "aria-label": "Previous step" });
-  } else {
-    leftAction = button("Skip", "btn text-btn", { action: "dismissOnboardingGuide", "aria-label": "Skip welcome guide" });
-  }
-
-  var rightAction;
-  if (currentStep < 2) {
-    rightAction = button("Next →", "btn primary onboarding-next-btn", { action: "nextOnboardingStep", "aria-label": "Next step" });
-  } else {
-    rightAction = button("Finish 🎉", "btn primary onboarding-finish-btn", { action: "dismissOnboardingGuide", "aria-label": "Finish welcome guide" });
-  }
+  var socialRow = el("div", {
+    class: "onboarding-social-strip",
+    style: "display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: rgba(255, 255, 255, 0.03); border-top: 1px solid var(--line); font-size: 0.82rem; flex-wrap: wrap; gap: 8px;"
+  }, [
+    el("div", { style: "display: flex; align-items: center; gap: 10px; color: var(--muted); flex-wrap: wrap;" }, [
+      document.createTextNode("Official Channels:"),
+      el("a", { href: social.nyburs || "https://www.nyburs.com/home", target: "_blank", rel: "noopener noreferrer", style: "display: inline-flex; align-items: center; gap: 4px; color: #0ea5e9; font-weight: 600; text-decoration: none;" }, [
+        el("img", { src: "icons/Nyburs.svg", alt: "", width: "16", height: "16", style: "display: block;" }),
+        document.createTextNode("Nyburs")
+      ]),
+      el("span", null, "•"),
+      el("a", { href: social.vync || "https://vync.live/", target: "_blank", rel: "noopener noreferrer", style: "display: inline-flex; align-items: center; gap: 4px; color: #a855f7; font-weight: 600; text-decoration: none;" }, [
+        el("img", { src: "icons/Vync.svg", alt: "", width: "16", height: "16", style: "display: block;" }),
+        document.createTextNode("Vync")
+      ]),
+      el("span", null, "•"),
+      el("a", { href: social.twitter || "https://twitter.com/kathasangam", target: "_blank", rel: "noopener noreferrer", style: "display: inline-flex; align-items: center; gap: 4px; color: var(--ink); font-weight: 600; text-decoration: none;" }, [
+        el("img", { src: "icons/twitter-x-icon.svg", alt: "", width: "16", height: "16", class: "welcome-social-icon-filter", style: "display: block;" }),
+        document.createTextNode("X")
+      ]),
+      el("span", null, "•"),
+      el("a", { href: social.github || "https://github.com/randommelo-lang/kathasangam", target: "_blank", rel: "noopener noreferrer", style: "display: inline-flex; align-items: center; gap: 4px; color: #22c55e; font-weight: 600; text-decoration: none;" }, [
+        el("img", { src: "icons/github-icon.svg", alt: "", width: "16", height: "16", class: "welcome-social-icon-filter", style: "display: block;" }),
+        document.createTextNode("GitHub")
+      ])
+    ])
+  ]);
+  modal.appendChild(socialRow);
 
   var footer = el("div", "onboarding-modal-footer", [
-    leftAction,
-    stepper,
-    rightAction
+    button("Start Reading", "btn text-btn", { action: "dismissOnboardingGuide", "aria-label": "Start reading" }),
+    button("Explore Full About →", "btn primary onboarding-next-btn", { action: "openAboutFromOnboarding", "aria-label": "Explore full about section" })
   ]);
   modal.appendChild(footer);
 
@@ -239,8 +188,10 @@ export function renderOnboardingModal(ctx) {
 
   backdrop.addEventListener("click", function (e) {
     if (e.target === backdrop) {
+      localStorage.setItem("kathasangam_welcome_popup_v1", "true");
       localStorage.setItem("kathasangam_onboarding_dismissed", "true");
       ctx.ui.showOnboardingModal = false;
+      ctx.ui.showWelcomeModal = false;
       ctx.render();
     }
   });
@@ -460,12 +411,36 @@ export function renderDiscover(ctx) {
     ctx.view.appendChild(carousel);
     
     // 2. Filter Toolbar placeholder
+    var aboutBtnSkeleton = el("a", {
+      class: "btn secondary icon-btn about-nav-btn",
+      href: "#about",
+      "aria-label": "About KathaSangam",
+      title: "About KathaSangam",
+      style: "display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; text-decoration: none; border-radius: var(--radius-sm, 8px);"
+    }, [
+      svgEl("svg", {
+        width: "18",
+        height: "18",
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "2",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round"
+      }, [
+        svgEl("circle", { cx: "12", cy: "12", r: "10" }),
+        svgEl("line", { x1: "12", y1: "16", x2: "12", y2: "12" }),
+        svgEl("line", { x1: "12", y1: "8", x2: "12.01", y2: "8" })
+      ])
+    ]);
+
     const toolbar = el("div", "toolbar", [
       el("div", "segmented", [
         el("button", { class: "btn disabled", disabled: true }, "All"),
         el("button", { class: "btn disabled", disabled: true }, "Web Novel"),
         el("button", { class: "btn disabled", disabled: true }, "Chitrānk")
-      ])
+      ]),
+      aboutBtnSkeleton
     ]);
     
     // 3. Story grid skeleton
@@ -485,6 +460,10 @@ export function renderDiscover(ctx) {
     ]);
 
     ctx.view.appendChild(el("div", "discover-layout", [mainCol, sidebarSkeleton]));
+    var onboardingModal = renderOnboardingModal(ctx);
+    if (onboardingModal) {
+      ctx.view.appendChild(onboardingModal);
+    }
     return;
   }
 
@@ -657,12 +636,28 @@ export function renderDiscover(ctx) {
   }, ctx.ui.showFilterDrawer ? "Filters ▴" : "Filters ▾");
   filterBtn.dataset.action = "toggleFilterDrawer";
 
-  var guideToggleBtn = el("button", {
-    class: "btn secondary guide-toggle-btn",
-    "aria-label": "Toggle first-time reader guide",
-    title: "Learn about KathaSangam formats and features"
-  }, "💡 Guide");
-  guideToggleBtn.dataset.action = "toggleOnboardingGuide";
+  var aboutBtn = el("a", {
+    class: "btn secondary icon-btn about-nav-btn",
+    href: "#about",
+    "aria-label": "About KathaSangam",
+    title: "About KathaSangam",
+    style: "display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; text-decoration: none; border-radius: var(--radius-sm, 8px);"
+  }, [
+    svgEl("svg", {
+      width: "18",
+      height: "18",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round"
+    }, [
+      svgEl("circle", { cx: "12", cy: "12", r: "10" }),
+      svgEl("path", { d: "M12 16v-4" }),
+      svgEl("path", { d: "M12 8h.01" })
+    ])
+  ]);
 
   var mainCol = el("div", "discover-main");
 
@@ -673,7 +668,7 @@ export function renderDiscover(ctx) {
       segmentButton("Chitrānk", "Chitrānk", ctx.ui.filterType)
     ]),
     el("div", { style: "display: flex; align-items: center; gap: 10px; flex-wrap: wrap;" }, [
-      guideToggleBtn,
+      aboutBtn,
       filterBtn,
       el("div", { class: "mini-meta", role: "status", "aria-live": "polite" }, "Showing " + stories.length + " stories")
     ])

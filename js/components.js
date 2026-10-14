@@ -140,6 +140,25 @@ export function makeCollaboratorsIcon(className = "icon") {
   ]);
 }
 
+export function makeTipIcon(className = "icon") {
+  return svgEl("svg", {
+    width: "16",
+    height: "16",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: className
+  }, [
+    svgEl("circle", { cx: "12", cy: "12", r: "9.5" }),
+    svgEl("path", { d: "M8.5 7.5h7" }),
+    svgEl("path", { d: "M8.5 10.5h7" }),
+    svgEl("path", { d: "M8.5 7.5h3.8a2.6 2.6 0 0 1 0 5.2H8.5l5 5" })
+  ]);
+}
+
 export function makeDiscussionIcon(className = "icon") {
   return svgEl("svg", {
     width: "18",
@@ -621,6 +640,9 @@ function applyAttrs(node, attrs) {
     else if (k === "disabled") {
       if (attrs[k]) node.disabled = true;
       else node.removeAttribute("disabled");
+    }
+    else if (k === "innerHTML" || k === "textContent") {
+      node[k] = attrs[k];
     }
     else if (k.indexOf("on") === 0) node[k] = attrs[k];
     else node.setAttribute(k, attrs[k]);

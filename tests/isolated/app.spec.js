@@ -207,29 +207,24 @@ test('lets an authenticated author create a story from the editor flow', async (
   await expect(page.getByRole('dialog', { name: 'Create New Story' })).toBeHidden();
 });
 
-test('simplifies first-time reader onboarding with stepped pop-up modal and finish action', async ({ page }) => {
+test('simplifies first-time reader onboarding with welcome summary modal and about routing', async ({ page }) => {
   await installApiMocks(page, { firstTime: true });
   await page.goto('/');
   await expect(page.getByRole('dialog', { name: 'Welcome to KathaSangam' })).toBeVisible();
-  await expect(page.getByText('Formats: Web Novel vs Chitrānk')).toBeVisible();
-  await expect(page.getByText('Web Novel: Serialized prose fiction')).toBeVisible();
+  await expect(page.getByText('Web Novels & Chitrānk:')).toBeVisible();
 
-  // Next button on bottom right advances to step 2
-  await page.getByRole('button', { name: 'Next step' }).click();
-  await expect(page.getByText('Follow vs Bookmark vs Playlists')).toBeVisible();
+  // Has action to explore full About section or dismiss
+  const aboutBtn = page.getByRole('button', { name: 'Explore full about section' });
+  await expect(aboutBtn).toBeVisible();
 
-  // Next button on bottom right advances to step 3 (last step)
-  await page.getByRole('button', { name: 'Next step' }).click();
-  await expect(page.getByText('What Signing In Unlocks')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Finish welcome guide' })).toBeVisible();
-
-  // Finish button closes the pop-up modal
-  await page.getByRole('button', { name: 'Finish welcome guide' }).click();
+  const closeBtn = page.getByRole('button', { name: 'Close welcome summary' });
+  await expect(closeBtn).toBeVisible();
+  await closeBtn.click();
   await expect(page.getByRole('dialog', { name: 'Welcome to KathaSangam' })).toBeHidden();
 
-  // Can be re-opened at any time via toolbar 💡 Guide button
-  await page.getByRole('button', { name: 'Toggle first-time reader guide' }).click();
-  await expect(page.getByRole('dialog', { name: 'Welcome to KathaSangam' })).toBeVisible();
+  // Can open About section at any time via toolbar About button
+  await page.locator('.about-nav-btn').click();
+  await expect(page).toHaveURL(/#about/);
 });
 
 test('supports active filter chips, URL synchronization, and distinct empty states on Discover', async ({ page }) => {

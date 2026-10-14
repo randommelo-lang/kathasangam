@@ -1,4 +1,4 @@
-import { button, el, field, form, formatDate, formatDateDDMMYYYY, formatNumber, input, list, progress, segmentButton, select, submitButton, textarea, svgEl, makeAnimatedDotsHorizontalIcon, makeAnimatedSendHorizontalIcon } from "../components.js";
+import { button, el, field, form, formatDate, formatDateDDMMYYYY, formatNumber, input, list, progress, segmentButton, select, submitButton, textarea, svgEl, makeAnimatedDotsHorizontalIcon, makeAnimatedSendHorizontalIcon, makeTipIcon } from "../components.js";
 import { emptyState } from "./shared.js";
 import { recordStoryView } from "../controllers/readerController.js";
 
@@ -33,6 +33,7 @@ function renderCommentItem(c, ctx, story, isReply, isInline, pIdx) {
   var canReport = !isDeleted && (ctx.state.user && !ownsComment);
   var initials = isDeleted ? "—" : (c.user || "U").substring(0, 2).toUpperCase();
   var isStoryCreator = !isDeleted && (c.user === story.author || c.user_id === story.author_id);
+  var isSupporter = !isDeleted && !isStoryCreator && (c.isSupporter || c.is_supporter);
   var menuItems = [];
 
   if (canReport) {
@@ -100,6 +101,7 @@ function renderCommentItem(c, ctx, story, isReply, isInline, pIdx) {
         el("div", "comment-meta", [
           commenterNameEl,
           isStoryCreator ? el("span", "comment-author-badge", "Author") : null,
+          isSupporter ? el("span", { class: "comment-supporter-badge", title: "Story Supporter" }, "🪙 Supporter") : null,
           commentTime
         ].filter(Boolean)),
         overflowMenu
@@ -736,6 +738,30 @@ function readerContent(ctx, story, chapter) {
   var isLastChapter = !story.chapters || ctx.ui.currentChapterIndex >= story.chapters.length - 1;
   var nextChapter = !isLastChapter && story.chapters[ctx.ui.currentChapterIndex + 1];
   var isBookmarked = ctx.state.bookmarkIds && ctx.state.bookmarkIds.indexOf(story.id) !== -1;
+  var authorDisplayName = story.author || story.author_name || (story.profile && story.profile.username) || "the author";
+  var supportCallout = el("div", "reader-support-callout", [
+    el("div", "reader-support-info", [
+      el("span", "reader-support-icon-wrap", [makeTipIcon("reader-support-icon-svg")]),
+      el("div", "reader-support-text", [
+        el("strong", null, "Enjoying the story?"),
+        el("span", null, "Send a direct UPI tip to support " + authorDisplayName + "!")
+      ])
+    ]),
+    el("button", {
+      type: "button",
+      class: "btn btn-support-creator",
+      "data-action": "openSupportModal",
+      "data-story-id": story.id,
+      "data-story-title": story.title || "Story",
+      "data-author-name": authorDisplayName,
+      "data-author-id": story.author_id,
+      "aria-label": "Support creator with a tip",
+      style: "display: flex; align-items: center; gap: 6px;"
+    }, [
+      makeTipIcon("icon-tip-svg"),
+      "Tip Creator"
+    ])
+  ]);
 
   var endCard;
   if (!isLastChapter && nextChapter) {
@@ -746,13 +772,15 @@ function readerContent(ctx, story, chapter) {
         action: "chapter",
         step: "1",
         "aria-label": "Read Next Chapter: " + (nextChapter.title || ("Chapter " + (ctx.ui.currentChapterIndex + 2)))
-      })
+      }),
+      supportCallout
     ]);
   } else {
     endCard = el("div", "end-of-series-card", [
       el("span", "celebration-icon", "🎉"),
       el("h3", "end-series-title", "You're all caught up!"),
       el("p", "end-series-desc", "You've reached the latest chapter of " + story.title + ". Check back soon or bookmark the story to receive updates."),
+      supportCallout,
       el("div", "button-row end-series-actions", [
         button(isBookmarked ? "Bookmarked ✓" : "Bookmark Story", "btn", { action: "bookmarkStory", "data-story-id": story.id, "aria-label": "Bookmark story" }),
         el("a", { class: "btn secondary", href: "#story?id=" + story.id }, "← Story Overview"),

@@ -539,6 +539,33 @@
   background: rgba(255, 255, 255, .06);
 }
 
+.notification-item.notification-unread {
+  background: rgba(224, 86, 36, 0.08);
+}
+
+.notification-item.notification-unread:hover {
+  background: rgba(224, 86, 36, 0.14);
+}
+
+.notification-item.notification-read {
+  opacity: 0.85;
+}
+
+.notification-dismiss-btn:hover {
+  opacity: 1 !important;
+  color: #ff3b30 !important;
+  background: rgba(255, 59, 48, 0.15) !important;
+}
+
+.activity-item.notification-unread {
+  background: rgba(224, 86, 36, 0.08);
+  border-left: 3px solid var(--accent);
+}
+
+.activity-item.notification-read {
+  opacity: 0.85;
+}
+
 .notification-empty {
   padding: 16px;
   text-align: center;
@@ -823,6 +850,19 @@
 
 :root.light .notification-item:hover {
   background: rgba(44, 34, 30, 0.06) !important;
+}
+
+:root.light .notification-item.notification-unread {
+  background: rgba(229, 124, 51, 0.1) !important;
+}
+
+:root.light .notification-item.notification-unread:hover {
+  background: rgba(229, 124, 51, 0.16) !important;
+}
+
+:root.light .activity-item.notification-unread {
+  background: rgba(229, 124, 51, 0.1) !important;
+  border-left: 3px solid var(--accent) !important;
 }
 
 /* Light Theme Overrides for Profile & Settings */

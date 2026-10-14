@@ -13,7 +13,8 @@ import {
   CANONICAL_LANGUAGES,
   normalizeLanguage,
   normalizeStoryStatus,
-  t
+  t,
+  makeTipIcon
 } from "../components.js";
 import { storyCard, emptyState } from "./shared.js";
 import {
@@ -306,6 +307,26 @@ function renderPublicProfile(ctx, profileData, isMe) {
       }
 
       actionsContainer.appendChild(followBtn);
+
+      var authorStory = (ctx.state.stories || []).find(function (s) {
+        return s.author_id === profileData.id || s.author === username;
+      });
+      if (authorStory) {
+        var supportBtn = el("button", {
+          class: "btn btn-support-creator",
+          "data-action": "openSupportModal",
+          "data-story-id": authorStory.id,
+          "data-story-title": authorStory.title || "Story",
+          "data-author-name": username,
+          "data-author-id": profileData.id,
+          "aria-label": "Support " + username + " with a tip",
+          style: "display: flex; align-items: center; gap: 6px;"
+        }, [
+          makeTipIcon("icon-tip-svg"),
+          "Tip Creator"
+        ]);
+        actionsContainer.appendChild(supportBtn);
+      }
 
       // Safety Actions: Block, Report, Share
       var prefs = (ctx.state.profile && ctx.state.profile.preferences) || {};

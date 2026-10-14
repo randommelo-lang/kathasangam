@@ -403,10 +403,58 @@ export function handleModerationClick(ctx, action, target, e) {
     if (ctx.ui.activeModerationTab === "logs") {
       ctx.ui.auditLogsPage = 1;
       fetchLogsPage(ctx);
+    } else if (ctx.ui.activeModerationTab === "payouts") {
+      ctx.render();
     } else {
       ctx.ui.reportsPage = 1;
       fetchReportsPage(ctx);
     }
+    return true;
+  }
+  if (action === "completeAdminPayout") {
+    var payoutId = target.dataset.id;
+    var amount = target.dataset.amount;
+    var upi = target.dataset.upi;
+    var utr = window.prompt("Enter UPI Transaction Reference / UTR Number for payout of ₹" + amount + " to " + upi + ":");
+    if (!utr || !utr.trim()) return true;
+
+    target.disabled = true;
+    target.textContent = "Disbursing...";
+    ctx.apiPost("/admin/payouts/" + payoutId + "/complete", {
+      transaction_ref: utr.trim(),
+      admin_notes: "Disbursed via UPI to " + upi
+    })
+      .then(function () {
+        ctx.notify("Payout of ₹" + amount + " marked as completed!", "success");
+        ctx.render();
+      })
+      .catch(function (err) {
+        ctx.notify((err && err.message) || "Failed to complete payout", "error");
+        target.disabled = false;
+        target.textContent = "Disburse ✓";
+      });
+    return true;
+  }
+  if (action === "rejectAdminPayout") {
+    var payoutId = target.dataset.id;
+    var amount = target.dataset.amount;
+    var reason = window.prompt("Enter reason for rejecting withdrawal of ₹" + amount + " (this note will be shown to the creator and balance refunded):");
+    if (!reason || !reason.trim()) return true;
+
+    target.disabled = true;
+    target.textContent = "Rejecting...";
+    ctx.apiPost("/admin/payouts/" + payoutId + "/reject", {
+      admin_notes: reason.trim()
+    })
+      .then(function () {
+        ctx.notify("Payout rejected and ₹" + amount + " refunded to creator wallet.", "info");
+        ctx.render();
+      })
+      .catch(function (err) {
+        ctx.notify((err && err.message) || "Failed to reject payout", "error");
+        target.disabled = false;
+        target.textContent = "Reject ✕";
+      });
     return true;
   }
   if (action === "scan") {

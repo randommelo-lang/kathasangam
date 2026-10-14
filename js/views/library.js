@@ -1,5 +1,6 @@
 import { el, list, progress, formatDate } from "../components.js";
 import { storyGrid, storyCardSkeleton, readingListCardSkeleton, emptyState } from "./shared.js";
+import { formatNotificationTime } from "../notifications.js";
 
 export function renderLibrary(ctx) {
   ctx = ctx || this;
@@ -281,8 +282,30 @@ export function renderLibraryNotifications(ctx) {
       document.createTextNode("Notifications")
     ];
     if (ctx.state.notifications && ctx.state.notifications.length > 0) {
+      var actionsBox = el("div", {
+        class: "notification-header-actions",
+        style: "display: flex; gap: 8px; margin-left: auto; align-items: center;"
+      });
+
+      var unreadExists = ctx.state.notifications.some(function (n) { return !n.is_read; });
+      if (unreadExists) {
+        var markAllBtn = el("button", {
+          style: "background: none; border: none; color: var(--accent); font-size: 0.75rem; cursor: pointer; padding: 0;"
+        }, "Mark all read");
+        markAllBtn.addEventListener("click", function () {
+          ctx.apiPatch("/notifications/read-all").then(function () {
+            (ctx.state.notifications || []).forEach(function (n) { n.is_read = true; });
+            ctx.updateHeroNotificationUI();
+            renderLibraryNotifications(ctx);
+          }).catch(function (err) {
+            console.error("Failed to mark all read:", err);
+          });
+        });
+        actionsBox.appendChild(markAllBtn);
+      }
+
       var clearAllBtn = el("button", {
-        style: "background: none; border: none; color: var(--accent); font-size: 0.8rem; cursor: pointer; padding: 0; margin-left: auto;"
+        style: "background: none; border: none; color: var(--muted); font-size: 0.75rem; cursor: pointer; padding: 0;"
       }, "Clear All");
       clearAllBtn.addEventListener("click", function () {
         ctx.apiDelete("/notifications").then(function () {
@@ -293,7 +316,8 @@ export function renderLibraryNotifications(ctx) {
           console.error("Failed to clear notifications:", err);
         });
       });
-      headerChildren.push(clearAllBtn);
+      actionsBox.appendChild(clearAllBtn);
+      headerChildren.push(actionsBox);
     }
     return headerChildren;
   })());
@@ -304,27 +328,50 @@ export function renderLibraryNotifications(ctx) {
     container.appendChild(el("div", "empty-sidebar-state", "No new notifications"));
   } else {
     var listEl = list(ctx.state.notifications, "activity-list", function (n) {
-      var itemContent = [
-        el("div", { style: "display: flex; align-items: start; gap: 10px;" }, [
-          el("span", { class: "icon icon-bell", style: "color: var(--accent); flex-shrink: 0; margin-top: 2px;" }),
-          el("span", null, n.message || "")
-        ])
-      ];
+      var isUnread = !n.is_read;
+      var timeStr = formatNotificationTime(n.created_at);
 
-      var liAttrs = { class: "activity-item" };
+      var contentCol = el("div", { style: "display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;" }, [
+        el("div", { style: "display: flex; align-items: flex-start; gap: 10px;" }, [
+          el("span", {
+            class: "icon icon-bell",
+            style: (isUnread ? "color: var(--accent);" : "color: var(--muted); opacity: 0.6;") + " flex-shrink: 0; margin-top: 2px;"
+          }),
+          el("span", {
+            style: isUnread ? "font-weight: 600; color: var(--text);" : "color: var(--text); opacity: 0.8;"
+          }, n.message || "")
+        ]),
+        timeStr ? el("span", {
+          class: "notification-time",
+          style: "font-size: 0.72rem; color: var(--muted); margin-left: 26px;"
+        }, timeStr) : null
+      ].filter(Boolean));
+
+      var dismissBtn = el("button", {
+        type: "button",
+        title: "Dismiss notification",
+        class: "notification-dismiss-btn",
+        style: "background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 6px; font-size: 0.85rem; border-radius: 4px; opacity: 0.6; line-height: 1; flex-shrink: 0;",
+        "data-action": "dismissNotificationFromLibrary",
+        "data-notif-id": n.id
+      }, "✕");
+
+      var liAttrs = {
+        class: "activity-item " + (isUnread ? "notification-unread" : "notification-read"),
+        style: "cursor: pointer; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;"
+      };
+
       if (n.story_id && n.chapter_sort_order !== null && n.chapter_sort_order !== undefined) {
-        liAttrs["style"] = "cursor: pointer;";
         liAttrs["data-action"] = "openNotificationChapterFromLibrary";
         liAttrs["data-story-id"] = n.story_id;
         liAttrs["data-sort-order"] = n.chapter_sort_order;
         liAttrs["data-notif-id"] = n.id;
       } else {
-        liAttrs["style"] = "cursor: pointer;";
-        liAttrs["data-action"] = "clearGeneralNotificationFromLibrary";
+        liAttrs["data-action"] = "markNotificationReadFromLibrary";
         liAttrs["data-notif-id"] = n.id;
       }
 
-      return el("li", liAttrs, itemContent);
+      return el("li", liAttrs, [contentCol, dismissBtn]);
     });
 
     container.appendChild(listEl);

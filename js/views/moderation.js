@@ -442,12 +442,15 @@ export function renderModeration(ctx) {
   var activeTab = ctx.ui.activeModerationTab || "queue";
   var topTabSwitcher = el("div", "studio-tabs moderation-tabs", [
     button("Review Queue", activeTab === "queue" ? "btn active" : "btn", { action: "setModerationTab", value: "queue" }),
-    button("Audit Logs", activeTab === "logs" ? "btn active" : "btn", { action: "setModerationTab", value: "logs" })
+    button("Audit Logs", activeTab === "logs" ? "btn active" : "btn", { action: "setModerationTab", value: "logs" }),
+    button("Payout Requests", activeTab === "payouts" ? "btn active" : "btn", { action: "setModerationTab", value: "payouts" })
   ]);
 
   var mainContent;
   if (activeTab === "logs") {
     mainContent = renderAuditLogs(ctx);
+  } else if (activeTab === "payouts") {
+    mainContent = renderPayoutRequests(ctx, canMod);
   } else {
     mainContent = el("section", "panel", [
       renderReviewQueue(ctx, canMod)
@@ -481,4 +484,95 @@ export function renderModeration(ctx) {
       ])
     ])
   ]));
+}
+
+function renderPayoutRequests(ctx, canMod) {
+  var container = el("div", "panel moderation-payouts-container", [
+    el("div", "toolbar", [
+      el("h2", null, "Creator Payout Requests"),
+      el("span", "mini-meta", "Review creator withdrawal requests and disburse payouts directly via UPI")
+    ])
+  ]);
+
+  var contentWrapper = el("div", "payouts-content-wrapper");
+  contentWrapper.appendChild(el("p", "mini-meta", "Loading payout requests..."));
+  container.appendChild(contentWrapper);
+
+  function loadPayouts() {
+    if (!ctx.api) return;
+    ctx.api("/admin/payouts")
+      .then(function (payouts) {
+        contentWrapper.innerHTML = "";
+        if (!payouts || payouts.length === 0) {
+          contentWrapper.appendChild(el("div", "empty", "No creator payout requests found."));
+          return;
+        }
+
+        var table = el("table", "wallet-history-table moderation-payouts-table", [
+          el("thead", null, [
+            el("tr", null, [
+              el("th", null, "Requested"),
+              el("th", null, "Creator"),
+              el("th", null, "Amount"),
+              el("th", null, "Payout UPI"),
+              el("th", null, "Status"),
+              el("th", null, "UTR / Notes"),
+              el("th", null, "Actions")
+            ])
+          ]),
+          el("tbody", null, payouts.map(function (p) {
+            var isPending = p.status === "pending";
+            var statusBadgeClass = p.status === "completed" ? "badge-success" : (isPending ? "badge-pending" : "badge-danger");
+
+            var actionCellChildren = [];
+            if (isPending) {
+              var completeBtn = el("button", {
+                type: "button",
+                class: "btn primary btn-sm",
+                "data-action": "completeAdminPayout",
+                "data-id": p.id,
+                "data-amount": String(p.amount),
+                "data-upi": p.payout_upi_id
+              }, "Disburse ✓");
+
+              var rejectBtn = el("button", {
+                type: "button",
+                class: "btn danger btn-sm",
+                "data-action": "rejectAdminPayout",
+                "data-id": p.id,
+                "data-amount": String(p.amount)
+              }, "Reject ✕");
+
+              actionCellChildren.push(completeBtn);
+              actionCellChildren.push(rejectBtn);
+            } else {
+              actionCellChildren.push(el("span", "mini-meta", "Processed"));
+            }
+
+            var refNotes = p.transaction_ref
+              ? "UTR: " + p.transaction_ref + (p.admin_notes ? " (" + p.admin_notes + ")" : "")
+              : (p.admin_notes || "—");
+
+            return el("tr", null, [
+              el("td", "table-cell-date", formatDate(p.requested_at)),
+              el("td", null, el("strong", null, p.username || p.user_id)),
+              el("td", null, el("strong", { class: "debit-text" }, "₹" + p.amount.toFixed(2))),
+              el("td", null, el("code", null, p.payout_upi_id)),
+              el("td", null, el("span", { class: "badge " + statusBadgeClass }, p.status)),
+              el("td", "table-cell-desc", refNotes),
+              el("td", null, el("div", { class: "button-row", style: "gap: 6px;" }, actionCellChildren))
+            ]);
+          }))
+        ]);
+
+        contentWrapper.appendChild(table);
+      })
+      .catch(function (err) {
+        contentWrapper.innerHTML = "";
+        contentWrapper.appendChild(el("div", "error", "Failed to load payouts: " + (err.message || String(err))));
+      });
+  }
+
+  loadPayouts();
+  return container;
 }

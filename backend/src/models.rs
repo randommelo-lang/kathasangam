@@ -240,7 +240,7 @@ pub struct PageResponse {
 
 // ── Comment ──
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CommentResponse {
     pub id: Uuid,
     pub user_id: Option<Uuid>,
@@ -250,6 +250,8 @@ pub struct CommentResponse {
     pub paragraph_index: Option<i32>,
     #[serde(rename = "parentId")]
     pub parent_id: Option<Uuid>,
+    #[serde(rename = "isSupporter", default)]
+    pub is_supporter: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -378,6 +380,7 @@ pub struct NotificationRow {
     pub is_read: bool,
     pub story_id: Option<Uuid>,
     pub chapter_sort_order: Option<i32>,
+    pub created_at: Option<NaiveDateTime>,
 }
 
 // ── Library ──
@@ -390,6 +393,7 @@ pub struct FollowRequest {
 // ── Tip ──
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct TipRequest {
     pub amount: Option<i32>,
 }
@@ -546,3 +550,101 @@ pub struct PendingInviteResponse {
     pub role: String,
     pub status: String,
 }
+
+// ── Wallet & Razorpay Tips ──
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTipOrderRequest {
+    pub amount: i32, // Amount in INR, e.g. 20, 50, 100
+    pub donor_name: Option<String>,
+    pub donor_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateTipOrderResponse {
+    pub order_id: String,
+    pub amount: i64, // Amount in Paise (e.g. 5000 = ₹50)
+    pub currency: String,
+    pub key_id: String,
+    pub story_id: Uuid,
+    pub story_title: String,
+    pub author_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyTipRequest {
+    pub order_id: String,
+    pub payment_id: String,
+    pub signature: String,
+    pub donor_message: Option<String>,
+    pub donor_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct TipSupporterResponse {
+    pub id: Uuid,
+    pub donor_name: Option<String>,
+    pub donor_message: Option<String>,
+    pub gross_amount: Option<f64>,
+    pub created_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct WalletResponse {
+    pub balance: f64,
+    pub total_earned: f64,
+    pub total_withdrawn: f64,
+    pub payout_upi_id: Option<String>,
+    pub min_withdrawal_amount: f64,
+    pub platform_fee_percent: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct WalletTransactionResponse {
+    pub id: Uuid,
+    pub r#type: String,
+    pub gross_amount: f64,
+    pub platform_fee: f64,
+    pub net_amount: f64,
+    pub currency: String,
+    pub status: String,
+    pub description: Option<String>,
+    pub created_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PayoutWithdrawalRequest {
+    pub amount: f64,
+    pub payout_upi_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct PayoutRequestResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub username: Option<String>,
+    pub amount: f64,
+    pub payout_upi_id: String,
+    pub status: String,
+    pub admin_notes: Option<String>,
+    pub transaction_ref: Option<String>,
+    pub requested_at: Option<NaiveDateTime>,
+    pub processed_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CompletePayoutRequest {
+    pub transaction_ref: String,
+    pub admin_notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RejectPayoutRequest {
+    pub admin_notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdatePayoutUpiRequest {
+    pub payout_upi_id: String,
+}
+

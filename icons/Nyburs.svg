@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="100%" height="100%">
+  <!-- 
+    Clean vector version of the stylized "N" logo on a transparent background.
+  -->
+
+  <!-- Top-Left Green Dot -->
+  <circle cx="256" cy="316" r="70" fill="#00E878" />
+
+  <!-- Bottom-Right Green Dot -->
+  <circle cx="745" cy="665" r="67" fill="#00E878" />
+
+  <!-- Central White Stylized 'N' -->
+  <path fill="#FFFFFF" d="
+    M 377 339
+    L 283 433
+    C 356 516, 386 635, 331 748
+    L 428 845
+    C 495 734, 513 616, 474 494
+    L 626 646
+    L 720 552
+    C 642 465, 619 355, 668 250
+    L 570 152
+    C 502 263, 492 375, 529 488
+    Z
+  " />
+</svg>

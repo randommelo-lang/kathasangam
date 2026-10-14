@@ -1,6 +1,18 @@
+const ABOUT_SECTIONS = [
+  "mission-vision",
+  "platform-guide",
+  "rules-guidelines",
+  "open-source-stack",
+  "community-channels"
+];
+
 export function getRoute() {
-  var hash = window.location.hash.replace("#", "");
-  return hash.split("?")[0] || "discover";
+  var rawHash = window.location.hash.replace(/^#/, "");
+  var cleanHash = rawHash.split("?")[0].split("#")[0] || "discover";
+  if (cleanHash === "about" || ABOUT_SECTIONS.indexOf(cleanHash) !== -1 || cleanHash.startsWith("about/")) {
+    return "about";
+  }
+  return cleanHash || "discover";
 }
 
 export function hydrateGenres(ctx) {
@@ -35,7 +47,7 @@ import { markRouteStart, markRouteEnd } from "./perf.js";
 
 export function render(ctx) {
   markRouteStart(ctx.ui.currentView);
-  const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings", "story", "achievements"];
+  const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings", "story", "achievements", "wallet", "about"];
   if (allowed.indexOf(ctx.ui.currentView) === -1) {
     ctx.ui.currentView = "discover";
     if (window.location.hash.replace(/^#/, "").split("?")[0] !== "discover") {
@@ -93,7 +105,9 @@ export function render(ctx) {
     editor: "Chapter Editor",
     profile: "Profile",
     settings: "Settings",
-    story: "Story Details"
+    story: "Story Details",
+    wallet: "Creator Wallet",
+    about: "About KathaSangam"
   }[ctx.ui.currentView];
 
   var savedScrollY = (typeof window !== "undefined") ? window.scrollY : 0;
@@ -109,5 +123,17 @@ export function render(ctx) {
   if (ctx.ui.currentView === "editor") ctx.renderEditor();
   if (ctx.ui.currentView === "profile" || ctx.ui.currentView === "settings") ctx.renderProfileSettings();
   if (ctx.ui.currentView === "story") ctx.renderStoryDetails();
+  if (ctx.ui.currentView === "wallet") ctx.renderWallet();
+  if (ctx.ui.currentView === "about") {
+    ctx.renderAbout();
+    var rawHash = (typeof window !== "undefined" && window.location.hash) ? window.location.hash.replace(/^#/, "") : "";
+    var sectionId = rawHash.split("?")[0].split("#")[0];
+    if (ABOUT_SECTIONS.indexOf(sectionId) !== -1) {
+      setTimeout(function () {
+        var sectionEl = document.getElementById(sectionId);
+        if (sectionEl) sectionEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
+  }
   markRouteEnd(ctx.ui.currentView);
 }

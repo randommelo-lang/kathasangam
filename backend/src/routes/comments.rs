@@ -70,21 +70,28 @@ pub async fn list_comments(
         require_published_chapter(&pool, &ch).await?;
     }
 
-    let rows: Vec<(Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>)> =
+    let rows: Vec<(Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>, bool)> =
         sqlx::query_as(
-            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id \
+            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id, \
+                    EXISTS ( \
+                        SELECT 1 FROM tips t \
+                        WHERE t.user_id = c.user_id \
+                          AND t.status = 'completed' \
+                          AND (t.story_id = $2 OR t.author_id = (SELECT author_id FROM stories WHERE id = $2)) \
+                    ) AS is_supporter \
              FROM comments c \
              LEFT JOIN profiles p ON c.user_id = p.id \
              WHERE c.chapter_id = $1 \
              ORDER BY c.created_at"
         )
         .bind(&ch.id)
+        .bind(story_id)
         .fetch_all(&pool)
         .await?;
 
     Ok(Json(
         rows.into_iter()
-            .map(|(id, user_id, text, username, paragraph_index, parent_id)| {
+            .map(|(id, user_id, text, username, paragraph_index, parent_id, is_supporter)| {
                 let is_deleted = text == "[deleted]" || user_id.is_none();
                 CommentResponse {
                     id,
@@ -93,6 +100,7 @@ pub async fn list_comments(
                     text,
                     paragraph_index,
                     parent_id,
+                    is_supporter: if is_deleted { false } else { is_supporter },
                 }
             })
             .collect(),
@@ -142,6 +150,21 @@ pub async fn create_comment(
 
     let username = username_row.map(|r| r.0).unwrap_or_else(|| "Reader".to_string());
 
+    // Check if commenter has supported this story or creator
+    let is_supporter: bool = sqlx::query_scalar(
+        "SELECT EXISTS ( \
+            SELECT 1 FROM tips t \
+            WHERE t.user_id = $1 \
+              AND t.status = 'completed' \
+              AND (t.story_id = $2 OR t.author_id = (SELECT author_id FROM stories WHERE id = $2)) \
+        )"
+    )
+    .bind(user_id)
+    .bind(story_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(false);
+
     // Notify story author if commenter is not the author
     let story_info: Option<(Option<Uuid>, String)> = sqlx::query_as(
         "SELECT author_id, title FROM stories WHERE id = $1"
@@ -181,6 +204,7 @@ pub async fn create_comment(
             text: body.text,
             paragraph_index: body.paragraph_index,
             parent_id: body.parent_id,
+            is_supporter,
         }),
     ))
 }

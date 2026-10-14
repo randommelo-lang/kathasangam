@@ -47,15 +47,28 @@ export function handleDiscoverClick(ctx, action, target, e) {
     ctx.render();
     return true;
   }
-  if (action === "dismissOnboardingGuide") {
+  if (action === "dismissOnboardingGuide" || action === "dismissWelcomeModal") {
+    localStorage.setItem("kathasangam_welcome_popup_v1", "true");
     localStorage.setItem("kathasangam_onboarding_dismissed", "true");
     ctx.ui.showOnboardingModal = false;
+    ctx.ui.showWelcomeModal = false;
+    ctx.render();
+    return true;
+  }
+  if (action === "openAboutFromOnboarding" || action === "openAboutFromWelcome") {
+    localStorage.setItem("kathasangam_welcome_popup_v1", "true");
+    localStorage.setItem("kathasangam_onboarding_dismissed", "true");
+    ctx.ui.showOnboardingModal = false;
+    ctx.ui.showWelcomeModal = false;
+    window.location.hash = "about";
     ctx.render();
     return true;
   }
   if (action === "filterAndCloseOnboarding") {
+    localStorage.setItem("kathasangam_welcome_popup_v1", "true");
     localStorage.setItem("kathasangam_onboarding_dismissed", "true");
     ctx.ui.showOnboardingModal = false;
+    ctx.ui.showWelcomeModal = false;
     ctx.ui.filterType = target.dataset.value;
     ctx.loadDiscoveryPage(true);
     return true;

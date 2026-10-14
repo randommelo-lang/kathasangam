@@ -13,9 +13,11 @@ import {
   normalizeStoryStatus,
   normalizeStoryType,
   progress,
-  t
+  t,
+  makeTipIcon
 } from "../components.js";
 import { state } from "../state.js";
+import { openSupportModal } from "../components/supportModal.js";
 
 export function renderStoryDetails(ctx) {
   ctx = ctx || this;
@@ -238,6 +240,20 @@ export function renderStoryDetails(ctx) {
     "Add to Playlist"
   ]);
 
+  var donateBtn = el("button", {
+    class: "btn btn-support-creator",
+    "data-action": "openSupportModal",
+    "data-story-id": story.id,
+    "data-story-title": story.title || "Story",
+    "data-author-name": authorName,
+    "data-author-id": story.author_id,
+    "aria-label": "Support creator with a tip",
+    style: "display: flex; align-items: center; gap: 6px;"
+  }, [
+    makeTipIcon("icon-tip-svg"),
+    "Support Creator"
+  ]);
+
   var primaryReadBtn = button(readBtnText, "btn primary orange-glow-btn story-main-cta", {
     action: "openReader",
     id: story.id,
@@ -309,6 +325,7 @@ export function renderStoryDetails(ctx) {
       resumeCallout,
       el("div", "button-row details-action-row", [
         primaryReadBtn,
+        donateBtn,
         likeBtn,
         bookmarkBtn,
         playlistBtn
@@ -519,6 +536,10 @@ export function renderStoryDetails(ctx) {
   ]);
   rightCol.appendChild(authorPanel);
 
+  // Story Supporters Panel
+  var supportersPanel = renderStorySupportersPanel(ctx, story, authorName);
+  rightCol.appendChild(supportersPanel);
+
   // Story Rating & Review Panel
   var ratingPanel = renderStoryRatingPanel(ctx, story);
   rightCol.appendChild(ratingPanel);
@@ -593,4 +614,73 @@ function renderStoryRatingPanel(ctx, story) {
     overviewEl,
     rateBox
   ]);
+}
+
+function renderStorySupportersPanel(ctx, story, authorName) {
+  var container = el("section", "panel story-supporters-panel");
+  var titleRow = el("div", "story-supporters-header", [
+    el("h3", "panel-title", "Supporters & Tips"),
+    el("button", {
+      type: "button",
+      class: "btn btn-sm btn-support-creator",
+      "data-action": "openSupportModal",
+      "data-story-id": story.id,
+      "data-story-title": story.title || "Story",
+      "data-author-name": authorName,
+      "data-author-id": story.author_id,
+      "aria-label": "Support creator with a tip",
+      style: "display: flex; align-items: center; gap: 6px;"
+    }, [
+      makeTipIcon("icon-tip-svg"),
+      "Tip Creator"
+    ])
+  ]);
+  container.appendChild(titleRow);
+
+  var listContainer = el("div", "story-supporters-list");
+  listContainer.appendChild(el("p", "mini-meta", "Loading supporters..."));
+  container.appendChild(listContainer);
+
+  function loadSupporters() {
+    if (!ctx.api) return;
+    ctx.api("/stories/" + story.id + "/tips")
+      .then(function (tips) {
+        listContainer.innerHTML = "";
+        if (!tips || tips.length === 0) {
+          listContainer.appendChild(el("div", "empty-supporters", [
+            el("p", "mini-meta", "Be the first supporter of \"" + story.title + "\"! 95% goes directly to the creator.")
+          ]));
+          return;
+        }
+
+        tips.forEach(function (tip) {
+          var dateStr = tip.created_at ? formatDate(tip.created_at) : "Recently";
+          var item = el("div", "story-supporter-item", [
+            el("div", "story-supporter-meta", [
+              el("span", "story-supporter-name", tip.donor_name || "A Generous Reader"),
+              tip.donor_message ? el("span", "story-supporter-note", "“" + tip.donor_message + "”") : null,
+              el("span", "mini-meta", dateStr)
+            ].filter(Boolean)),
+            el("span", "story-supporter-badge", "₹" + Math.round(tip.gross_amount))
+          ]);
+          listContainer.appendChild(item);
+        });
+      })
+      .catch(function (err) {
+        console.error("Failed to load story tips:", err);
+        listContainer.innerHTML = "";
+        listContainer.appendChild(el("p", "mini-meta", "Be the first supporter of this story!"));
+      });
+  }
+
+  loadSupporters();
+
+  var onTipCompleted = function (e) {
+    if (e.detail && e.detail.storyId === story.id) {
+      loadSupporters();
+    }
+  };
+  document.addEventListener("tip:completed", onTipCompleted);
+
+  return container;
 }

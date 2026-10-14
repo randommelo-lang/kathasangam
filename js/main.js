@@ -20,6 +20,9 @@ import { renderReader } from "./views/reader.js";
 import { renderStudio } from "./views/studio.js";
 import { renderModeration } from "./views/moderation.js";
 import { renderStoryDetails } from "./views/story.js";
+import { renderWallet } from "./views/wallet.js";
+import { renderAbout } from "./views/about.js";
+import { openSupportModal } from "./components/supportModal.js";
 import { canDeleteStory, storyCard } from "./views/shared.js";
 
 // Import controller modules
@@ -141,6 +144,8 @@ var ctx = {
   renderStudio: renderStudio,
   renderModeration: renderModeration,
   renderStoryDetails: renderStoryDetails,
+  renderWallet: function () { renderWallet(ctx); },
+  renderAbout: function () { renderAbout(ctx); },
   renderEditor: renderEditor,
   renderProfileSettings: renderProfileSettings,
   getCurrentStudioStory: getCurrentStudioStory,
@@ -561,9 +566,11 @@ function bindAuthEvents() {
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !authModal.hidden) closeAuthModal();
     if (e.key === "Escape" && storyModal && !storyModal.hidden) closeStoryModal();
-    if (e.key === "Escape" && ui.showOnboardingModal) {
+    if (e.key === "Escape" && (ui.showOnboardingModal || ui.showWelcomeModal)) {
+      localStorage.setItem("kathasangam_welcome_popup_v1", "true");
       localStorage.setItem("kathasangam_onboarding_dismissed", "true");
       ui.showOnboardingModal = false;
+      ui.showWelcomeModal = false;
       render();
     }
     if (e.key === "Escape") {
@@ -710,6 +717,34 @@ function handleViewClick(e) {
 
   if (action === "go") {
     window.location.hash = target.dataset.view;
+    return;
+  }
+
+  if (action === "openSupportModal") {
+    var sid = target.dataset.storyId;
+    var stitle = target.dataset.storyTitle;
+    var aname = target.dataset.authorName;
+    var aid = target.dataset.authorId;
+    if (!sid) {
+      var curr = getCurrentStory();
+      if (curr) {
+        sid = curr.id;
+        stitle = curr.title;
+        aname = curr.author || curr.author_name;
+        aid = curr.author_id;
+      }
+    }
+    openSupportModal({
+      storyId: sid,
+      storyTitle: stitle,
+      authorName: aname,
+      authorId: aid
+    });
+    return;
+  }
+
+  if (action === "reloadWallet") {
+    renderWallet(ctx);
     return;
   }
 

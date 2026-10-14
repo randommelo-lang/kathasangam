@@ -414,6 +414,7 @@ a:focus-visible {
 .icon-playlist { mask-image: url('../icons/playlist.svg'); -webkit-mask-image: url('../icons/playlist.svg'); }
 .icon-warning { mask-image: url('../icons/warning.svg'); -webkit-mask-image: url('../icons/warning.svg'); }
 .icon-error { mask-image: url('../icons/error.svg'); -webkit-mask-image: url('../icons/error.svg'); }
+.icon-tip { mask-image: url('../icons/tip.svg'); -webkit-mask-image: url('../icons/tip.svg'); }
 
 .btn.active .icon-bookmark,
 .btn.bookmarked .icon-bookmark {

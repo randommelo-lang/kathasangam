@@ -205,5 +205,6 @@ export function onAuthStateChange(event, session) {
     loadPreferences();
     updateAuthUI();
     if (authEffects.render) authEffects.render();
+    window.kathasangam_loaded = true;
   }
 }

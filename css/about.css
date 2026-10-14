@@ -1,0 +1,601 @@
+/* ─── KathaSangam About View Styling (Markdown Document Style) ─── */
+
+.about-page-wrapper.about-md-document {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 36px 24px 96px;
+  animation: fadeIn 0.25s ease-in-out;
+  color: var(--ink);
+}
+
+/* ── Document Header ── */
+.about-doc-header {
+  text-align: left;
+  margin-bottom: 36px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.about-hero-badge {
+  display: inline-block;
+  padding: 5px 12px;
+  background: rgba(229, 124, 51, 0.1);
+  border: 1px solid rgba(229, 124, 51, 0.25);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.about-hero-title {
+  font-size: clamp(2.2rem, 4vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0 16px;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.about-hero-subtitle {
+  max-width: 760px;
+  font-size: 1.15rem;
+  line-height: 1.65;
+  color: var(--muted);
+  margin: 0 0 24px;
+}
+
+/* ── Table of Contents / Document Nav Pills ── */
+.about-toc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.toc-pill {
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 6px 14px;
+  border-radius: 999px;
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  line-height: normal;
+  outline: none;
+}
+
+.toc-pill:hover,
+.toc-pill:focus-visible {
+  color: var(--ink);
+  border-color: var(--accent);
+  background: rgba(229, 124, 51, 0.08);
+}
+
+/* ── Section Dividers ── */
+.about-section-divider {
+  border: none;
+  border-top: 1px dashed var(--line);
+  margin: 48px 0;
+  opacity: 0.7;
+}
+
+/* ── Section Structure ── */
+.about-section {
+  scroll-margin-top: 80px;
+}
+
+.section-heading-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.section-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  font-family: var(--font-mono, monospace);
+}
+
+.about-subheading {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.about-inner-subheading {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.about-section-desc {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-bottom: 28px;
+  max-width: 780px;
+}
+
+/* ── Markdown Manifesto Quote ── */
+.about-manifesto-quote {
+  margin: 0 0 32px 0;
+  padding: 18px 24px;
+  background: var(--surface);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 12px 12px 0;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--ink);
+  font-style: italic;
+}
+
+/* ── Grids ── */
+.about-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.about-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+/* ── Highlight & Format Cards ── */
+.about-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px;
+  position: relative;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.about-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(229, 124, 51, 0.4);
+}
+
+.about-card.highlight-card {
+  background: linear-gradient(145deg, var(--surface) 0%, rgba(229, 124, 51, 0.06) 100%);
+}
+
+.card-label-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.about-card h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+
+.about-card p {
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.about-format-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.format-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.format-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(229, 124, 51, 0.15);
+  color: var(--accent);
+}
+
+.format-badge.chitrank-badge {
+  background: rgba(40, 124, 118, 0.2);
+  color: #38bdf8;
+}
+
+.about-format-card h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+
+.about-format-card p {
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 0.95rem;
+  margin-bottom: 16px;
+}
+
+.about-bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.about-bullet-list li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 0.9rem;
+  color: var(--ink);
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.about-bullet-list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: bold;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* ── Feature Box ── */
+.about-feature-box {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.about-feature-box:hover {
+  transform: translateY(-2px);
+  border-color: rgba(229, 124, 51, 0.35);
+}
+
+.feature-num {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--accent);
+  font-family: var(--font-mono, monospace);
+  margin-bottom: 10px;
+}
+
+.about-feature-box h4 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.about-feature-box p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* ── Rules List ── */
+.rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rule-card {
+  display: flex;
+  gap: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px;
+  align-items: flex-start;
+}
+
+.rule-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(229, 124, 51, 0.15);
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-family: var(--font-mono, monospace);
+}
+
+.rule-content h4 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+.rule-content p {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Technology Attribution Grid ── */
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.tech-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px;
+}
+
+.tech-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  margin-bottom: 10px;
+  font-family: var(--font-mono, monospace);
+}
+
+.tech-card h4 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+.tech-card p {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* ── Social Media Grid & Branded Cards ── */
+.social-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.social-channel-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: all 0.22s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.social-channel-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.social-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.social-brand-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.social-brand-img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Color filters for monochrome SVGs */
+:root:not(.light) .twitter-card .social-brand-img,
+:root:not(.light) .github-card .social-brand-img,
+:root:not(.light) .email-card .social-brand-img {
+  filter: brightness(0) invert(1);
+}
+
+:root.light .twitter-card .social-brand-img,
+:root.light .github-card .social-brand-img,
+:root.light .email-card .social-brand-img {
+  filter: brightness(0);
+}
+
+:root.light .vync-card .social-brand-img {
+  filter: brightness(0);
+}
+
+:root.light .nyburs-card .social-brand-icon {
+  background: #0f172a !important;
+}
+
+.social-open-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.social-channel-card:hover .social-open-icon {
+  transform: translate(2px, -2px);
+  color: var(--ink);
+}
+
+.social-card-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+
+.social-card-desc {
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.55;
+  flex: 1;
+  margin: 0 0 18px;
+}
+
+.social-card-action {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  transition: color 0.15s ease;
+}
+
+/* Brand-specific hover accents */
+.nyburs-card:hover {
+  border-color: #0ea5e9;
+  box-shadow: 0 10px 30px rgba(14, 165, 233, 0.15);
+}
+.nyburs-card .social-brand-icon {
+  color: #0ea5e9;
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.vync-card:hover {
+  border-color: #a855f7;
+  box-shadow: 0 10px 30px rgba(168, 85, 247, 0.15);
+}
+.vync-card .social-brand-icon {
+  color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.twitter-card:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.twitter-card .social-brand-icon {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.github-card:hover {
+  border-color: #22c55e;
+  box-shadow: 0 10px 30px rgba(34, 197, 94, 0.15);
+}
+.github-card .social-brand-icon {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.email-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 10px 30px rgba(229, 124, 51, 0.2);
+}
+.email-card .social-brand-icon {
+  color: var(--accent);
+  background: rgba(229, 124, 51, 0.12);
+}
+
+/* ── Light Theme Overrides for About View ── */
+:root.light .about-card,
+:root.light .about-format-card,
+:root.light .about-feature-box,
+:root.light .rule-card,
+:root.light .tech-card,
+:root.light .social-channel-card,
+:root.light .about-manifesto-quote,
+:root.light .toc-pill {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 2px 12px rgba(44, 34, 30, 0.04);
+}
+
+:root.light .about-hero-title,
+:root.light .about-subheading,
+:root.light .about-inner-subheading,
+:root.light .about-card h3,
+:root.light .about-format-card h3,
+:root.light .about-feature-box h4,
+:root.light .rule-content h4,
+:root.light .tech-card h4,
+:root.light .social-card-name,
+:root.light .about-manifesto-quote {
+  color: var(--text) !important;
+}
+
+:root.light .twitter-card .social-brand-icon {
+  color: #111 !important;
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* ── Responsive adjustments ── */
+@media (max-width: 640px) {
+  .about-page-wrapper.about-md-document {
+    padding: 20px 16px 60px;
+  }
+  .about-doc-header {
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  .rule-card {
+    flex-direction: column;
+    gap: 10px;
+  }
+}

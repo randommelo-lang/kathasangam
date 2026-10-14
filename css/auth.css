@@ -444,7 +444,7 @@
 }
 
 .auth-submit-btn {
-  min-height: 44px;
+  min-height: 48px;
   font-size: .95rem;
   margin-top: 4px;
   width: 100%;
@@ -765,7 +765,7 @@
   }
 
   .auth-submit-btn {
-    min-height: 44px;
+    min-height: 48px;
     font-size: 1rem;
     width: 100%;
   }

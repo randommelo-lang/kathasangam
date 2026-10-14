@@ -567,6 +567,7 @@ test('makes mobile layouts intentional across navigation, filters, story cards, 
   await page.locator('#signInBtn').click();
   const loginDialog = page.getByRole('dialog', { name: 'Welcome back' });
   await expect(loginDialog).toBeVisible();
+  await loginDialog.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
   const dialogBox = await loginDialog.boundingBox();
   expect(dialogBox.width).toBeLessThanOrEqual(375);
   const submitBtn = loginDialog.locator('#loginForm').getByRole('button', { name: 'Log In' });

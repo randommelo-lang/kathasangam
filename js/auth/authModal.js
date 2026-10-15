@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { log } from "../logger.js";
-import { api, getSupabaseClient } from "../api.js";
+import { api, getSupabaseClient, setTokenCache } from "../api.js";
+import { fetchProfile } from "./session.js";
 
 let signupEmail = "";
 let recoveryEmail = "";
@@ -275,10 +276,10 @@ export async function handleLogin(e) {
 
     // Check if user has Email OTP 2FA enabled in their profile preferences
     if (result.data.session) {
-      state.accessToken = result.data.session.access_token;
+      setTokenCache(result.data.session.access_token);
       var profile = null;
       try {
-        profile = await api("/profile");
+        profile = await fetchProfile();
       } catch (profileErr) {
         console.warn("[AUTH] Failed to fetch profile to check Email 2FA preference:", profileErr);
       }

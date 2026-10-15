@@ -21,6 +21,12 @@ export function clearTokenCache() {
   tokenCache.expiresAt = 0;
 }
 
+export function setTokenCache(token) {
+  tokenCache.token = token || null;
+  tokenCache.expiresAt = token ? Date.now() + TOKEN_TTL_MS : 0;
+  state.accessToken = token || null;
+}
+
 export async function loadSupabaseConfig() {
   try {
     const res = await fetch(API_BASE_URL + "/api/config");

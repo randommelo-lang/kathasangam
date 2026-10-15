@@ -1,6 +1,13 @@
 import { state, ui } from "../state.js";
 import { log } from "../logger.js";
-import { api, apiPatch, apiPut, clearTokenCache, getSupabaseClient } from "../api.js";
+import {
+  api,
+  apiPatch,
+  apiPut,
+  clearTokenCache,
+  setTokenCache,
+  getSupabaseClient
+} from "../api.js";
 import { stopNotificationPolling } from "../notifications.js";
 import { openAuthModal, switchAuthTab } from "./authModal.js";
 import { updateAuthUI } from "./accountMenu.js";
@@ -52,28 +59,42 @@ export async function changeUserRole(newRole) {
   }
 }
 
+let fetchProfilePromise = null;
+
 export async function fetchProfile() {
-  try {
-    log.debug("[PROFILE] Fetching profile...");
-    var profile = await api("/profile");
-
-    log.debug("[PROFILE] Profile loaded successfully:", profile);
-    state.profile = profile;
-
-    state.role = profile.role || "reader";
-    loadPreferences();
-  } catch (e) {
-    console.error("[PROFILE] Failed to load profile:", e.message);
-    state.profile = null;
-    state.role = "reader";
-    loadPreferences();
-    if (e.status === 404 || e.status === 401) {
-      log.debug(
-        "[PROFILE] Session user profile not found or unauthorized (404/401). Forcing sign out."
-      );
-      handleSignOut();
-    }
+  if (fetchProfilePromise) {
+    return fetchProfilePromise;
   }
+
+  fetchProfilePromise = (async function () {
+    try {
+      log.debug("[PROFILE] Fetching profile...");
+      var profile = await api("/profile");
+
+      log.debug("[PROFILE] Profile loaded successfully:", profile);
+      state.profile = profile;
+
+      state.role = profile.role || "reader";
+      loadPreferences();
+      return profile;
+    } catch (e) {
+      console.error("[PROFILE] Failed to load profile:", e.message);
+      state.profile = null;
+      state.role = "reader";
+      loadPreferences();
+      if (e.status === 404 || e.status === 401) {
+        log.debug(
+          "[PROFILE] Session user profile not found or unauthorized (404/401). Forcing sign out."
+        );
+        handleSignOut();
+      }
+      throw e;
+    } finally {
+      fetchProfilePromise = null;
+    }
+  })();
+
+  return fetchProfilePromise;
 }
 
 export function loadPreferences() {
@@ -146,7 +167,6 @@ export function autoSaveReaderPreferences() {
 }
 
 export function onAuthStateChange(event, session) {
-  clearTokenCache();
   log.debug("[AUTH] onAuthStateChange event:", event);
 
   if (event === "PASSWORD_RECOVERY") {
@@ -157,6 +177,9 @@ export function onAuthStateChange(event, session) {
   }
 
   if (session && session.user) {
+    if (session.access_token) {
+      setTokenCache(session.access_token);
+    }
     if (state.user && state.user.id === session.user.id && state.profile) {
       log.debug("[AUTH] User already logged in, skipping redundant profile refresh");
       state.user = session.user;
@@ -186,6 +209,7 @@ export function onAuthStateChange(event, session) {
         window.kathasangam_loaded = true;
       });
   } else {
+    clearTokenCache();
     log.debug("[AUTH] User logged out");
     state.user = null;
     state.accessToken = null;

@@ -2,27 +2,21 @@
 FROM rust:1.85-slim-bookworm AS builder
 WORKDIR /app
 
-# Install build dependencies for OpenSSL
+# Install build dependencies for OpenSSL and C toolchain
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
+    build-essential \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency manifests
+# Copy manifests, source code, and migration files directly
 COPY Cargo.toml Cargo.lock ./
-
-# Cache dependencies by pre-building a dummy binary
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src
-
-# Copy real source code and migration files
 COPY src ./src
 COPY migrations ./migrations
 
-# Touch main.rs so cargo detects the source changes and compiles the real binary
-RUN touch src/main.rs && cargo build --release --bin kathasangam-backend
+# Compile release binary directly
+RUN cargo build --release --bin kathasangam-backend
 
 # Stage 2: Minimal runtime container
 FROM debian:bookworm-slim

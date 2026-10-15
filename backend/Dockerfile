@@ -1,5 +1,5 @@
 # Stage 1: Build the Rust backend executable
-FROM rust:1.85-slim-bookworm AS builder
+FROM rust:slim-bookworm AS builder
 WORKDIR /app
 
 # Install build dependencies for OpenSSL and C toolchain

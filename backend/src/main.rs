@@ -555,9 +555,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         app.fallback(|| async { StatusCode::NOT_FOUND })
     };
 
-    let addr = "0.0.0.0:3000";
+    let port: u16 = std::env::var("PORT")
+        .or_else(|_| std::env::var("X_ZOHO_CATALYST_LISTEN_PORT"))
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(3000);
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
 
-    tracing::info!("🚀 Listening on http://localhost:3000");
+    tracing::info!("🚀 Listening on http://{}", addr);
 
     let listener =
         tokio::net::TcpListener::bind(addr)

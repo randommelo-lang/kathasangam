@@ -1,0 +1,6 @@
+{
+  "stack": "docker",
+  "command": "/app/kathasangam-backend",
+  "build_path": ".",
+  "entrypoint": "Dockerfile"
+}

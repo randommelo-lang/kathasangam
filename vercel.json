@@ -5,11 +5,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://kathasangam-backend.onrender.com/api/:path*"
+      "destination": "https://kathasangam-50046899580.development.catalystappsail.in/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://kathasangam-backend.onrender.com/uploads/:path*"
+      "destination": "https://kathasangam-50046899580.development.catalystappsail.in/uploads/:path*"
     },
     {
       "source": "/(.*)",
@@ -22,7 +22,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.catalyst.zoho.in https://*.catalystserverless.in https://*.onrender.com https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com https://*.catalyst.zoho.in https://*.catalystserverless.in https://*.onrender.com; frame-src 'self' https://api.razorpay.com; worker-src 'self' blob:; frame-ancestors 'none';"
+          "value": "default-src 'self'; script-src 'self' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.catalystappsail.in https://*.catalyst.zoho.in https://*.catalystserverless.in https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com https://*.catalystappsail.in https://*.catalyst.zoho.in https://*.catalystserverless.in; frame-src 'self' https://api.razorpay.com; worker-src 'self' blob:; frame-ancestors 'none';"
         }
       ]
     },

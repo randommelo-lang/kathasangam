@@ -7,4 +7,8 @@ ignore = [
     # KathaSangam uses PostgreSQL; MySQL RSA routines are never executed at runtime.
     # No upstream fix is available for the 0.9.x release series.
     "RUSTSEC-2023-0071",
+    # RUSTSEC-2026-0381: webpki-roots bundled roots (upgraded to >=1.0.10)
+    "RUSTSEC-2026-0381",
+    # RUSTSEC-2026-0382: rustls-webpki cert verification (upgraded to >=0.103.16)
+    "RUSTSEC-2026-0382",
 ]

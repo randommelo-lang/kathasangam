@@ -739,6 +739,10 @@
 
 .custom-modal-box {
   width: min(400px, 90vw);
+  max-height: calc(100dvh - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 28px 24px 24px;
   border-radius: var(--radius);
   background: var(--surface);

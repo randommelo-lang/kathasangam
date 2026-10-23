@@ -1,15 +1,25 @@
 /* ─── Premium Studio Layout & Utilities ─── */
 .studio-grid-layout {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 24px;
   align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 1024px) {
   .studio-grid-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.studio-main,
+.studio-aside {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
 }
 
 .studio-header-toolbar {
@@ -42,6 +52,8 @@
   border-radius: var(--radius);
   padding: 24px;
   margin-bottom: 24px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 @media (max-width: 768px) {
@@ -83,12 +95,16 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .studio-active-title-row h3 {
   font-size: 1.5rem;
   font-weight: 700;
   margin: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .studio-active-subtitle {
@@ -1494,6 +1510,10 @@ h2 svg.icon {
   border: 1px solid rgba(255, 255, 255, 0.06);
   margin-bottom: 16px;
   overflow-x: auto;
+  max-width: 100%;
+  width: 100%;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 .studio-tab-btn {
@@ -1729,6 +1749,93 @@ h2 svg.icon {
 }
 
 /* ─── Studio & Filter Drawer Responsive Breakpoints ─── */
+.studio-workspace-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.studio-invite-form {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+}
+
+.studio-invite-input-col {
+  flex: 1;
+  min-width: 160px;
+}
+
+.studio-invite-input-col label,
+.studio-invite-role-col label {
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+
+.studio-invite-input-col input {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.studio-invite-role-col {
+  width: 130px;
+}
+
+.studio-invite-role-col select {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.studio-note-form {
+  margin-top: 16px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.studio-note-form-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.studio-note-form-header select {
+  flex: 1;
+  min-width: 140px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.studio-note-form textarea {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.9rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
 @media (max-width: 768px) {
   .studio-header-toolbar {
     flex-direction: column;
@@ -1754,6 +1861,51 @@ h2 svg.icon {
     align-self: flex-start;
   }
 
+  .studio-story-active-card {
+    flex-direction: column;
+    padding: 18px 14px;
+    margin-bottom: 16px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .studio-active-cover {
+    margin: 0 auto 12px auto;
+  }
+
+  .studio-active-details {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .studio-active-title-row {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .studio-active-title-row h3 {
+    font-size: 1.3rem;
+  }
+
+  .studio-stats-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px 0;
+  }
+
+  .studio-stat-item {
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .studio-stat-val strong {
+    font-size: 0.95rem;
+  }
+
+  .studio-stat-val span {
+    font-size: 0.7rem;
+  }
+
   .studio-btn-row {
     flex-direction: column;
     width: 100%;
@@ -1770,13 +1922,25 @@ h2 svg.icon {
     overflow-x: auto;
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding: 6px;
+    scrollbar-width: thin;
+    padding: 6px 4px;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .studio-chapter-tabs::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .studio-chapter-tabs::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
   }
 
   .studio-tab-btn {
-    min-height: 44px;
-    padding: 8px 16px;
+    min-height: 40px;
+    padding: 6px 14px;
+    font-size: 0.82rem;
     flex-shrink: 0;
   }
 
@@ -1813,29 +1977,51 @@ h2 svg.icon {
     align-items: stretch;
     gap: 12px;
     padding: 14px 12px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .timeline-details {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
 
   .timeline-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    justify-content: flex-start;
+    gap: 6px;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     padding-top: 10px;
   }
 
   .timeline-actions .btn {
-    min-height: 40px;
-  }
-
-  .chapter-reorder-btn {
-    min-width: 40px !important;
-    min-height: 40px !important;
+    min-height: 38px;
+    min-width: 38px;
+    padding: 6px 10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .chapter-reorder-btn {
+    min-width: 36px !important;
+    min-height: 38px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .timeline-words {
+    font-size: 0.8rem;
+    padding: 0 4px;
   }
 
   .danger-zone-body {
@@ -1857,6 +2043,7 @@ h2 svg.icon {
   .chapter-preview-modal {
     width: calc(100% - 16px);
     max-height: 92vh;
+    max-height: calc(100dvh - 24px);
     border-radius: 10px;
   }
 
@@ -1884,6 +2071,66 @@ h2 svg.icon {
 }
 
 @media (max-width: 640px) {
+  .studio-workspace-actions {
+    width: 100%;
+    margin-top: 6px;
+  }
+
+  .studio-workspace-actions .btn {
+    flex: 1 1 auto;
+    min-height: 40px;
+    justify-content: center;
+  }
+
+  .studio-invite-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .studio-invite-input-col,
+  .studio-invite-role-col {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .studio-invite-form .btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .studio-note-form-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .studio-note-form-header select,
+  .studio-note-form-header .btn {
+    width: 100%;
+    min-height: 40px;
+  }
+
+  .upcoming-schedule-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .upcoming-schedule-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .collab-item-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .collab-status-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .filter-drawer {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -1900,6 +2147,37 @@ h2 svg.icon {
   .analytics-grid {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .studio-tab-btn {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+
+  .timeline-actions {
+    gap: 5px;
+  }
+
+  .timeline-actions .btn {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 4px 8px;
+  }
+
+  .chapter-reorder-btn {
+    min-width: 32px !important;
+    min-height: 36px !important;
+  }
+
+  .timeline-words {
+    font-size: 0.75rem;
+  }
+
+  .badge-status {
+    padding: 3px 6px;
+    font-size: 0.68rem;
   }
 }
 

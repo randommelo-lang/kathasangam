@@ -608,6 +608,7 @@
   top: calc(100% + 6px);
   right: 0;
   min-width: 220px;
+  max-width: calc(100vw - 24px);
   background: rgba(26, 21, 18, .96);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, .08);

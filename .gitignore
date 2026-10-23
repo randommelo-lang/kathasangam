@@ -18,6 +18,9 @@ data.ms.old/
 *.db
 *.db-shm
 *.db-wal
+dumps/
+*.sql.gz
+*.dump
 
 # Build artifacts & test reports
 dist/
@@ -25,12 +28,21 @@ playwright-report/
 test-results/
 scratch/
 .cache/
+coverage/
+.nyc_output/
+
+# Deployment & cloud CLI files
+.vercel/
+.catalyst/
+.catalyst-cache/
+catalyst.log
 
 # User uploads (keep directory via .gitkeep)
 backend/uploads/*
 !backend/uploads/.gitkeep
 
 # Backend targets, logs & temp files
+target/
 backend/target/
 *.log
 logs/

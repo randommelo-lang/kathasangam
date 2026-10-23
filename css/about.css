@@ -148,7 +148,7 @@
 /* ── Grids ── */
 .about-grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 20px;
   margin-bottom: 24px;
 }
@@ -588,7 +588,16 @@
 /* ── Responsive adjustments ── */
 @media (max-width: 640px) {
   .about-page-wrapper.about-md-document {
-    padding: 20px 16px 60px;
+    padding: 20px 16px calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  .about-grid-2,
+  .about-grid-3 {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .about-card,
+  .about-format-card {
+    padding: 18px 14px;
   }
   .about-doc-header {
     padding-bottom: 16px;

@@ -404,7 +404,7 @@ export function renderStudio(ctx) {
     var chapterPlanPanel = el("section", "panel", [
       el("div", "toolbar", [
         el("h2", null, "Chapter Workspace"),
-        el("div", { style: "display: flex; gap: 8px;" }, [
+        el("div", "studio-workspace-actions", [
           iconButton("Import Document", "btn btn-sm secondary", { action: "importChapterPrompt", "aria-label": "Import chapter from document" }, "icon-document"),
           iconButton("New Chapter", "btn btn-sm primary", { action: "newChapter" }, "icon-plus")
         ])
@@ -497,28 +497,26 @@ export function renderStudio(ctx) {
 
     var inviteForm = null;
     if (isOwner) {
-      inviteForm = el("form", { "data-form": "inviteForm", style: "margin-top: 16px; display: flex; gap: 8px; align-items: flex-end;" }, [
-        el("div", { style: "flex: 1;" }, [
-          el("label", { style: "display: block; font-size: 0.82rem; margin-bottom: 4px; color: var(--text-muted);" }, "Invite Collaborator"),
+      inviteForm = el("form", { class: "studio-invite-form", "data-form": "inviteForm" }, [
+        el("div", "studio-invite-input-col", [
+          el("label", null, "Invite Collaborator"),
           el("input", {
             type: "text",
             name: "username",
             placeholder: "Enter username...",
-            required: true,
-            style: "width: 100%; padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);"
+            required: true
           })
         ]),
-        el("div", { style: "width: 130px;" }, [
-          el("label", { style: "display: block; font-size: 0.82rem; margin-bottom: 4px; color: var(--text-muted);" }, "Role"),
+        el("div", "studio-invite-role-col", [
+          el("label", null, "Role"),
           el("select", {
-            name: "role",
-            style: "width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text);"
+            name: "role"
           }, [
             el("option", { value: "co-writer" }, "Co-Writer"),
             el("option", { value: "editor" }, "Editor")
           ])
         ]),
-        el("button", { type: "submit", class: "btn primary orange-glow-btn", style: "padding: 8px 16px;" }, "Invite")
+        el("button", { type: "submit", class: "btn primary orange-glow-btn" }, "Invite")
       ]);
     }
 
@@ -585,20 +583,18 @@ export function renderStudio(ctx) {
       });
     }
 
-    var noteForm = el("form", { "data-form": "noteForm", style: "margin-top: 16px;" }, [
-      el("div", { style: "display: flex; gap: 8px; margin-bottom: 8px;" }, [
+    var noteForm = el("form", { class: "studio-note-form", "data-form": "noteForm" }, [
+      el("div", "studio-note-form-header", [
         el("select", {
-          name: "chapterId",
-          style: "flex: 1; padding: 6px 12px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-size: 0.85rem;"
+          name: "chapterId"
         }, noteChapterOptions),
-        el("button", { type: "submit", class: "btn primary orange-glow-btn", style: "padding: 6px 16px; font-size: 0.85rem;" }, "Post Note")
+        el("button", { type: "submit", class: "btn primary orange-glow-btn" }, "Post Note")
       ]),
       el("textarea", {
         name: "content",
         placeholder: "Write a note or review comment...",
         required: true,
-        rows: 2,
-        style: "width: 100%; padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-size: 0.9rem; resize: vertical;"
+        rows: 2
       })
     ]);
 

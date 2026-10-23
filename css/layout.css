@@ -847,7 +847,9 @@ h2 {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
-  margin-bottom: 16px
+  margin-bottom: 16px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .panel+.panel {
@@ -947,6 +949,27 @@ h2 {
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  /* Switch positions of mobileSearchBtn and auth-avatar (auth-area) on mobile */
+  #mobileSearchBtn {
+    order: 1;
+  }
+
+  .hero-notification-area {
+    order: 2;
+  }
+
+  .theme-toggle-btn {
+    order: 3;
+  }
+
+  .auth-area {
+    order: 4;
+  }
+
+  #mobileMenuBtn {
+    order: 5;
   }
 
   .hero-bar-inner {
@@ -1082,12 +1105,17 @@ h2 {
 
   .story-details-cover {
     width: 140px;
-    height: 210px;
+    height: auto;
+    aspect-ratio: 2 / 3;
+    max-width: 100%;
     margin: 0 auto;
   }
 
   .story-details-title {
-    font-size: 1.6rem;
+    font-size: clamp(1.4rem, 5vw, 1.8rem);
+    word-break: break-word;
+    overflow-wrap: break-word;
+    text-align: center;
   }
 
   .story-details-badge-row {
@@ -1218,6 +1246,47 @@ h2 {
     gap: 0;
     min-width: 44px;
     min-height: 44px;
+  }
+
+  /* Onboarding modal mobile sizing */
+  .onboarding-modal {
+    width: calc(100% - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    max-height: calc(100vh - 24px) !important;
+    padding: 18px 16px 14px !important;
+    gap: 12px !important;
+    border-radius: 14px !important;
+    margin: auto;
+  }
+
+  .onboarding-modal-title {
+    font-size: 1.15rem !important;
+  }
+
+  .onboarding-modal-subtitle {
+    font-size: 0.82rem !important;
+  }
+
+  .onboarding-step-card {
+    padding: 12px 12px !important;
+    gap: 10px !important;
+  }
+
+  .onboarding-feature-item {
+    font-size: 0.82rem !important;
+    gap: 8px !important;
+  }
+
+  .onboarding-modal-footer {
+    flex-direction: column-reverse !important;
+    gap: 8px !important;
+    padding-top: 10px !important;
+  }
+
+  .onboarding-modal-footer .btn {
+    width: 100% !important;
+    min-height: 44px !important;
+    justify-content: center !important;
   }
 }
 
@@ -1907,6 +1976,10 @@ h2 {
 .onboarding-modal {
   position: relative;
   width: min(580px, 94vw);
+  max-height: calc(100dvh - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -2359,8 +2432,11 @@ h2 {
   .mobile-bottom-nav {
     display: flex;
   }
-  body {
-    padding-bottom: 68px;
+  body,
+  .main,
+  .view,
+  #view {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .alerts {
     bottom: calc(76px + env(safe-area-inset-bottom, 0px));

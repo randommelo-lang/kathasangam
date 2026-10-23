@@ -2006,8 +2006,22 @@ figure.comic-page {
     font-size: 0.8rem !important;
   }
 
+  /* Hide side overlay arrows on mobile to prevent blocking reading text */
+  .reader-side-nav {
+    display: none !important;
+  }
+
+  /* Force single column for paginated mode on mobile */
+  .reader-content.paginated {
+    column-count: 1 !important;
+    column-gap: 0 !important;
+    column-rule: none !important;
+  }
+
   .reader-content {
-    padding: 16px 12px !important;
+    padding: 16px 14px calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+    word-break: break-word;
+    overflow-wrap: break-word;
   }
 
   .comic-reader {

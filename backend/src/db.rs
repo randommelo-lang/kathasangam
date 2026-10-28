@@ -53,7 +53,7 @@ fn mock_user_id() -> Uuid {
 fn allow_mock_auth() -> bool {
     std::env::var("ALLOW_MOCK_AUTH")
         .map(|value| value.eq_ignore_ascii_case("true"))
-        .unwrap_or(cfg!(debug_assertions))
+        .unwrap_or(false)
 }
 
 pub fn init_jwt_decoding_key() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -86,14 +86,8 @@ impl FromRequestParts<PgPool> for AuthUser {
         // (user_id, assurance level) — SB-12 keeps the `aal` claim rather than
         // discarding it, so `MfaAuthUser` can require a second factor.
         let (user_id, aal) = if token.starts_with("mock-access-token") && allow_mock_auth() {
-            let uid = if token.starts_with("mock-access-token:") {
-                let uuid_str = &token[18..];
-                Uuid::parse_str(uuid_str).unwrap_or_else(|_| mock_user_id())
-            } else {
-                mock_user_id()
-            };
-            // Local mock sessions bypass Supabase and have no assurance level.
-            (uid, None)
+            // Local mock sessions bypass Supabase and only allow the fixed mock user identity
+            (mock_user_id(), None)
         } else {
             let decoding_key = JWT_DECODING_KEY.get().ok_or_else(|| {
                 tracing::error!("JWT decoding key is not initialized");

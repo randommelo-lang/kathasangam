@@ -528,44 +528,48 @@ pub async fn run_text_scan(
     let reports_scanned = reports.len() as i64;
     let mut reports_escalated = 0;
     let mut details = Vec::new();
+    let mut target_text_cache: std::collections::HashMap<(String, Uuid), String> = std::collections::HashMap::new();
 
     for report in reports {
-        let mut target_text = String::new();
-
-        if report.target_type == "story" {
-            let desc: Option<(Option<String>,)> = sqlx::query_as("SELECT description FROM stories WHERE id = $1")
-                .bind(report.target_id)
-                .fetch_optional(&pool)
-                .await?;
-            if let Some((Some(d),)) = desc {
-                target_text = d;
+        let key = (report.target_type.clone(), report.target_id);
+        let target_text = if let Some(cached) = target_text_cache.get(&key) {
+            cached.clone()
+        } else {
+            let mut text = String::new();
+            if report.target_type == "story" {
+                let desc: Option<(Option<String>,)> = sqlx::query_as("SELECT description FROM stories WHERE id = $1")
+                    .bind(report.target_id)
+                    .fetch_optional(&pool)
+                    .await?;
+                if let Some((Some(d),)) = desc {
+                    text = d;
+                }
+            } else if report.target_type == "chapter" {
+                let paragraphs: Vec<(String,)> = sqlx::query_as("SELECT paragraph FROM chapter_content WHERE chapter_id = $1 ORDER BY sort_order")
+                    .bind(report.target_id)
+                    .fetch_all(&pool)
+                    .await?;
+                text = paragraphs.into_iter().map(|(p,)| p).collect::<Vec<String>>().join(" ");
+            } else if report.target_type == "comment" {
+                let c_text: Option<(String,)> = sqlx::query_as("SELECT content FROM comments WHERE id = $1")
+                    .bind(report.target_id)
+                    .fetch_optional(&pool)
+                    .await?;
+                if let Some((t,)) = c_text {
+                    text = t;
+                }
+            } else if report.target_type == "user" {
+                let bio: Option<(Option<String>,)> = sqlx::query_as("SELECT bio FROM profiles WHERE id = $1")
+                    .bind(report.target_id)
+                    .fetch_optional(&pool)
+                    .await?;
+                if let Some((Some(b),)) = bio {
+                    text = b;
+                }
             }
-        } else if report.target_type == "chapter" {
-            let paragraphs: Vec<(String,)> = sqlx::query_as("SELECT paragraph FROM chapter_content WHERE chapter_id = $1 ORDER BY sort_order")
-                .bind(report.target_id)
-                .fetch_all(&pool)
-                .await?;
-            target_text = paragraphs.into_iter().map(|(p,)| p).collect::<Vec<String>>().join(" ");
-        } else if report.target_type == "comment" {
-            // SB-07: the column is `content` (see migrations/0003:126), not `text`. The wrong
-// name made the whole moderation scan abort on any comment-type report, and the
-// resulting Postgres error was returned to the client verbatim.
-let text: Option<(String,)> = sqlx::query_as("SELECT content FROM comments WHERE id = $1")
-                .bind(report.target_id)
-                .fetch_optional(&pool)
-                .await?;
-            if let Some((t,)) = text {
-                target_text = t;
-            }
-        } else if report.target_type == "user" {
-            let bio: Option<(Option<String>,)> = sqlx::query_as("SELECT bio FROM profiles WHERE id = $1")
-                .bind(report.target_id)
-                .fetch_optional(&pool)
-                .await?;
-            if let Some((Some(b),)) = bio {
-                target_text = b;
-            }
-        }
+            target_text_cache.insert(key, text.clone());
+            text
+        };
 
 
         let lower_text = target_text.to_lowercase();

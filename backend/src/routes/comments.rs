@@ -129,6 +129,25 @@ pub async fn create_comment(
             .await?
             .ok_or_else(|| AppError::not_found("Chapter not found"))?;
 
+    // Check if story author has blocked this user (F-007, F-024)
+    let author_prefs: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
+        "SELECT p.preferences FROM profiles p \
+         JOIN stories s ON s.author_id = p.id \
+         WHERE s.id = $1"
+    )
+    .bind(story_id)
+    .fetch_optional(&pool)
+    .await?;
+
+    if let Some((Some(prefs),)) = author_prefs {
+        if let Some(blocked) = prefs.get("blocked_users").and_then(|v| v.as_array()) {
+            let uid_str = user_id.to_string();
+            if blocked.iter().any(|u| u.as_str() == Some(&uid_str)) {
+                return Err(AppError::forbidden("You cannot comment on stories by an author who has blocked you."));
+            }
+        }
+    }
+
     let id = Uuid::new_v4();
     sqlx::query("INSERT INTO comments (id, chapter_id, user_id, content, paragraph_index, parent_id) VALUES ($1,$2,$3,$4,$5,$6)")
         .bind(id)
@@ -300,9 +319,9 @@ pub async fn delete_comment(
             .execute(&mut *tx)
             .await?;
 
-        // If parent was soft-deleted and now has no remaining replies, prune it as well
+        // If parent was soft-deleted and now has no remaining replies, prune it as well (F-025)
         if let Some(pid) = comment_parent_id {
-            sqlx::query("DELETE FROM comments WHERE id = $1 AND content = '[deleted]' AND NOT EXISTS (SELECT 1 FROM comments WHERE parent_id = $1)")
+            sqlx::query("DELETE FROM comments WHERE id = $1 AND content = '[deleted]' AND user_id IS NULL AND NOT EXISTS (SELECT 1 FROM comments WHERE parent_id = $1)")
                 .bind(pid)
                 .execute(&mut *tx)
                 .await?;

@@ -238,7 +238,12 @@ export function startNotificationPolling() {
 
   _pollingIntervalId = setInterval(function () {
     if (state.user || state.accessToken) {
+      var pollingUserId = state.user ? state.user.id : null;
       api("/notifications").then(function (notifs) {
+        // F-035: Verify user is still authenticated and has not switched/logged out
+        if (!state.user || (pollingUserId && state.user.id !== pollingUserId)) {
+          return;
+        }
         var hasChanges = false;
         if (!state.notifications || notifs.length !== state.notifications.length) {
           hasChanges = true;

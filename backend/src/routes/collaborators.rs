@@ -81,15 +81,29 @@ pub async fn invite_collaborator(
     // Only owner can invite
     check_is_owner(&pool, auth.user_id, story_id).await?;
 
-    // Look up user by username
-    let target_user: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM profiles WHERE LOWER(username) = LOWER($1)")
-        .bind(body.username.trim())
-        .fetch_optional(&pool)
-        .await?;
+    // Look up user by username (F-006: prevent case collision hijacking)
+    let matching_users: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT id, username FROM profiles WHERE LOWER(username) = LOWER($1)"
+    )
+    .bind(body.username.trim())
+    .fetch_all(&pool)
+    .await?;
 
-    let target_user_id = target_user
-        .ok_or_else(|| AppError::not_found("User not found with that username."))?
-        .0;
+    let target_user_id = if matching_users.len() > 1 {
+        let exact_matches: Vec<_> = matching_users
+            .iter()
+            .filter(|(_, u)| u == body.username.trim())
+            .collect();
+        if exact_matches.len() == 1 {
+            exact_matches[0].0
+        } else {
+            return Err(AppError::bad_request("Ambiguous username match. Please specify the exact username."));
+        }
+    } else if let Some((uid, _)) = matching_users.into_iter().next() {
+        uid
+    } else {
+        return Err(AppError::not_found("User not found with that username."));
+    };
 
     // Cannot invite yourself
     if target_user_id == auth.user_id {

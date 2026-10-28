@@ -418,14 +418,24 @@ pub async fn get_story(
         .await?
         .ok_or_else(|| AppError::not_found("Story not found."))?;
 
-    let resp = build_story_response(&pool, &row, auth.user_id).await?;
+    let is_collab = if let Some(uid) = auth.user_id {
+        crate::routes::collaborators::check_collaborator_access(&pool, uid, row.id).await.unwrap_or(false)
+    } else {
+        false
+    };
+    let is_member = auth.user_id.map(|uid| row.author_id == Some(uid) || is_collab).unwrap_or(false);
+
+    // Draft visibility
+    let status = row.status.to_lowercase();
+    if (status == "draft" || status == "unpublished") && !is_member {
+        return Err(AppError::forbidden("You do not have permission to view this story."));
+    }
 
     // Check NSFW visibility
-    if resp.is_nsfw {
+    if row.is_nsfw && !is_member {
         let mut allowed = false;
         if let Some(uid) = auth.user_id {
-            let is_author = resp.author_id == Some(uid) || resp.collaborators.iter().any(|c| c.user_id == uid && c.status == "accepted");
-            if is_author || (is_user_eighteen_plus(&pool, uid).await && get_user_nsfw_preference(&pool, uid).await != "hide") {
+            if is_user_eighteen_plus(&pool, uid).await && get_user_nsfw_preference(&pool, uid).await != "hide" {
                 allowed = true;
             }
         }
@@ -434,25 +444,7 @@ pub async fn get_story(
         }
     }
 
-    // Draft visibility.
-    // SB-08: this previously matched only "draft", while list_stories hides both
-    // "draft" and "unpublished". Any row in the second state was therefore readable
-    // by anyone holding its id even though it was absent from every listing.
-    let status = resp.status.to_lowercase();
-    if status == "draft" || status == "unpublished" {
-        let mut allowed = false;
-        if let Some(uid) = auth.user_id {
-            if resp.author_id == Some(uid) {
-                allowed = true;
-            } else if resp.collaborators.iter().any(|c| c.user_id == uid && c.status == "accepted") {
-                allowed = true;
-            }
-        }
-        if !allowed {
-            return Err(AppError::forbidden("You do not have permission to view this story."));
-        }
-    }
-
+    let resp = build_story_response(&pool, &row, auth.user_id).await?;
     Ok(Json(resp))
 }
 
@@ -533,9 +525,22 @@ pub async fn delete_story(
         return Err(AppError::not_found("Story not found."));
     }
 
-    // Delete the old cover from storage asynchronously
+    // Delete the old cover from storage asynchronously if unreferenced (F-010)
+    let pool_cloned = pool.clone();
     tokio::spawn(async move {
-        crate::routes::upload::delete_uploaded_file(&cover_url).await;
+        let ref_count: (i64,) = sqlx::query_as(
+            "SELECT (SELECT COUNT(*) FROM profiles WHERE avatar_url = $1) + \
+             (SELECT COUNT(*) FROM stories WHERE cover = $1) + \
+             (SELECT COUNT(*) FROM chapter_pages WHERE bg = $1 OR bg = 'url(''' || $1 || ''')')"
+        )
+        .bind(&cover_url)
+        .fetch_one(&pool_cloned)
+        .await
+        .unwrap_or((1,));
+
+        if ref_count.0 == 0 {
+            crate::routes::upload::delete_uploaded_file(&cover_url).await;
+        }
     });
 
     Ok(Json(serde_json::json!({ "message": "Story deleted." })))
@@ -652,10 +657,23 @@ pub async fn update_story(
     .execute(&pool)
     .await?;
 
-    // Delete old cover from storage asynchronously if replaced/removed
+    // Delete old cover from storage asynchronously if replaced/removed and unreferenced (F-010)
     if cover_was_removed_or_replaced && !cover_to_delete.is_empty() {
+        let pool_cloned = pool.clone();
         tokio::spawn(async move {
-            crate::routes::upload::delete_uploaded_file(&cover_to_delete).await;
+            let ref_count: (i64,) = sqlx::query_as(
+                "SELECT (SELECT COUNT(*) FROM profiles WHERE avatar_url = $1) + \
+                 (SELECT COUNT(*) FROM stories WHERE cover = $1) + \
+                 (SELECT COUNT(*) FROM chapter_pages WHERE bg = $1 OR bg = 'url(''' || $1 || ''')')"
+            )
+            .bind(&cover_to_delete)
+            .fetch_one(&pool_cloned)
+            .await
+            .unwrap_or((1,));
+
+            if ref_count.0 == 0 {
+                crate::routes::upload::delete_uploaded_file(&cover_to_delete).await;
+            }
         });
     }
 
@@ -947,10 +965,60 @@ async fn build_story_responses_batch_mode(
         HashMap::new()
     };
 
+    // F-013 & F-014: Check NSFW and publication status before building responses
+    let (is_eighteen_plus, nsfw_pref) = match auth {
+        Some(uid) => {
+            let is_18 = is_user_eighteen_plus(pool, uid).await;
+            let pref = get_user_nsfw_preference(pool, uid).await;
+            (is_18, pref)
+        }
+        None => (false, "hide".to_string()),
+    };
+
+    let visible_rows: Vec<&StoryRow> = rows
+        .iter()
+        .filter(|row| {
+            let is_owner = auth.map(|uid| Some(uid) == row.author_id).unwrap_or(false);
+            let is_collab = auth
+                .map(|uid| {
+                    collabs_by_story
+                        .get(&row.id)
+                        .map(|list| list.iter().any(|c| c.user_id == uid && c.status == "accepted"))
+                        .unwrap_or(false)
+                })
+                .unwrap_or(false);
+
+            if is_owner || is_collab {
+                return true;
+            }
+
+            let status = row.status.to_lowercase();
+            if status == "draft" || status == "unpublished" {
+                return false;
+            }
+
+            if row.is_nsfw && (!is_eighteen_plus || nsfw_pref == "hide") {
+                return false;
+            }
+
+            true
+        })
+        .collect();
+
+    // Helper to filter collaborators: hide invited status from non-members (F-028)
+    let get_collaborators = |story_id: &Uuid, is_member: bool| -> Vec<CollaboratorResponse> {
+        let collabs = collabs_by_story.get(story_id).cloned().unwrap_or_default();
+        if is_member {
+            collabs
+        } else {
+            collabs.into_iter().filter(|c| c.status == "accepted").collect()
+        }
+    };
+
     // Split story IDs into owned vs non-owned for chapter visibility
     let mut owned_ids: Vec<Uuid> = Vec::new();
     let mut non_owned_ids: Vec<Uuid> = Vec::new();
-    for row in rows {
+    for row in &visible_rows {
         let is_owner = auth
             .map(|uid| Some(uid) == row.author_id)
             .unwrap_or(false);
@@ -1016,7 +1084,7 @@ async fn build_story_responses_batch_mode(
     }
 
     if !include_chapter_content {
-        return Ok(rows.iter().map(|row| {
+        return Ok(visible_rows.iter().map(|row| {
             let chapters = chapters_by_story.get(&row.id).map(|chs| {
                 chs.iter().map(|ch| ChapterResponse {
                     id: ch.id,
@@ -1034,7 +1102,8 @@ async fn build_story_responses_batch_mode(
                     comments: Vec::new(),
                 }).collect()
             }).unwrap_or_default();
-            let collaborators = collabs_by_story.get(&row.id).cloned().unwrap_or_default();
+            let is_member = owned_ids.contains(&row.id);
+            let collaborators = get_collaborators(&row.id, is_member);
             let rating_info = ratings_map.get(&row.id).copied();
             let user_rating = user_ratings_map.get(&row.id).copied();
             assemble_story(row, chapters, collaborators, rating_info, user_rating)
@@ -1043,8 +1112,9 @@ async fn build_story_responses_batch_mode(
 
     // If no chapters exist, return stories with empty chapter vecs
     if all_chapter_ids.is_empty() {
-        return Ok(rows.iter().map(|row| {
-            let collaborators = collabs_by_story.get(&row.id).cloned().unwrap_or_default();
+        return Ok(visible_rows.iter().map(|row| {
+            let is_member = owned_ids.contains(&row.id);
+            let collaborators = get_collaborators(&row.id, is_member);
             let rating_info = ratings_map.get(&row.id).copied();
             let user_rating = user_ratings_map.get(&row.id).copied();
             assemble_story(row, Vec::new(), collaborators, rating_info, user_rating)
@@ -1105,7 +1175,7 @@ async fn build_story_responses_batch_mode(
     }
 
     // Assemble responses
-    let responses = rows
+    let responses = visible_rows
         .iter()
         .map(|row| {
             let chapter_rows = chapters_by_story.get(&row.id);
@@ -1175,7 +1245,8 @@ async fn build_story_responses_batch_mode(
                 })
                 .unwrap_or_default();
 
-            let collaborators = collabs_by_story.get(&row.id).cloned().unwrap_or_default();
+            let is_member = owned_ids.contains(&row.id);
+            let collaborators = get_collaborators(&row.id, is_member);
             let rating_info = ratings_map.get(&row.id).copied();
             let user_rating = user_ratings_map.get(&row.id).copied();
             assemble_story(row, chapters, collaborators, rating_info, user_rating)
@@ -1519,24 +1590,8 @@ pub async fn view_story(
         })));
     }
 
-    let mut ip_address = addr.ip().to_string();
-    if let Some(forwarded_for) = headers.get("x-forwarded-for") {
-        if let Ok(val) = forwarded_for.to_str() {
-            if let Some(first_ip) = val.split(',').next() {
-                let ip = first_ip.trim();
-                if !ip.is_empty() {
-                    ip_address = ip.to_string();
-                }
-            }
-        }
-    } else if let Some(real_ip) = headers.get("x-real-ip") {
-        if let Ok(val) = real_ip.to_str() {
-            let ip = val.trim();
-            if !ip.is_empty() {
-                ip_address = ip.to_string();
-            }
-        }
-    }
+    // F-029: Resolve client IP securely through trusted proxies
+    let ip_address = crate::middleware::resolve_client_ip(&headers, addr);
 
     let already_viewed = if let Some(user_id) = auth.user_id {
         sqlx::query_scalar::<_, bool>(

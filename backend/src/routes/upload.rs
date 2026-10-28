@@ -133,34 +133,33 @@ async fn compress_image_with_bun(
     }
 }
 
-fn validate_image_magic_bytes(data: &[u8]) -> bool {
+fn detect_image_format(data: &[u8]) -> Option<&'static str> {
     if data.len() < 4 {
-        return false;
+        return None;
     }
-    
     // PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
     if data.starts_with(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
-        return true;
+        return Some("png");
     }
-    
     // JPEG magic bytes: FF D8 FF
     if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        return true;
+        return Some("jpg");
     }
-    
     // WEBP magic bytes: RIFF (first 4 bytes) and WEBP (bytes 8-11)
     if data.starts_with(&[0x52, 0x49, 0x46, 0x46]) && data.len() >= 12 {
         if &data[8..12] == &[0x57, 0x45, 0x42, 0x50] {
-            return true;
+            return Some("webp");
         }
     }
-    
     // GIF magic bytes: GIF8
     if data.starts_with(&[0x47, 0x49, 0x46, 0x38]) {
-        return true;
+        return Some("gif");
     }
-    
-    false
+    None
+}
+
+fn validate_image_magic_bytes(data: &[u8]) -> bool {
+    detect_image_format(data).is_some()
 }
 
 /// POST /api/upload/image
@@ -173,10 +172,18 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
         let name = field.name().unwrap_or("").to_string();
         if name == "file" {
             let filename = field.file_name().unwrap_or("upload.png").to_string();
-            let ext = filename.rsplit('.').next().unwrap_or("png").to_string();
+            let raw_ext = filename.rsplit('.').next().unwrap_or("png").to_lowercase();
+            let safe_ext = match raw_ext.as_str() {
+                "png" | "jpg" | "jpeg" | "webp" | "gif" => raw_ext,
+                _ => {
+                    return Err(AppError::bad_request(
+                        "Unsupported file extension. Only PNG, JPEG, WebP, and GIF are allowed.",
+                    ));
+                }
+            };
 
             let uuid = Uuid::new_v4();
-            let raw_temp_path = format!("temp_raw_{}.{}", uuid, ext);
+            let raw_temp_path = format!("temp_raw_{}.{}", uuid, safe_ext);
             let compressed_temp_path = format!("temp_compressed_{}.webp", uuid);
 
             let mut file = match tokio::fs::File::create(&raw_temp_path).await {
@@ -269,22 +276,26 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
             }
 
             // Attempt to compress image using Bun
-            let mut final_ext = ext;
-            let data = match compress_image_with_bun(&raw_temp_path, &compressed_temp_path).await {
-                Some(compressed_data) => {
-                    final_ext = "webp".to_string();
-                    compressed_data
-                }
+            let (final_ext, data) = match compress_image_with_bun(&raw_temp_path, &compressed_temp_path).await {
+                Some(compressed_data) => ("webp".to_string(), compressed_data),
                 None => {
-                    // Compression failed or skipped, read raw data from disk
-                    match tokio::fs::read(&raw_temp_path).await {
+                    // Compression failed or skipped: verify magic bytes map to an allowed image extension
+                    let detected = match detect_image_format(&magic_buffer) {
+                        Some(fmt) => fmt,
+                        None => {
+                            let _ = tokio::fs::remove_file(&raw_temp_path).await;
+                            return Err(AppError::bad_request("Unsupported image format. Please upload PNG, JPEG, WebP, or GIF."));
+                        }
+                    };
+                    let raw_bytes = match tokio::fs::read(&raw_temp_path).await {
                         Ok(raw_data) => raw_data,
                         Err(e) => {
                             tracing::error!("Failed to read raw temp file: {:?}", e);
                             let _ = tokio::fs::remove_file(&raw_temp_path).await;
                             return Err(AppError::internal_server_error("Failed to read uploaded file."));
                         }
-                    }
+                    };
+                    (detected.to_string(), raw_bytes)
                 }
             };
 

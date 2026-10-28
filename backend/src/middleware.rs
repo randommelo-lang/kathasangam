@@ -136,7 +136,7 @@ fn is_ipv6_private(ipv6: &std::net::Ipv6Addr) -> bool {
     (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
 }
 
-fn resolve_client_ip(headers: &HeaderMap, socket_addr: SocketAddr) -> String {
+pub fn resolve_client_ip(headers: &HeaderMap, socket_addr: SocketAddr) -> String {
     let socket_ip = socket_addr.ip();
     if is_trusted_proxy_ip(&socket_ip) {
         headers
@@ -212,11 +212,21 @@ pub async fn request_tracing_middleware(
 ) -> Response {
     let start = std::time::Instant::now();
 
-    // Resolve request ID from header or generate new one
+    // Resolve request ID from header or generate new one (F-021: sanitize to prevent log injection)
     let request_id = headers
         .get("x-request-id")
         .and_then(|h| h.to_str().ok())
-        .map(|s| s.to_string())
+        .and_then(|s| {
+            let trimmed = s.trim();
+            if !trimmed.is_empty()
+                && trimmed.len() <= 64
+                && trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            {
+                Some(trimmed.to_string())
+            } else {
+                None
+            }
+        })
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
     // Resolve client IP (trusting headers only from known proxies)

@@ -188,6 +188,41 @@ pub async fn update_profile(
         }
     }
 
+    // SB-18: bound the length so profile rows cannot grow without limit.
+    if let Some(ref bio) = body.bio {
+        if bio.chars().count() > MAX_BIO_LENGTH {
+            return Err(AppError::bad_request(format!(
+                "Bio must be {MAX_BIO_LENGTH} characters or fewer."
+            )));
+        }
+    }
+
+    // F-009: Protect two_factor_email_enabled from unverified modification.
+    if let Some(ref prefs) = body.preferences {
+        let existing_prefs: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
+            "SELECT preferences FROM profiles WHERE id = $1"
+        )
+        .bind(auth.user_id)
+        .fetch_optional(&pool)
+        .await?;
+
+        let current_2fa_enabled = existing_prefs
+            .and_then(|(p,)| p)
+            .and_then(|p| p.get("two_factor_email_enabled").and_then(|v| v.as_bool()))
+            .unwrap_or(false);
+
+        let requested_2fa = prefs.get("two_factor_email_enabled").and_then(|v| v.as_bool());
+
+        // Disabling 2FA requires an MFA session
+        if current_2fa_enabled && requested_2fa == Some(false) {
+            if auth.aal.as_deref() != Some("aal2") {
+                return Err(AppError::forbidden(
+                    "Disabling two-factor authentication requires a verified second-factor session."
+                ));
+            }
+        }
+    }
+
     let mut old_avatar_url: Option<String> = None;
     let mut avatar_was_replaced = false;
 
@@ -221,7 +256,10 @@ pub async fn update_profile(
          username = COALESCE($1, username), \
          avatar_url = COALESCE($2, avatar_url), \
          bio = COALESCE($3, bio), \
-         preferences = COALESCE($4, preferences) \
+         preferences = CASE \
+             WHEN $4::jsonb IS NOT NULL THEN COALESCE(preferences, '{}'::jsonb) || $4::jsonb \
+             ELSE preferences \
+         END \
          WHERE id = $5"
     )
     .bind(username)
@@ -234,15 +272,16 @@ pub async fn update_profile(
 
     if avatar_was_replaced {
         if let Some(ref url) = old_avatar_url {
-            // Only delete the old file if no other profile or story cover references it
+            // F-010: Only delete the old file if no other profile, story cover, or comic chapter page references it
             let ref_count: (i64,) = sqlx::query_as(
                 "SELECT (SELECT COUNT(*) FROM profiles WHERE avatar_url = $1) + \
-                 (SELECT COUNT(*) FROM stories WHERE cover = $1)"
+                 (SELECT COUNT(*) FROM stories WHERE cover = $1) + \
+                 (SELECT COUNT(*) FROM chapter_pages WHERE bg = $1 OR bg = 'url(''' || $1 || ''')')"
             )
             .bind(url)
             .fetch_one(&pool)
             .await
-            .unwrap_or((0,));
+            .unwrap_or((1,));
 
             if ref_count.0 == 0 {
                 let url_owned = url.clone();
@@ -708,14 +747,24 @@ pub async fn toggle_follow_user(
         return Err(AppError::bad_request("You cannot follow yourself."));
     }
 
-    // Check if the followed user exists
-    let exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM profiles WHERE id = $1")
+    // Check if the followed user exists and fetch preferences (F-011)
+    let followed_profile: Option<(Option<serde_json::Value>,)> = sqlx::query_as("SELECT preferences FROM profiles WHERE id = $1")
         .bind(followed_id)
         .fetch_optional(&pool)
         .await?;
 
-    if exists.is_none() {
-        return Err(AppError::not_found("User profile not found."));
+    let followed_prefs = match followed_profile {
+        Some((p,)) => p,
+        None => return Err(AppError::not_found("User profile not found.")),
+    };
+
+    if let Some(prefs) = followed_prefs {
+        if let Some(blocked) = prefs.get("blocked_users").and_then(|v| v.as_array()) {
+            let uid_str = auth.user_id.to_string();
+            if blocked.iter().any(|u| u.as_str() == Some(&uid_str)) {
+                return Err(AppError::forbidden("You cannot follow a user who has blocked you."));
+            }
+        }
     }
 
     let is_following: Option<(Uuid, Uuid)> =

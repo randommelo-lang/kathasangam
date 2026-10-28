@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use axum::{
-    extract::{Path, State, Query},
+    extract::{Path, State, Query, ConnectInfo},
     http::{StatusCode, HeaderMap},
     Json,
 };
@@ -65,19 +65,47 @@ pub async fn list_chapters(
     State(pool): State<PgPool>,
     Path(story_id): Path<Uuid>,
 ) -> Result<Json<Vec<ChapterResponse>>, AppError> {
-    let story: Option<(Option<Uuid>,)> = sqlx::query_as("SELECT author_id FROM stories WHERE id = $1")
+    let story: Option<(Option<Uuid>, String, bool)> = sqlx::query_as("SELECT author_id, status, is_nsfw FROM stories WHERE id = $1")
         .bind(story_id)
         .fetch_optional(&pool)
         .await?;
 
-    let story_author_id = story.and_then(|s| s.0);
+    let (story_author_id, story_status, is_nsfw) = match story {
+        Some(s) => s,
+        None => return Err(AppError::not_found("Story not found.")),
+    };
 
-    let mut show_all = false;
-    if let Some(uid) = auth.user_id {
-        if Some(uid) == story_author_id {
-            show_all = true;
+    let is_collab = if let Some(uid) = auth.user_id {
+        crate::routes::collaborators::check_collaborator_access(&pool, uid, story_id).await.unwrap_or(false)
+    } else {
+        false
+    };
+
+    let is_author_or_collab = auth.user_id.map(|uid| Some(uid) == story_author_id || is_collab).unwrap_or(false);
+
+    // Enforce publication status and NSFW gate for non-members (F-005)
+    if !is_author_or_collab {
+        let status_lower = story_status.to_lowercase();
+        if status_lower == "draft" || status_lower == "unpublished" {
+            return Err(AppError::forbidden("This story is not published."));
+        }
+
+        if is_nsfw {
+            let mut allowed = false;
+            if let Some(uid) = auth.user_id {
+                let is_18 = crate::routes::stories::is_user_eighteen_plus(&pool, uid).await;
+                let pref = crate::routes::stories::get_user_nsfw_preference(&pool, uid).await;
+                if is_18 && pref != "hide" {
+                    allowed = true;
+                }
+            }
+            if !allowed {
+                return Err(AppError::forbidden("Underage or unauthenticated accounts are not permitted to view NSFW content."));
+            }
         }
     }
+
+    let show_all = is_author_or_collab;
 
     let rows: Vec<ChapterRow> = if show_all {
         sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 ORDER BY sort_order")
@@ -216,16 +244,24 @@ pub async fn list_chapters(
 pub async fn create_chapter(
     auth: AuthUser,
     headers: HeaderMap,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     State(pool): State<PgPool>,
     Path(story_id): Path<Uuid>,
     Json(body): Json<CreateChapterRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
-    // Geolocalized country restriction
-    if let Some(cf_country) = headers.get("cf-ipcountry").and_then(|v| v.to_str().ok()) {
+    // Geolocalized country restriction (F-022: require trusted proxy header)
+    if let Some(cf_country) = crate::middleware::trusted_proxy_header(&headers, peer, "cf-ipcountry") {
         let country_code = cf_country.to_uppercase();
         if !country_code.is_empty() && country_code != "IN" {
             return Err(AppError::forbidden("Chapter creation is only allowed for users located in India."));
         }
+    }
+
+    if body.title.trim().is_empty() {
+        return Err(AppError::bad_request("Chapter title cannot be empty."));
+    }
+    if body.title.chars().count() > 200 {
+        return Err(AppError::bad_request("Chapter title must be 200 characters or fewer."));
     }
 
     // Verify user is story owner or admin
@@ -595,7 +631,10 @@ async fn notify_followers(
         .unwrap_or(None);
 
     let story_title = story_info.map(|s| s.0).unwrap_or_else(|| "a followed story".to_string());
-    let message = format!("New chapter '{}' published for '{}'", chapter_title, story_title);
+    // F-023: Bound titles to prevent oversized message injection
+    let safe_chapter_title: String = chapter_title.chars().take(200).collect();
+    let safe_story_title: String = story_title.chars().take(200).collect();
+    let message = format!("New chapter '{}' published for '{}'", safe_chapter_title, safe_story_title);
 
     let result = sqlx::query(
         "INSERT INTO notifications (user_id, message, story_id, chapter_sort_order) \

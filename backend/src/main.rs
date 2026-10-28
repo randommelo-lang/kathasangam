@@ -83,13 +83,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             };
 
             for (ch_id, story_id, title, sort_order) in &rows {
-                if let Err(e) = sqlx::query("UPDATE chapters SET status = 'published', scheduled_at = NULL WHERE id = $1")
-                    .bind(ch_id)
-                    .execute(&publish_pool)
-                    .await
-                {
-                    tracing::error!("Auto-publisher failed to publish chapter {}: {:?}", ch_id, e);
-                    continue;
+                // F-020: Conditional update ensures we don't overwrite a chapter that was cancelled or rescheduled
+                let update_res = sqlx::query(
+                    "UPDATE chapters SET status = 'published', scheduled_at = NULL \
+                     WHERE id = $1 AND status = 'scheduled' AND scheduled_at <= NOW()"
+                )
+                .bind(ch_id)
+                .execute(&publish_pool)
+                .await;
+
+                match update_res {
+                    Ok(result) if result.rows_affected() > 0 => {}
+                    Ok(_) => {
+                        tracing::debug!("Auto-publisher: chapter {} was cancelled or rescheduled, skipping", ch_id);
+                        continue;
+                    }
+                    Err(e) => {
+                        tracing::error!("Auto-publisher failed to publish chapter {}: {:?}", ch_id, e);
+                        continue;
+                    }
                 }
 
                 tracing::info!("📅 Auto-published chapter '{}' (id: {})", title, ch_id);
@@ -544,13 +556,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         .with_state(pool);
 
-    // The separate Render static site serves the production frontend. Never
-    // let the public API service expose the repository checkout as a fallback.
+    // The separate Render static site / Vercel serves the production frontend.
+    // Never let the public API service expose the repository checkout as a fallback.
     let serve_frontend = std::env::var("SERVE_FRONTEND")
         .map(|value| value.eq_ignore_ascii_case("true"))
-        .unwrap_or(cfg!(debug_assertions));
+        .unwrap_or(false);
     let app = if serve_frontend {
-        app.fallback_service(ServeDir::new("..").append_index_html_on_directories(true))
+        let frontend_dir = if std::path::Path::new("dist/public").is_dir() {
+            "dist/public"
+        } else if std::path::Path::new("../dist/public").is_dir() {
+            "../dist/public"
+        } else {
+            "public"
+        };
+        app.fallback_service(ServeDir::new(frontend_dir).append_index_html_on_directories(true))
     } else {
         app.fallback(|| async { StatusCode::NOT_FOUND })
     };

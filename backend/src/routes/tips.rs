@@ -31,9 +31,9 @@ pub async fn create_tip_order(
         )));
     }
 
-    // Story must exist, be published, and have an author
-    let story: Option<(String, String, Option<Uuid>, Option<String>)> = sqlx::query_as(
-        "SELECT stories.title, stories.status, stories.author_id, profiles.username
+    // Story must exist, be published, and have an author (F-030)
+    let story: Option<(String, String, Option<Uuid>, Option<String>, bool)> = sqlx::query_as(
+        "SELECT stories.title, stories.status, stories.author_id, profiles.username, stories.is_nsfw
          FROM stories
          LEFT JOIN profiles ON profiles.id = stories.author_id
          WHERE stories.id = $1",
@@ -42,11 +42,26 @@ pub async fn create_tip_order(
     .fetch_optional(&pool)
     .await?;
 
-    let (story_title, story_status, author_id_opt, author_username) = story
+    let (story_title, story_status, author_id_opt, author_username, is_nsfw) = story
         .ok_or_else(|| AppError::not_found("Story not found."))?;
 
-    if story_status.to_lowercase() == "draft" {
+    let status_lower = story_status.to_lowercase();
+    if status_lower == "draft" || status_lower == "unpublished" {
         return Err(AppError::bad_request("Tips are only accepted for published stories."));
+    }
+
+    if is_nsfw {
+        let mut allowed = false;
+        if let Some(uid) = auth.user_id {
+            let is_18 = crate::routes::stories::is_user_eighteen_plus(&pool, uid).await;
+            let pref = crate::routes::stories::get_user_nsfw_preference(&pool, uid).await;
+            if is_18 && pref != "hide" {
+                allowed = true;
+            }
+        }
+        if !allowed {
+            return Err(AppError::forbidden("Underage or unauthenticated accounts are not permitted to tip NSFW stories."));
+        }
     }
 
     let author_id = author_id_opt

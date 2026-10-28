@@ -59,6 +59,18 @@ pub async fn toggle_follow(
     AuthUser { user_id, .. }: AuthUser,
     Json(body): Json<FollowRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let story: Option<(Option<Uuid>, String, bool)> = sqlx::query_as(
+        "SELECT author_id, status, is_nsfw FROM stories WHERE id = $1"
+    )
+    .bind(body.story_id)
+    .fetch_optional(&pool)
+    .await?;
+
+    let (author_id, status, is_nsfw) = match story {
+        Some(s) => s,
+        None => return Err(AppError::not_found("Story not found.")),
+    };
+
     let exists: Option<(Uuid,)> =
         sqlx::query_as("SELECT story_id FROM library WHERE user_id = $1 AND story_id = $2")
             .bind(user_id)
@@ -76,6 +88,25 @@ pub async fn toggle_follow(
             serde_json::json!({ "followed": false, "message": "Removed from library." }),
         ))
     } else {
+        // Enforce publication and NSFW gate when following a story (F-008)
+        let is_collab = crate::routes::collaborators::check_collaborator_access(&pool, user_id, body.story_id)
+            .await
+            .unwrap_or(false);
+        let is_member = author_id == Some(user_id) || is_collab;
+        if !is_member {
+            let status_lower = status.to_lowercase();
+            if status_lower == "draft" || status_lower == "unpublished" {
+                return Err(AppError::forbidden("You cannot follow an unpublished story."));
+            }
+            if is_nsfw {
+                let is_18 = crate::routes::stories::is_user_eighteen_plus(&pool, user_id).await;
+                let pref = crate::routes::stories::get_user_nsfw_preference(&pool, user_id).await;
+                if !is_18 || pref == "hide" {
+                    return Err(AppError::forbidden("Underage or restricted accounts cannot follow NSFW content."));
+                }
+            }
+        }
+
         sqlx::query("INSERT INTO library (user_id, story_id) VALUES ($1, $2)")
             .bind(user_id)
             .bind(body.story_id)

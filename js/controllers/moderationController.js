@@ -526,15 +526,23 @@ export function handleModerationClick(ctx, action, target, e) {
 
         var headers = ["Report ID", "Reporter ID", "Target Type", "Target ID", "Reason", "Status", "Severity"];
         var csvRows = [headers.join(",")];
+        var sanitizeCsvCell = function (val) {
+          var str = String(val == null ? "" : val);
+          if (/^[=+\-@\t\r]/.test(str)) {
+            str = "'" + str;
+          }
+          return '"' + str.replace(/"/g, '""') + '"';
+        };
+
         reps.forEach(function (r) {
           var row = [
-            r.id,
-            r.reporter_id || "Anonymous",
-            r.target_type,
-            r.target_id,
-            '"' + (r.reason || "").replace(/"/g, '""') + '"',
-            r.status,
-            r.severity
+            sanitizeCsvCell(r.id),
+            sanitizeCsvCell(r.reporter_id || "Anonymous"),
+            sanitizeCsvCell(r.target_type),
+            sanitizeCsvCell(r.target_id),
+            sanitizeCsvCell(r.reason || ""),
+            sanitizeCsvCell(r.status),
+            sanitizeCsvCell(r.severity)
           ];
           csvRows.push(row.join(","));
         });

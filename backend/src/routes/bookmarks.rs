@@ -50,15 +50,18 @@ pub async fn toggle_bookmark(
     State(pool): State<PgPool>,
     Json(body): Json<BookmarkRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    // Verify story exists
-    let story_exists: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM public.stories WHERE id = $1)")
-        .bind(body.story_id)
-        .fetch_one(&pool)
-        .await?;
-    
-    if !story_exists.0 {
-        return Err(AppError::not_found("Story not found."));
-    }
+    // Verify story exists and check access
+    let story: Option<(Option<Uuid>, String, bool)> = sqlx::query_as(
+        "SELECT author_id, status, is_nsfw FROM public.stories WHERE id = $1"
+    )
+    .bind(body.story_id)
+    .fetch_optional(&pool)
+    .await?;
+
+    let (author_id, status, is_nsfw) = match story {
+        Some(s) => s,
+        None => return Err(AppError::not_found("Story not found.")),
+    };
 
     let exists: Option<(Uuid,)> = sqlx::query_as(
         "SELECT story_id FROM public.bookmarks WHERE user_id = $1 AND story_id = $2"
@@ -76,6 +79,25 @@ pub async fn toggle_bookmark(
             .await?;
         Ok(Json(serde_json::json!({ "bookmarked": false, "message": "Removed bookmark." })))
     } else {
+        // Enforce publication and NSFW gate when creating a new bookmark (F-004)
+        let is_collab = crate::routes::collaborators::check_collaborator_access(&pool, auth.user_id, body.story_id)
+            .await
+            .unwrap_or(false);
+        let is_member = author_id == Some(auth.user_id) || is_collab;
+        if !is_member {
+            let status_lower = status.to_lowercase();
+            if status_lower == "draft" || status_lower == "unpublished" {
+                return Err(AppError::forbidden("You cannot bookmark an unpublished story."));
+            }
+            if is_nsfw {
+                let is_18 = crate::routes::stories::is_user_eighteen_plus(&pool, auth.user_id).await;
+                let pref = crate::routes::stories::get_user_nsfw_preference(&pool, auth.user_id).await;
+                if !is_18 || pref == "hide" {
+                    return Err(AppError::forbidden("Underage or restricted accounts cannot bookmark NSFW content."));
+                }
+            }
+        }
+
         sqlx::query("INSERT INTO public.bookmarks (user_id, story_id) VALUES ($1, $2)")
             .bind(auth.user_id)
             .bind(body.story_id)

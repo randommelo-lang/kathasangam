@@ -32,21 +32,23 @@ def delete_file_from_storage(file_url):
     elif file_url.startswith('url("') and file_url.endswith('")'):
         file_url = file_url[5:-2]
     
-    # 1. Local files
+    # 1. Local files (F-018: prevent path traversal)
     if file_url.startswith("/uploads/"):
         relative_path = os.path.join("backend", file_url[1:])
-        if os.path.exists(relative_path):
+        base_dir = os.path.realpath("backend/uploads")
+        target_path = os.path.realpath(relative_path)
+        if target_path.startswith(base_dir) and os.path.exists(target_path):
             try:
-                os.remove(relative_path)
-                print(f"[SUCCESS] Deleted local file: {relative_path}")
+                os.remove(target_path)
+                print(f"[SUCCESS] Deleted local file: {target_path}")
             except Exception as e:
-                print(f"[WARNING] Failed to delete local file {relative_path}: {e}")
+                print(f"[WARNING] Failed to delete local file {target_path}: {e}")
         return
 
-    # 2. Supabase Storage files
-    if "/storage/v1/object/public/" in file_url and supabase_url and service_role_key:
+    # 2. Supabase Storage files (F-019: restrict to kathasangam bucket)
+    if "/storage/v1/object/public/kathasangam/" in file_url and supabase_url and service_role_key:
         try:
-            pos = file_url.find("/storage/v1/object/public/")
+            pos = file_url.find("/storage/v1/object/public/kathasangam/")
             path_part = file_url[pos + len("/storage/v1/object/public/"):]
             delete_url = f"{supabase_url}/storage/v1/object/{path_part}"
             

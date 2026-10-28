@@ -139,7 +139,8 @@ export function autoSaveReaderPreferences() {
         inAppNotif = state.profile.preferences.in_app_notifications;
       }
     }
-    var prefs = {
+    var existingPrefs = state.profile && state.profile.preferences ? state.profile.preferences : {};
+    var prefs = Object.assign({}, existingPrefs, {
       reader_theme: ui.readerTheme,
       reader_size: ui.readerSize,
       reader_mode: ui.readerMode,
@@ -150,7 +151,7 @@ export function autoSaveReaderPreferences() {
       comic_zoom: ui.comicZoom,
       email_notifications: emailNotif,
       in_app_notifications: inAppNotif
-    };
+    });
     if (state.user && state.profile) {
       state.profile.preferences = prefs;
       apiPut("/profile", { preferences: prefs }).catch(function (err) {
@@ -223,6 +224,10 @@ export function onAuthStateChange(event, session) {
     state.notifications = [];
     stopNotificationPolling();
     state.progress = [];
+    state.stories = null;
+    state.activeReadingListDetail = null;
+    state.pendingInvites = null;
+    state.pendingInvitesUserId = null;
     state.bookmarks = null;
     state.bookmarkIds = null;
     state.readingLists = null;

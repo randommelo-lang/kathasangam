@@ -8,7 +8,7 @@ export async function importComicPdf(file, ctx, uploadStatus, onPageAdded) {
     if (window.pdfjsLib) {
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js";
       try {
-        const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false }).promise;
         const numPages = pdf.numPages;
         let compressedCount = 0;
 
@@ -90,11 +90,19 @@ export function importTextFile(file, uploadStatus, onLoadParagraphs) {
   if (!file) return;
   uploadStatus.textContent = "Processing " + file.name + "...";
 
+  const MAX_PARAGRAPHS = 5000;
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+  if (file.size > MAX_FILE_SIZE) {
+    uploadStatus.textContent = "File is too large (maximum size is 10MB).";
+    return;
+  }
+
   const reader = new FileReader();
   if (file.name.endsWith(".txt")) {
     reader.onload = function (evt) {
       const text = evt.target.result;
-      const paras = text ? text.split(/\n\s*\n/) : [];
+      const paras = text ? text.split(/\n\s*\n/).slice(0, MAX_PARAGRAPHS) : [];
       onLoadParagraphs(paras.map(p => p.trim()));
       uploadStatus.textContent = "Extracted text from " + file.name;
     };
@@ -105,7 +113,7 @@ export function importTextFile(file, uploadStatus, onLoadParagraphs) {
       if (window.mammoth) {
         window.mammoth.extractRawText({ arrayBuffer: arrayBuffer })
           .then(function (result) {
-            const paras = result.value ? result.value.split(/\n\s*\n/) : [];
+            const paras = result.value ? result.value.split(/\n\s*\n/).slice(0, MAX_PARAGRAPHS) : [];
             onLoadParagraphs(paras.map(p => p.trim()));
             uploadStatus.textContent = "Extracted text from " + file.name;
           })
@@ -123,7 +131,7 @@ export function importTextFile(file, uploadStatus, onLoadParagraphs) {
       const arrayBuffer = evt.target.result;
       if (window.pdfjsLib) {
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js";
-        window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+        window.pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false }).promise
           .then(function (pdf) {
             const numPages = pdf.numPages;
             const pagePromises = [];
@@ -144,7 +152,7 @@ export function importTextFile(file, uploadStatus, onLoadParagraphs) {
           })
           .then(function (pageTexts) {
             const fullText = pageTexts.join("\n\n");
-            const paras = fullText ? fullText.split(/\n\s*\n/) : [];
+            const paras = fullText ? fullText.split(/\n\s*\n/).slice(0, MAX_PARAGRAPHS) : [];
             onLoadParagraphs(paras.map(p => p.trim()).filter(Boolean));
             uploadStatus.textContent = "Extracted text from " + file.name;
           })

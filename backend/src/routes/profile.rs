@@ -197,28 +197,36 @@ pub async fn update_profile(
         }
     }
 
-    // F-009: Protect two_factor_email_enabled from unverified modification.
+    // F-014: Protect two_factor_email_enabled from unverified modification.
     if let Some(ref prefs) = body.preferences {
-        let existing_prefs: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
-            "SELECT preferences FROM profiles WHERE id = $1"
-        )
-        .bind(auth.user_id)
-        .fetch_optional(&pool)
-        .await?;
-
-        let current_2fa_enabled = existing_prefs
-            .and_then(|(p,)| p)
-            .and_then(|p| p.get("two_factor_email_enabled").and_then(|v| v.as_bool()))
-            .unwrap_or(false);
-
-        let requested_2fa = prefs.get("two_factor_email_enabled").and_then(|v| v.as_bool());
-
-        // Disabling 2FA requires an MFA session
-        if current_2fa_enabled && requested_2fa == Some(false) {
-            if auth.aal.as_deref() != Some("aal2") {
-                return Err(AppError::forbidden(
-                    "Disabling two-factor authentication requires a verified second-factor session."
+        if let Some(val) = prefs.get("two_factor_email_enabled") {
+            if !val.is_boolean() {
+                return Err(AppError::bad_request(
+                    "two_factor_email_enabled must be a boolean."
                 ));
+            }
+
+            let requested_2fa = val.as_bool().unwrap_or(false);
+
+            let existing_prefs: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
+                "SELECT preferences FROM profiles WHERE id = $1"
+            )
+            .bind(auth.user_id)
+            .fetch_optional(&pool)
+            .await?;
+
+            let current_2fa_enabled = existing_prefs
+                .and_then(|(p,)| p)
+                .and_then(|p| p.get("two_factor_email_enabled").and_then(|v| v.as_bool()))
+                .unwrap_or(false);
+
+            // Disabling 2FA requires an MFA session
+            if current_2fa_enabled && !requested_2fa {
+                if auth.aal.as_deref() != Some("aal2") {
+                    return Err(AppError::forbidden(
+                        "Disabling two-factor authentication requires a verified second-factor session."
+                    ));
+                }
             }
         }
     }
@@ -276,7 +284,7 @@ pub async fn update_profile(
             let ref_count: (i64,) = sqlx::query_as(
                 "SELECT (SELECT COUNT(*) FROM profiles WHERE avatar_url = $1) + \
                  (SELECT COUNT(*) FROM stories WHERE cover = $1) + \
-                 (SELECT COUNT(*) FROM chapter_pages WHERE bg = $1 OR bg = 'url(''' || $1 || ''')')"
+                 (SELECT COUNT(*) FROM chapter_pages WHERE bg = $1 OR bg LIKE '%' || $1 || '%')"
             )
             .bind(url)
             .fetch_one(&pool)
@@ -305,18 +313,32 @@ pub async fn get_public_profile(
     opt_auth: OptionalAuthUser,
     axum::extract::Path(username): axum::extract::Path<String>,
 ) -> Result<Json<PublicProfileResponse>, AppError> {
-    let profile = sqlx::query_as::<_, PublicProfileResponse>(
+    let trimmed = username.trim();
+    let profiles = sqlx::query_as::<_, PublicProfileResponse>(
         "SELECT id, username, role::TEXT, avatar_url, bio, \
          (SELECT COUNT(*) FROM public.follows WHERE followed_id = id) AS followers_count, \
          (SELECT COUNT(*) FROM public.follows WHERE follower_id = id) AS following_count, \
          COALESCE((SELECT EXISTS(SELECT 1 FROM public.follows WHERE follower_id = $2 AND followed_id = id)), false) AS is_following \
          FROM profiles WHERE LOWER(username) = LOWER($1)",
     )
-    .bind(username.trim())
+    .bind(trimmed)
     .bind(opt_auth.user_id)
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::not_found("Public profile not found."))?;
+    .fetch_all(&pool)
+    .await?;
+
+    if profiles.is_empty() {
+        return Err(AppError::not_found("Public profile not found."));
+    }
+
+    let profile = if profiles.len() == 1 {
+        profiles.into_iter().next().unwrap()
+    } else {
+        // F-015: If case collision exists, try exact case match or return 409 Conflict
+        profiles
+            .into_iter()
+            .find(|p| p.username == trimmed)
+            .ok_or_else(|| AppError::conflict("Multiple profiles match this username. Please specify exact casing."))?
+    };
 
     Ok(Json(profile))
 }
@@ -719,19 +741,45 @@ pub async fn delete_profile(
 
     tx.commit().await?;
 
-    // Delete story covers asynchronously after successful commit
+    // F-005 & F-016: Delete story covers asynchronously only if unreferenced
     for cover_opt in story_covers {
         if let Some(cover_url) = cover_opt {
+            let pool_cloned = pool.clone();
             tokio::spawn(async move {
-                crate::routes::upload::delete_uploaded_file(&cover_url).await;
+                let ref_count: (i64,) = sqlx::query_as(
+                    "SELECT (SELECT COUNT(*) FROM profiles WHERE avatar_url = $1) + \
+                     (SELECT COUNT(*) FROM stories WHERE cover = $1) + \
+                     (SELECT COUNT(*) FROM chapter_pages WHERE bg = $1 OR bg LIKE '%' || $1 || '%')"
+                )
+                .bind(&cover_url)
+                .fetch_one(&pool_cloned)
+                .await
+                .unwrap_or((1,));
+
+                if ref_count.0 == 0 {
+                    crate::routes::upload::delete_uploaded_file(&cover_url).await;
+                }
             });
         }
     }
 
-    // Delete user profile avatar asynchronously after successful commit
+    // F-005 & F-016: Delete user profile avatar asynchronously only if unreferenced
     if let Some(Some(url)) = avatar_url {
+        let pool_cloned = pool.clone();
         tokio::spawn(async move {
-            crate::routes::upload::delete_uploaded_file(&url).await;
+            let ref_count: (i64,) = sqlx::query_as(
+                "SELECT (SELECT COUNT(*) FROM profiles WHERE avatar_url = $1) + \
+                 (SELECT COUNT(*) FROM stories WHERE cover = $1) + \
+                 (SELECT COUNT(*) FROM chapter_pages WHERE bg = $1 OR bg LIKE '%' || $1 || '%')"
+            )
+            .bind(&url)
+            .fetch_one(&pool_cloned)
+            .await
+            .unwrap_or((1,));
+
+            if ref_count.0 == 0 {
+                crate::routes::upload::delete_uploaded_file(&url).await;
+            }
         });
     }
 
@@ -761,7 +809,10 @@ pub async fn toggle_follow_user(
     if let Some(prefs) = followed_prefs {
         if let Some(blocked) = prefs.get("blocked_users").and_then(|v| v.as_array()) {
             let uid_str = auth.user_id.to_string();
-            if blocked.iter().any(|u| u.as_str() == Some(&uid_str)) {
+            if blocked.iter().any(|u| {
+                u.as_str() == Some(&uid_str)
+                    || u.get("id").and_then(|v| v.as_str()) == Some(&uid_str)
+            }) {
                 return Err(AppError::forbidden("You cannot follow a user who has blocked you."));
             }
         }

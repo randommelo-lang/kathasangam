@@ -104,7 +104,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     }
                 }
 
-                tracing::info!("📅 Auto-published chapter '{}' (id: {})", title, ch_id);
+                // F-010: Use structured logging to prevent log injection
+                tracing::info!(chapter_id = %ch_id, title = ?title, "Auto-published scheduled chapter");
 
                 let _ = sqlx::query("UPDATE stories SET status = 'ongoing' WHERE id = $1 AND (status = 'draft' OR status = 'unpublished')")
                     .bind(story_id)
@@ -118,8 +119,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     .await
                     .unwrap_or(None);
 
-                let story_title = story_info.map(|s| s.0).unwrap_or_else(|| "a followed story".to_string());
-                let message = format!("New chapter '{}' published for '{}'", title, story_title);
+                // F-011: Bound titles before constructing notifications
+                let trunc_title: String = title.chars().take(200).collect();
+                let story_title = story_info.map(|s| s.0.chars().take(200).collect()).unwrap_or_else(|| "a followed story".to_string());
+                let message = format!("New chapter '{}' published for '{}'", trunc_title, story_title);
 
                 let _ = sqlx::query(
                     "INSERT INTO notifications (user_id, message, story_id, chapter_sort_order) \

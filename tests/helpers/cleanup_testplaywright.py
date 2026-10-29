@@ -22,6 +22,22 @@ if not database_url:
     print("Error: DATABASE_URL not found")
     exit(1)
 
+def is_file_referenced(cur, file_url, exclude_user_id=None):
+    if not file_url:
+        return False
+    query = """
+        SELECT (SELECT COUNT(*) FROM public.profiles WHERE avatar_url = %s AND id != %s) +
+               (SELECT COUNT(*) FROM public.stories WHERE cover = %s AND author_id != %s) +
+               (SELECT COUNT(*) FROM public.chapter_pages WHERE bg = %s OR bg LIKE '%%' || %s || '%%')
+    """
+    try:
+        cur.execute(query, (file_url, exclude_user_id, file_url, exclude_user_id, file_url, file_url))
+        row = cur.fetchone()
+        return (row[0] if row else 0) > 0
+    except Exception as e:
+        print(f"[WARNING] Failed checking file reference count for {file_url}: {e}")
+        return True
+
 def delete_file_from_storage(file_url):
     if not file_url:
         return
@@ -183,11 +199,14 @@ try:
             if row[0]:
                 file_urls.add(row[0])
 
-        # 2. Delete storage files
+        # 2. Delete storage files only if unreferenced across other records (F-037)
         if file_urls:
             print(f"Found {len(file_urls)} file(s) to clean up from storage.")
             for url in file_urls:
-                delete_file_from_storage(url)
+                if not is_file_referenced(cur, url, exclude_user_id=user_id):
+                    delete_file_from_storage(url)
+                else:
+                    print(f"[SKIP] File still referenced by other records: {url}")
         else:
             print("No storage files found to clean up.")
 

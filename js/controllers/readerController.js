@@ -74,8 +74,12 @@ export function handleReaderClick(ctx, action, target, e) {
 
     if (existingStory) existingStory._loadingFull = true;
 
+    var initiatingUserId = ctx.state.user && ctx.state.user.id;
+
     ctx.api("/stories/" + storyId).then(function (fullStory) {
       if (requestId !== readerRequestId) return;
+      var currentUserId = ctx.state.user && ctx.state.user.id;
+      if (currentUserId !== initiatingUserId) return;
       fullStory._fullLoaded = true;
       if (fullStory.chapters) {
         fullStory.chapters.forEach(function (ch) {
@@ -301,6 +305,7 @@ export function handleReaderClick(ctx, action, target, e) {
     }).then(function (confirmed) {
       if (!confirmed) return;
       var commentId = target.dataset.id;
+      var initiatingUserId = ctx.state.user && ctx.state.user.id;
       // Optimistic UI update
       var backupStories = JSON.parse(JSON.stringify(ctx.state.stories));
       ctx.state.stories.forEach(function (s) {
@@ -338,7 +343,9 @@ export function handleReaderClick(ctx, action, target, e) {
         }
       }).catch(function (err) {
         console.error("Failed to delete comment:", err);
-        ctx.state.stories = backupStories;
+        if (ctx.state.user && ctx.state.user.id === initiatingUserId) {
+          ctx.state.stories = backupStories;
+        }
         ctx.notify(err.message || "Failed to delete comment. Restored.");
         ctx.render();
       });

@@ -41,14 +41,23 @@ async fn require_published_chapter(_pool: &PgPool, chapter: &ChapterRow) -> Resu
 
 /// GET /api/chapters/:story_id/:index/comments
 pub async fn list_comments(
-    // SB-09: this route took no `AuthUser` and applied no status filter, so it
-    // returned comments attached to draft and not-yet-published scheduled chapters
-    // to anyone who enumerated (story_id, sort_order). The original audit fixed the
-    // equivalent leak in list_chapters but missed this parallel path.
+    // SB-09 & F-003: this route validates story publication status, NSFW policy,
+    // and chapter publication status so discussions are not leaked on private/draft stories.
     auth: OptionalAuthUser,
     State(pool): State<PgPool>,
     Path((story_id, index)): Path<(Uuid, i64)>,
 ) -> Result<Json<Vec<CommentResponse>>, AppError> {
+    let story: Option<(Option<Uuid>, String, bool)> =
+        sqlx::query_as("SELECT author_id, status, is_nsfw FROM stories WHERE id = $1")
+            .bind(story_id)
+            .fetch_optional(&pool)
+            .await?;
+
+    let (story_author_id, story_status, is_nsfw) = match story {
+        Some(s) => s,
+        None => return Err(AppError::not_found("Story not found.")),
+    };
+
     let ch: ChapterRow =
         sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 AND sort_order = $2")
             .bind(story_id)
@@ -57,16 +66,43 @@ pub async fn list_comments(
             .await?
             .ok_or_else(|| AppError::not_found("Chapter not found"))?;
 
-    // Only the author, an accepted collaborator, or staff may see an unpublished chapter.
-    if let Some(uid) = auth.user_id {
-        let privileged = crate::routes::collaborators::check_collaborator_access(&pool, uid, story_id)
+    let is_collab = if let Some(uid) = auth.user_id {
+        crate::routes::collaborators::check_collaborator_access(&pool, uid, story_id)
             .await
             .unwrap_or(false)
-            || is_staff(&pool, uid).await;
-        if !privileged {
-            require_published_chapter(&pool, &ch).await?;
-        }
+            || is_staff(&pool, uid).await
     } else {
+        false
+    };
+
+    let is_author_or_collab = auth
+        .user_id
+        .map(|uid| Some(uid) == story_author_id || is_collab)
+        .unwrap_or(false);
+
+    // Enforce publication status and NSFW gate for non-members (F-003)
+    if !is_author_or_collab {
+        let status_lower = story_status.to_lowercase();
+        if status_lower == "draft" || status_lower == "unpublished" {
+            return Err(AppError::forbidden("This story is not published."));
+        }
+
+        if is_nsfw {
+            let mut allowed = false;
+            if let Some(uid) = auth.user_id {
+                let is_18 = crate::routes::stories::is_user_eighteen_plus(&pool, uid).await;
+                let pref = crate::routes::stories::get_user_nsfw_preference(&pool, uid).await;
+                if is_18 && pref != "hide" {
+                    allowed = true;
+                }
+            }
+            if !allowed {
+                return Err(AppError::forbidden(
+                    "Underage or unauthenticated accounts are not permitted to view NSFW content.",
+                ));
+            }
+        }
+
         require_published_chapter(&pool, &ch).await?;
     }
 
@@ -121,6 +157,17 @@ pub async fn create_comment(
         return Err(AppError::bad_request("Comment content cannot exceed 5000 characters."));
     }
 
+    let story: Option<(Option<Uuid>, String, bool)> =
+        sqlx::query_as("SELECT author_id, status, is_nsfw FROM stories WHERE id = $1")
+            .bind(story_id)
+            .fetch_optional(&pool)
+            .await?;
+
+    let (story_author_id, story_status, is_nsfw) = match story {
+        Some(s) => s,
+        None => return Err(AppError::not_found("Story not found.")),
+    };
+
     let ch: ChapterRow =
         sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 AND sort_order = $2")
             .bind(story_id)
@@ -129,7 +176,34 @@ pub async fn create_comment(
             .await?
             .ok_or_else(|| AppError::not_found("Chapter not found"))?;
 
-    // Check if story author has blocked this user (F-007, F-024)
+    let is_collab = crate::routes::collaborators::check_collaborator_access(&pool, user_id, story_id)
+        .await
+        .unwrap_or(false)
+        || is_staff(&pool, user_id).await;
+
+    let is_author_or_collab = Some(user_id) == story_author_id || is_collab;
+
+    // F-004: Validate story & chapter status for non-authors
+    if !is_author_or_collab {
+        let status_lower = story_status.to_lowercase();
+        if status_lower == "draft" || status_lower == "unpublished" {
+            return Err(AppError::forbidden("Cannot comment on an unpublished story."));
+        }
+
+        if is_nsfw {
+            let is_18 = crate::routes::stories::is_user_eighteen_plus(&pool, user_id).await;
+            let pref = crate::routes::stories::get_user_nsfw_preference(&pool, user_id).await;
+            if !is_18 || pref == "hide" {
+                return Err(AppError::forbidden(
+                    "Underage or unauthenticated accounts are not permitted to view NSFW content.",
+                ));
+            }
+        }
+
+        require_published_chapter(&pool, &ch).await?;
+    }
+
+    // Check if story author has blocked this user (F-006)
     let author_prefs: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
         "SELECT p.preferences FROM profiles p \
          JOIN stories s ON s.author_id = p.id \
@@ -142,7 +216,10 @@ pub async fn create_comment(
     if let Some((Some(prefs),)) = author_prefs {
         if let Some(blocked) = prefs.get("blocked_users").and_then(|v| v.as_array()) {
             let uid_str = user_id.to_string();
-            if blocked.iter().any(|u| u.as_str() == Some(&uid_str)) {
+            if blocked.iter().any(|u| {
+                u.as_str() == Some(&uid_str)
+                    || u.get("id").and_then(|v| v.as_str()) == Some(&uid_str)
+            }) {
                 return Err(AppError::forbidden("You cannot comment on stories by an author who has blocked you."));
             }
         }

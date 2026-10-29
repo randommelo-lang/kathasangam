@@ -237,11 +237,12 @@ export function startNotificationPolling() {
   if (_pollingIntervalId !== null) return;
 
   _pollingIntervalId = setInterval(function () {
-    if (state.user || state.accessToken) {
-      var pollingUserId = state.user ? state.user.id : null;
+    // F-034: Only poll when user ID is established and valid
+    if (state.user && state.user.id) {
+      var pollingUserId = state.user.id;
       api("/notifications").then(function (notifs) {
-        // F-035: Verify user is still authenticated and has not switched/logged out
-        if (!state.user || (pollingUserId && state.user.id !== pollingUserId)) {
+        // F-034: Strictly verify user is still authenticated and same user
+        if (!state.user || state.user.id !== pollingUserId) {
           return;
         }
         var hasChanges = false;

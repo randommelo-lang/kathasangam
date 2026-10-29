@@ -192,6 +192,13 @@ export function getCoinIconSvg(iconType) {
   }
 }
 
+function getAchievementsStorageKey(user) {
+  if (user && user.id) {
+    return "kathasangam_achievements_" + user.id;
+  }
+  return "kathasangam_achievements_guest";
+}
+
 /**
  * Get current achievement metrics and unlocked list
  */
@@ -211,7 +218,7 @@ export function getAchievementsData(user) {
     if (user && user.preferences && user.preferences.achievements) {
       return Object.assign({}, defaultData, user.preferences.achievements);
     }
-    var local = localStorage.getItem("kathasangam_achievements");
+    var local = localStorage.getItem(getAchievementsStorageKey(user));
     if (local) {
       return Object.assign({}, defaultData, JSON.parse(local));
     }
@@ -226,7 +233,7 @@ export function getAchievementsData(user) {
  */
 export function saveAchievementsData(user, data) {
   try {
-    localStorage.setItem("kathasangam_achievements", JSON.stringify(data));
+    localStorage.setItem(getAchievementsStorageKey(user), JSON.stringify(data));
     if (user) {
       if (!user.preferences) user.preferences = {};
       user.preferences.achievements = data;

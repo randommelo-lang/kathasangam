@@ -12,6 +12,7 @@ pub enum AppError {
     Unauthorized(String),
     Forbidden(String),
     BadRequest(String),
+    Conflict(String),
     InternalServerError(String),
     TooManyRequests(String),
 }
@@ -29,6 +30,7 @@ impl IntoResponse for AppError {
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "unauthorized", msg),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "bad_request", msg),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, "conflict", msg),
             AppError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_server_error", msg),
             AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, "too_many_requests", msg),
         };
@@ -49,6 +51,7 @@ impl fmt::Display for AppError {
             AppError::Unauthorized(m) => write!(f, "Unauthorized: {}", m),
             AppError::Forbidden(m) => write!(f, "Forbidden: {}", m),
             AppError::BadRequest(m) => write!(f, "Bad Request: {}", m),
+            AppError::Conflict(m) => write!(f, "Conflict: {}", m),
             AppError::InternalServerError(m) => write!(f, "Internal Server Error: {}", m),
             AppError::TooManyRequests(m) => write!(f, "Too Many Requests: {}", m),
         }
@@ -72,6 +75,10 @@ impl AppError {
 
     pub fn bad_request<T: Into<String>>(msg: T) -> Self {
         AppError::BadRequest(msg.into())
+    }
+
+    pub fn conflict<T: Into<String>>(msg: T) -> Self {
+        AppError::Conflict(msg.into())
     }
 
     pub fn internal_server_error<T: Into<String>>(msg: T) -> Self {

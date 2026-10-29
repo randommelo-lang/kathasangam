@@ -920,17 +920,24 @@ function renderPrivateSettings(ctx) {
           uploadBtn.disabled = true;
           removeBtn.disabled = true;
 
+          var uploadUserId = ctx.state.user && ctx.state.user.id;
           var fd = new FormData();
           fd.append("file", file);
 
           api("/upload/image", { method: "POST", body: fd })
             .then(function (resp) {
               if (!resp || !resp.url) throw new Error("Upload failed");
+              // F-035: Abort profile mutation if user session changed during upload
+              if (!ctx.state.user || ctx.state.user.id !== uploadUserId) {
+                console.warn("[AVATAR] User session changed during upload; aborting profile update");
+                return null;
+              }
               return apiPut("/profile", { avatar_url: resp.url }).then(function () {
                 return resp.url;
               });
             })
             .then(function (newUrl) {
+              if (!newUrl) return;
               avatarPreview.classList.remove("loading");
               avatarPreview.textContent = "";
               avatarPreview.style.backgroundImage = "url('" + newUrl + "')";
@@ -960,6 +967,7 @@ function renderPrivateSettings(ctx) {
         });
 
         removeBtn.addEventListener("click", function () {
+          var removeUserId = ctx.state.user && ctx.state.user.id;
           avatarPreview.classList.add("loading");
           avatarFeedback.textContent = "Removing...";
           avatarFeedback.className = "form-feedback info";
@@ -969,6 +977,7 @@ function renderPrivateSettings(ctx) {
 
           apiPut("/profile", { avatar_url: "" })
             .then(function () {
+              if (!ctx.state.user || ctx.state.user.id !== removeUserId) return;
               avatarPreview.classList.remove("loading");
               avatarPreview.style.backgroundImage = "";
               avatarPreview.textContent = initial;

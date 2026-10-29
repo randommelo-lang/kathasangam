@@ -92,6 +92,7 @@ export function handleLibraryClick(ctx, action, target, e) {
 
   if (action === "dismissNotificationFromLibrary" || action === "clearGeneralNotificationFromLibrary") {
     var notifId = target.dataset.notifId;
+    var currentUserId = ctx.state.user && ctx.state.user.id;
     var prevNotifsGeneral = (ctx.state.notifications || []).slice();
     ctx.state.notifications = prevNotifsGeneral.filter(function (notif) { return notif.id !== notifId; });
     ctx.updateHeroNotificationUI();
@@ -105,12 +106,15 @@ export function handleLibraryClick(ctx, action, target, e) {
       ctx.notify("Notification dismissed.", "info");
     }).catch(function (err) {
       console.error("Failed to delete notification:", err);
-      ctx.state.notifications = prevNotifsGeneral;
-      ctx.updateHeroNotificationUI();
-      if (typeof ctx.renderLibraryNotifications === "function") {
-        ctx.renderLibraryNotifications();
-      } else {
-        ctx.render();
+      // F-029: Only restore notification snapshot if the user hasn't switched accounts
+      if (ctx.state.user && ctx.state.user.id === currentUserId) {
+        ctx.state.notifications = prevNotifsGeneral;
+        ctx.updateHeroNotificationUI();
+        if (typeof ctx.renderLibraryNotifications === "function") {
+          ctx.renderLibraryNotifications();
+        } else {
+          ctx.render();
+        }
       }
       ctx.notify(err.message || "Failed to dismiss notification.", "error");
     });

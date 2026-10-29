@@ -35,9 +35,16 @@ fn is_mutating_path(method: &axum::http::Method, path: &str) -> bool {
     MUTATING_METHODS.contains(method) && !path.contains("/view")
 }
 
+/// Checks whether country geolocation restriction should strictly fail closed.
+pub fn enforce_geo_restriction() -> bool {
+    std::env::var("ENFORCE_GEO_RESTRICTION")
+        .map(|value| value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
 /// Extracts a stable per-account key without verifying the token.
 ///
-/// SB-17: this reads the `sub` claim without checking the signature. That is safe for
+/// SB-17 & F-012: this reads the `sub` claim without checking the signature. That is safe for
 /// rate-limiting purposes only — a forged `sub` yields the attacker's own bucket, never
 /// someone else's — and it keeps the limiter off the database hot path. It must never
 /// be used for an authorization decision.
@@ -48,9 +55,10 @@ fn account_key(headers: &HeaderMap) -> Option<String> {
         return None;
     }
 
-    let mut payload_segment = token.split('.').nth(1)?.to_string();
-    payload_segment.push_str("==");
-    let decoded = base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, payload_segment).ok()?;
+    let payload_segment = token.split('.').nth(1)?;
+    let decoded = base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, payload_segment)
+        .or_else(|_| base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE, payload_segment))
+        .ok()?;
     let claims: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
     let sub = claims.get("sub")?.as_str()?;
 

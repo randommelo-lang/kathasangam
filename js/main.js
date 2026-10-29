@@ -43,6 +43,7 @@ import {
   handleSignOut,
   changeUserRole,
   fetchProfile,
+  getAuthGeneration,
   loadPreferences,
   autoSaveReaderPreferences,
   initAuthModule,
@@ -228,6 +229,8 @@ async function bootstrap() {
 }
 
 function loadAll() {
+  var batchUserId = state.user && state.user.id;
+  var batchAuthGeneration = getAuthGeneration();
   var isAuthenticated = !!(state.user || state.accessToken);
   var initialDiscoveryId = ++discoveryRequestId;
   var canLoadReports = isAuthenticated && canModerateRole();
@@ -260,6 +263,11 @@ function loadAll() {
     mfaPromise,
     api("/stories/recommended").catch(function () { return null; })
   ]).then(function (results) {
+    // F-032: Discard stale batch results if user or auth state transitioned
+    if (getAuthGeneration() !== batchAuthGeneration || (state.user && state.user.id !== batchUserId)) {
+      log.debug("[LOADALL] Discarding stale batch results due to auth state transition");
+      return;
+    }
     var storyPage = results[0] || { items: [], next_cursor: null, has_more: false };
     if (initialDiscoveryId === discoveryRequestId) {
       state.stories = storyPage.items || [];
@@ -879,14 +887,14 @@ function paginateText(content) {
       currentWordCount = 0;
     }
     if (words.length > 150) {
-      var remainingWords = words;
-      while (remainingWords.length > 0) {
+      var wordOffset = 0;
+      while (wordOffset < words.length) {
         var limit = 150 - currentWordCount;
-        var chunk = remainingWords.slice(0, limit);
+        var chunk = words.slice(wordOffset, wordOffset + limit);
         currentPage.push({ text: chunk.join(" "), align: align, originalIndex: idx });
         currentWordCount += chunk.length;
-        remainingWords = remainingWords.slice(limit);
-        if (currentWordCount >= 150 || remainingWords.length > 0) {
+        wordOffset += chunk.length;
+        if (currentWordCount >= 150 || wordOffset < words.length) {
           pages.push(currentPage);
           currentPage = [];
           currentWordCount = 0;

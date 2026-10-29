@@ -1,7 +1,7 @@
 use axum::{
     async_trait,
     extract::FromRequestParts,
-    http::request::Parts,
+    http::{request::Parts, Method},
 };
 use sqlx::PgPool;
 use crate::errors::AppError;
@@ -111,6 +111,31 @@ impl FromRequestParts<PgPool> for AuthUser {
 
         verify_not_banned(state, user_id).await?;
 
+        // F-001: Enforce 2FA for accounts that have two_factor_email_enabled
+        if aal.as_deref() == Some("aal1") {
+            let is_2fa_enabled: bool = sqlx::query_scalar(
+                "SELECT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false) FROM profiles WHERE id = $1"
+            )
+            .bind(user_id)
+            .fetch_optional(state)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to check 2fa status");
+                AppError::internal_server_error("An internal error occurred.")
+            })?
+            .unwrap_or(false);
+
+            if is_2fa_enabled {
+                // Allow GET /api/profile so the client can inspect preferences during login flow
+                let is_profile_read = parts.method == Method::GET && parts.uri.path() == "/api/profile";
+                if !is_profile_read {
+                    return Err(AppError::forbidden(
+                        "Two-factor authentication required. Please complete 2FA verification to perform this action.",
+                    ));
+                }
+            }
+        }
+
         Ok(AuthUser { user_id, aal })
     }
 }
@@ -168,7 +193,19 @@ impl FromRequestParts<PgPool> for MfaAuthUser {
             return Ok(MfaAuthUser { user_id });
         }
 
-        if mfa_required_for_sensitive_actions() {
+        let is_2fa_enabled: bool = sqlx::query_scalar(
+            "SELECT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false) FROM profiles WHERE id = $1"
+        )
+        .bind(user_id)
+        .fetch_optional(state)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to check 2fa status for MFA user");
+            AppError::internal_server_error("An internal error occurred.")
+        })?
+        .unwrap_or(false);
+
+        if is_2fa_enabled || mfa_required_for_sensitive_actions() {
             return Err(AppError::forbidden(
                 "This action requires two-factor authentication. Enable it in your account security settings, then sign in again.",
             ));
@@ -202,25 +239,20 @@ impl FromRequestParts<PgPool> for OptionalAuthUser {
         if let Some(header) = auth_header {
             if header.starts_with("Bearer ") {
                 let token = &header[7..];
-                let uid = if token.starts_with("mock-access-token") && allow_mock_auth() {
-                    if token.starts_with("mock-access-token:") {
-                        let uuid_str = &token[18..];
-                        Some(Uuid::parse_str(uuid_str).unwrap_or_else(|_| mock_user_id()))
-                    } else {
-                        Some(mock_user_id())
-                    }
+                let (uid, aal) = if token.starts_with("mock-access-token") && allow_mock_auth() {
+                    (Some(mock_user_id()), None)
                 } else if let Some(decoding_key) = JWT_DECODING_KEY.get() {
                     let mut validation = Validation::new(Algorithm::ES256);
                     validation.validate_aud = true;
                     validation.set_audience(&["authenticated"]);
 
                     if let Ok(token_data) = decode::<JwtClaims>(token, decoding_key, &validation) {
-                        Uuid::parse_str(&token_data.claims.sub).ok()
+                        (Uuid::parse_str(&token_data.claims.sub).ok(), token_data.claims.aal)
                     } else {
-                        None
+                        (None, None)
                     }
                 } else {
-                    None
+                    (None, None)
                 };
 
                 if let Some(user_id) = uid {
@@ -233,6 +265,22 @@ impl FromRequestParts<PgPool> for OptionalAuthUser {
 
                     if banned {
                         return Ok(OptionalAuthUser { user_id: None });
+                    }
+
+                    // F-001: If user has 2FA enabled, but token is only aal1, do not grant optional auth privileges
+                    if aal.as_deref() == Some("aal1") {
+                        let is_2fa_enabled: bool = sqlx::query_scalar(
+                            "SELECT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false) FROM profiles WHERE id = $1"
+                        )
+                        .bind(user_id)
+                        .fetch_optional(state)
+                        .await
+                        .unwrap_or(None)
+                        .unwrap_or(false);
+
+                        if is_2fa_enabled {
+                            return Ok(OptionalAuthUser { user_id: None });
+                        }
                     }
 
                     return Ok(OptionalAuthUser { user_id: Some(user_id) });

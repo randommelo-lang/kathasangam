@@ -31,6 +31,17 @@ export async function handleSignOut() {
       console.warn("Supabase signOut error (ignoring):", err);
     }
   }
+  // F-025: Explicitly purge all Supabase auth tokens from localStorage even on network failure
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith("sb-") || key.includes("-auth-token"))) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (storageErr) {
+    console.warn("Failed to purge localStorage auth keys:", storageErr);
+  }
   onAuthStateChange("SIGNED_OUT", null);
 }
 
@@ -60,16 +71,32 @@ export async function changeUserRole(newRole) {
 }
 
 let fetchProfilePromise = null;
+let currentAuthGeneration = 0;
+
+export function getAuthGeneration() {
+  return currentAuthGeneration;
+}
 
 export async function fetchProfile() {
   if (fetchProfilePromise) {
     return fetchProfilePromise;
   }
 
+  const initiatingGen = currentAuthGeneration;
+  const initiatingUser = state.user && state.user.id;
+
   fetchProfilePromise = (async function () {
     try {
       log.debug("[PROFILE] Fetching profile...");
       var profile = await api("/profile");
+
+      if (
+        currentAuthGeneration !== initiatingGen ||
+        (state.user && state.user.id !== initiatingUser)
+      ) {
+        log.debug("[PROFILE] Dropping stale profile response due to auth transition");
+        return null;
+      }
 
       log.debug("[PROFILE] Profile loaded successfully:", profile);
       state.profile = profile;
@@ -78,6 +105,9 @@ export async function fetchProfile() {
       loadPreferences();
       return profile;
     } catch (e) {
+      if (currentAuthGeneration !== initiatingGen) {
+        return null;
+      }
       console.error("[PROFILE] Failed to load profile:", e.message);
       state.profile = null;
       state.role = "reader";
@@ -177,6 +207,9 @@ export function onAuthStateChange(event, session) {
     return;
   }
 
+  currentAuthGeneration++;
+  fetchProfilePromise = null;
+
   if (session && session.user) {
     if (session.access_token) {
       setTokenCache(session.access_token);
@@ -231,6 +264,25 @@ export function onAuthStateChange(event, session) {
     state.bookmarks = null;
     state.bookmarkIds = null;
     state.readingLists = null;
+    // F-028: Clear moderation & stats data
+    state.auditLogs = [];
+    state.logModerators = [];
+    state.stats = null;
+
+    // F-027: Clear sensitive modals & DOM inputs
+    try {
+      var modalContent = document.getElementById("storyModalContent");
+      if (modalContent) modalContent.innerHTML = "";
+      var mfaKey = /** @type {HTMLInputElement | null} */ (document.getElementById("mfaSecretKey"));
+      if (mfaKey) mfaKey.value = "";
+      var codeInputs = document.querySelectorAll("input[name='code'], input[name='otp']");
+      codeInputs.forEach(function (inp) {
+        /** @type {HTMLInputElement} */ (inp).value = "";
+      });
+    } catch (domErr) {
+      console.warn("Error cleaning sensitive modal DOM on signout:", domErr);
+    }
+
     loadPreferences();
     updateAuthUI();
     if (authEffects.render) authEffects.render();

@@ -43,6 +43,9 @@ function setButtonsLoading(isLoading, activeAction) {
 }
 
 export function saveTextChapter(ctx, title, paragraphs, status, scheduledAt) {
+  const targetChapterId = ctx.ui.editingChapterId;
+  const targetUserId = ctx.state.user && ctx.state.user.id;
+
   const payload = {
     title: title,
     content: paragraphs,
@@ -79,6 +82,11 @@ export function saveTextChapter(ctx, title, paragraphs, status, scheduledAt) {
     setFormFeedback(errMsg + " Please check your input and try again.", "error");
     ctx.notify(errMsg, "error", {
       onRetry: function () {
+        // F-031: Reject retry if current editing chapter or active user changed
+        if (ctx.ui.editingChapterId !== targetChapterId || (ctx.state.user && ctx.state.user.id !== targetUserId)) {
+          ctx.notify("Cannot retry save: active chapter or user has changed.", "warning");
+          return;
+        }
         saveTextChapter(ctx, title, paragraphs, status, scheduledAt);
       }
     });

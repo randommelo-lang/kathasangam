@@ -411,7 +411,10 @@ pub async fn bulk_update_reports(
 
     let mut transaction = pool.begin().await?;
 
-    for id in &body.ids {
+    let unique_ids: std::collections::HashSet<Uuid> = body.ids.iter().copied().collect();
+    let mut processed_targets: std::collections::HashSet<(String, Uuid)> = std::collections::HashSet::new();
+
+    for id in &unique_ids {
         // Fetch the previous report status and targets for auditing
         let prev_report: Option<(String, String, Uuid)> = sqlx::query_as(
             "SELECT status, target_type, target_id FROM reports WHERE id = $1"
@@ -421,6 +424,15 @@ pub async fn bulk_update_reports(
         .await?;
 
         if let Some((prev_status, target_type, target_id)) = prev_report {
+            if prev_status == status {
+                continue;
+            }
+
+            let target_key = (target_type.clone(), target_id);
+            if !processed_targets.insert(target_key) {
+                continue;
+            }
+
             // Update all reports targeting the same content with the same status
             sqlx::query("UPDATE reports SET status = $1 WHERE target_type = $2 AND target_id = $3 AND status = $4")
                 .bind(&status)
@@ -528,12 +540,12 @@ pub async fn run_text_scan(
     let reports_scanned = reports.len() as i64;
     let mut reports_escalated = 0;
     let mut details = Vec::new();
-    let mut target_text_cache: std::collections::HashMap<(String, Uuid), String> = std::collections::HashMap::new();
+    let mut scan_match_cache: std::collections::HashMap<(String, Uuid), Option<String>> = std::collections::HashMap::new();
 
     for report in reports {
         let key = (report.target_type.clone(), report.target_id);
-        let target_text = if let Some(cached) = target_text_cache.get(&key) {
-            cached.clone()
+        let matched_term = if let Some(cached_match) = scan_match_cache.get(&key) {
+            cached_match.clone()
         } else {
             let mut text = String::new();
             if report.target_type == "story" {
@@ -567,19 +579,18 @@ pub async fn run_text_scan(
                     text = b;
                 }
             }
-            target_text_cache.insert(key, text.clone());
-            text
-        };
 
-
-        let lower_text = target_text.to_lowercase();
-        let mut matched_term = None;
-        for word in &flagged_words {
-            if lower_text.contains(word) {
-                matched_term = Some(word.to_string());
-                break;
+            let lower_text = text.to_lowercase();
+            let mut found_term = None;
+            for word in &flagged_words {
+                if lower_text.contains(word) {
+                    found_term = Some(word.to_string());
+                    break;
+                }
             }
-        }
+            scan_match_cache.insert(key, found_term.clone());
+            found_term
+        };
 
         if let Some(term) = matched_term {
             if report.severity != "high" {
@@ -644,7 +655,7 @@ pub async fn prune_retention_logs(
         return Err(AppError::forbidden("Staff permission required to prune retention logs."));
     }
 
-    let days = body.days_older_than.unwrap_or(180).max(30);
+    let days = body.days_older_than.unwrap_or(180).max(180);
 
     // Prune closed / resolved reports older than retention threshold
     let reports_res = sqlx::query(

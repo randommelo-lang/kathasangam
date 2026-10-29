@@ -110,6 +110,39 @@ export function importTextFile(file, uploadStatus, onLoadParagraphs) {
   } else if (file.name.endsWith(".docx")) {
     reader.onload = function (evt) {
       const arrayBuffer = evt.target.result;
+      // F-008: Verify total uncompressed entry size <= 25MB to protect against zip bombs
+      try {
+        const view = new DataView(arrayBuffer);
+        let totalUncompressedSize = 0;
+        let offset = 0;
+        const maxLen = arrayBuffer.byteLength - 4;
+        while (offset < maxLen) {
+          const sig = view.getUint32(offset, true);
+          if (sig === 0x04034b50) {
+            if (offset + 30 > arrayBuffer.byteLength) break;
+            const uncompressedSize = view.getUint32(offset + 22, true);
+            const filenameLen = view.getUint16(offset + 26, true);
+            const extraLen = view.getUint16(offset + 28, true);
+            totalUncompressedSize += uncompressedSize;
+            if (totalUncompressedSize > 25 * 1024 * 1024) {
+              uploadStatus.textContent = "Extraction failed: uncompressed file size exceeds safe limit (25MB).";
+              return;
+            }
+            offset += 30 + filenameLen + extraLen;
+          } else if (sig === 0x02014b50) {
+            if (offset + 46 > arrayBuffer.byteLength) break;
+            const filenameLen = view.getUint16(offset + 28, true);
+            const extraLen = view.getUint16(offset + 30, true);
+            const commentLen = view.getUint16(offset + 32, true);
+            offset += 46 + filenameLen + extraLen + commentLen;
+          } else {
+            offset++;
+          }
+        }
+      } catch (zipErr) {
+        console.warn("Could not inspect zip entry sizes:", zipErr);
+      }
+
       if (window.mammoth) {
         window.mammoth.extractRawText({ arrayBuffer: arrayBuffer })
           .then(function (result) {

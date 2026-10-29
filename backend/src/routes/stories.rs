@@ -322,6 +322,22 @@ pub async fn list_stories(
             " AND GREATEST(stories.created_at, COALESCE((SELECT MAX(created_at) FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published'), stories.created_at)) >= NOW() - INTERVAL '{days} days'"
         ));
     }
+    // Visibility check in SQL (F-020): Only return published stories or stories the user can view
+    match auth.user_id {
+        Some(uid) => {
+            sql.push(" AND (lower(stories.status) NOT IN ('draft', 'unpublished') \
+                      OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW())) \
+                      OR stories.author_id = ").push_bind(uid)
+               .push(" OR EXISTS (SELECT 1 FROM story_collaborators sc WHERE sc.story_id = stories.id AND sc.user_id = ")
+               .push_bind(uid)
+               .push(" AND sc.status = 'accepted'))");
+        }
+        None => {
+            sql.push(" AND (lower(stories.status) NOT IN ('draft', 'unpublished') \
+                      OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW())))");
+        }
+    }
+
     if let Some(cursor_id) = cursor_id {
         // Tie-break by UUID so records with equal sort values are never skipped.
         sql.push(" AND ((").push(&sort_expression).push(" < (SELECT ").push(&sort_expression)
@@ -333,7 +349,6 @@ pub async fn list_stories(
     let mut rows = sql.build_query_as::<StoryRow>().fetch_all(&pool).await?;
     let has_more = rows.len() > limit as usize;
     rows.truncate(limit as usize);
-    let last_id = rows.last().map(|row| row.id);
     let mut results = build_story_metadata_responses_batch(&pool, &rows, auth.user_id).await?;
     let raw_genres = sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT trim(genre_item) FROM stories \
@@ -403,6 +418,9 @@ pub async fn list_stories(
     });
 
     // Apply the same visibility/NSFW rules as before, after building each bounded page.
+    let last_id = results.last().map(|s| s.id);
+    let is_empty = results.is_empty();
+    let has_more = has_more && !is_empty;
     let next_cursor = if has_more { last_id.map(|id| format!("{sort}:{id}")) } else { None };
     Ok(Json(StoryPage { items: results, genres, languages, next_cursor, has_more }))
 }
@@ -602,7 +620,7 @@ pub async fn update_story(
     // SB-18: bound title/description on update too.
     validate_story_text(&title, "Title").map_err(AppError::bad_request)?;
     validate_story_text(&description, "Description").map_err(AppError::bad_request)?;
-    let mut cover = body.cover.unwrap_or(row.cover);
+    let mut cover = body.cover.map(|c| c.trim().to_string()).unwrap_or(row.cover);
     // SB-08: validate before storing; see create_story.
     if !crate::routes::upload::is_valid_stored_media_url(&cover) {
         return Err(AppError::bad_request(
@@ -664,7 +682,7 @@ pub async fn update_story(
             let ref_count: (i64,) = sqlx::query_as(
                 "SELECT (SELECT COUNT(*) FROM profiles WHERE avatar_url = $1) + \
                  (SELECT COUNT(*) FROM stories WHERE cover = $1) + \
-                 (SELECT COUNT(*) FROM chapter_pages WHERE bg = $1 OR bg = 'url(''' || $1 || ''')')"
+                 (SELECT COUNT(*) FROM chapter_pages WHERE bg = $1 OR bg LIKE '%' || $1 || '%')"
             )
             .bind(&cover_to_delete)
             .fetch_one(&pool_cloned)
@@ -704,13 +722,17 @@ pub async fn create_story(
                 "Story creation is only allowed for users located in India.",
             ));
         }
+    } else if crate::middleware::enforce_geo_restriction() {
+        return Err(AppError::forbidden(
+            "Story creation requires a verified country location from a trusted proxy.",
+        ));
     } else {
         // The country could not be established. This is a fail-open path and is
         // logged loudly: configure TRUSTED_PROXIES (and put the service behind that
         // proxy) for the restriction to be enforceable.
         tracing::warn!(
             "Story creation allowed without a verified country; \
-             configure TRUSTED_PROXIES to enforce the India-only publishing policy"
+             configure TRUSTED_PROXIES and set ENFORCE_GEO_RESTRICTION=true to enforce the India-only publishing policy"
         );
     }
 
@@ -763,7 +785,7 @@ pub async fn create_story(
     let normalized = normalize_tags(&initial_tags, is_promoted);
     let tags_json = serde_json::json!(normalized);
 
-    let cover = body.cover.unwrap_or_else(random_cover);
+    let cover = body.cover.map(|c| c.trim().to_string()).unwrap_or_else(random_cover);
     // SB-08: `cover` was stored verbatim. Any later story deletion or cover swap
     // passes this value to `delete_uploaded_file`, which builds a service-role
     // DELETE (or a local remove_file) from it — so an unvalidated cover allowed
@@ -1593,46 +1615,24 @@ pub async fn view_story(
     // F-029: Resolve client IP securely through trusted proxies
     let ip_address = crate::middleware::resolve_client_ip(&headers, addr);
 
-    let already_viewed = if let Some(user_id) = auth.user_id {
-        sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS( \
+    // F-023: Atomic view insertion preventing race condition inflation
+    let res = sqlx::query(
+        "INSERT INTO story_views (story_id, user_id, ip_address) \
+         SELECT $1, $2, $3 \
+         WHERE NOT EXISTS ( \
              SELECT 1 FROM story_views \
              WHERE story_id = $1 \
-             AND (user_id = $2 OR ip_address = $3) \
-             AND viewed_at > NOW() - INTERVAL '24 hours')"
-        )
-        .bind(story_id)
-        .bind(user_id)
-        .bind(&ip_address)
-        .fetch_one(&pool)
-        .await?
-    } else {
-        sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS( \
-             SELECT 1 FROM story_views \
-             WHERE story_id = $1 \
-             AND ip_address = $2 \
-             AND viewed_at > NOW() - INTERVAL '24 hours')"
-        )
-        .bind(story_id)
-        .bind(&ip_address)
-        .fetch_one(&pool)
-        .await?
-    };
+               AND (($2::uuid IS NOT NULL AND user_id = $2) OR ($2::uuid IS NULL AND ip_address = $3)) \
+               AND viewed_at > NOW() - INTERVAL '24 hours' \
+         )"
+    )
+    .bind(story_id)
+    .bind(auth.user_id)
+    .bind(&ip_address)
+    .execute(&pool)
+    .await?;
 
-    let viewed = if !already_viewed {
-        sqlx::query(
-            "INSERT INTO story_views (story_id, user_id, ip_address) VALUES ($1, $2, $3)"
-        )
-        .bind(story_id)
-        .bind(auth.user_id)
-        .bind(&ip_address)
-        .execute(&pool)
-        .await?;
-        true
-    } else {
-        false
-    };
+    let viewed = res.rows_affected() > 0;
 
     let updated_views = sqlx::query_scalar::<_, i32>(
         "SELECT views FROM stories WHERE id = $1"

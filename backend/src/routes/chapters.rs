@@ -249,12 +249,19 @@ pub async fn create_chapter(
     Path(story_id): Path<Uuid>,
     Json(body): Json<CreateChapterRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
-    // Geolocalized country restriction (F-022: require trusted proxy header)
+    // Geolocalized country restriction (F-013 & F-022: require trusted proxy header)
     if let Some(cf_country) = crate::middleware::trusted_proxy_header(&headers, peer, "cf-ipcountry") {
         let country_code = cf_country.to_uppercase();
         if !country_code.is_empty() && country_code != "IN" {
             return Err(AppError::forbidden("Chapter creation is only allowed for users located in India."));
         }
+    } else if crate::middleware::enforce_geo_restriction() {
+        return Err(AppError::forbidden("Chapter creation requires a verified country location from a trusted proxy."));
+    } else {
+        tracing::warn!(
+            "Chapter creation allowed without a verified country; \
+             configure TRUSTED_PROXIES and set ENFORCE_GEO_RESTRICTION=true to enforce"
+        );
     }
 
     if body.title.trim().is_empty() {
@@ -480,6 +487,13 @@ pub async fn update_chapter(
 
     // Verify user is story owner or admin
     verify_story_owner_or_admin(&pool, auth.user_id, row.story_id).await?;
+
+    if body.title.trim().is_empty() {
+        return Err(AppError::bad_request("Chapter title cannot be empty."));
+    }
+    if body.title.chars().count() > 200 {
+        return Err(AppError::bad_request("Chapter title must be 200 characters or fewer."));
+    }
 
     let mut tx = pool.begin().await?;
 

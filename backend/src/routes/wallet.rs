@@ -287,7 +287,8 @@ pub async fn complete_admin_payout(
     let payout_row: Option<(Uuid, f64, String, String)> = sqlx::query_as(
         "SELECT user_id, amount::FLOAT8, payout_upi_id, status
          FROM payout_requests
-         WHERE id = $1",
+         WHERE id = $1
+         FOR UPDATE",
     )
     .bind(payout_id)
     .fetch_optional(&mut *tx)
@@ -303,20 +304,24 @@ pub async fn complete_admin_payout(
         )));
     }
 
-    // Update payout request
-    sqlx::query(
+    // Update payout request atomically ensuring pending status
+    let res = sqlx::query(
         "UPDATE payout_requests
          SET status = 'completed',
              transaction_ref = $1,
              admin_notes = $2,
              processed_at = NOW()
-         WHERE id = $3",
+         WHERE id = $3 AND status = 'pending'",
     )
     .bind(utr)
     .bind(&body.admin_notes)
     .bind(payout_id)
     .execute(&mut *tx)
     .await?;
+
+    if res.rows_affected() == 0 {
+        return Err(AppError::bad_request("Payout request is no longer pending."));
+    }
 
     // Update creator wallet: total_withdrawn
     sqlx::query(
@@ -380,7 +385,8 @@ pub async fn reject_admin_payout(
     let payout_row: Option<(Uuid, f64, String, String)> = sqlx::query_as(
         "SELECT user_id, amount::FLOAT8, payout_upi_id, status
          FROM payout_requests
-         WHERE id = $1",
+         WHERE id = $1
+         FOR UPDATE",
     )
     .bind(payout_id)
     .fetch_optional(&mut *tx)
@@ -396,18 +402,22 @@ pub async fn reject_admin_payout(
         )));
     }
 
-    // Update payout request
-    sqlx::query(
+    // Update payout request atomically ensuring pending status
+    let res = sqlx::query(
         "UPDATE payout_requests
          SET status = 'rejected',
              admin_notes = $1,
              processed_at = NOW()
-         WHERE id = $2",
+         WHERE id = $2 AND status = 'pending'",
     )
     .bind(note)
     .bind(payout_id)
     .execute(&mut *tx)
     .await?;
+
+    if res.rows_affected() == 0 {
+        return Err(AppError::bad_request("Payout request is no longer pending."));
+    }
 
     // Refund creator wallet balance
     sqlx::query(

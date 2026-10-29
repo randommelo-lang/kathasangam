@@ -192,6 +192,9 @@ function renderWithdrawModal(walletData, onComplete) {
 }
 
 export async function renderWallet(ctx) {
+  var renderUserId = ctx.state.user && ctx.state.user.id;
+  var currentView = ctx.ui.currentView;
+
   ctx.view.innerHTML = "";
 
   if (!ctx.state.user) {
@@ -220,6 +223,11 @@ export async function renderWallet(ctx) {
       api("/wallet/transactions").catch(function () { return []; }),
       api("/author/tips").then(function (res) { return (res && res.items) || []; }).catch(function () { return []; })
     ]);
+
+    // F-036: Verify user and view have not changed during async fetch before modifying DOM
+    if (!ctx.state.user || ctx.state.user.id !== renderUserId || ctx.ui.currentView !== currentView) {
+      return;
+    }
 
     ctx.view.innerHTML = "";
 

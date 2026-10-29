@@ -45,6 +45,7 @@ import {
   handleSignOut,
   changeUserRole,
   fetchProfile,
+  getAuthGeneration,
   loadPreferences,
   autoSaveReaderPreferences,
   onAuthStateChange
@@ -94,6 +95,7 @@ export {
   handleSignOut,
   changeUserRole,
   fetchProfile,
+  getAuthGeneration,
   loadPreferences,
   autoSaveReaderPreferences,
   onAuthStateChange,

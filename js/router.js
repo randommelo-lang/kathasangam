@@ -46,6 +46,10 @@ export function hydrateGenres(ctx) {
 import { markRouteStart, markRouteEnd } from "./perf.js";
 
 export function render(ctx) {
+  var route = getRoute();
+  if (route) {
+    ctx.ui.currentView = route;
+  }
   markRouteStart(ctx.ui.currentView);
   const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings", "story", "achievements", "wallet", "about"];
   if (allowed.indexOf(ctx.ui.currentView) === -1) {

@@ -263,11 +263,6 @@ function loadAll() {
     mfaPromise,
     api("/stories/recommended").catch(function () { return null; })
   ]).then(function (results) {
-    // F-032: Discard stale batch results if user or auth state transitioned
-    if (getAuthGeneration() !== batchAuthGeneration || (state.user && state.user.id !== batchUserId)) {
-      log.debug("[LOADALL] Discarding stale batch results due to auth state transition");
-      return;
-    }
     var storyPage = results[0] || { items: [], next_cursor: null, has_more: false };
     if (initialDiscoveryId === discoveryRequestId) {
       state.stories = storyPage.items || [];
@@ -277,18 +272,30 @@ function loadAll() {
       state.languageOptions = storyPage.languages || [];
       state.discoveryLoading = false;
     }
-    state.library = results[1];
-    var reps = results[2] || { items: [], total: 0 };
-    var repsArray = reps.items || [];
-    repsArray.items = repsArray;
-    repsArray.total = reps.total || repsArray.length;
-    state.reports = repsArray;
-    state.notifications = results[3];
     state.stats = results[4];
-    state.progress = results[5] || [];
-    var mfaRes = results[6] || { data: { all: [] } };
-    state.mfaFactors = (mfaRes.data && mfaRes.data.all) || [];
-    state.recommendations = results[7] || null;
+
+    // F-032: Only commit user-specific session data if the initiating authenticated user is still active
+    var currentUserId = state.user && state.user.id;
+    if (batchUserId && currentUserId === batchUserId && getAuthGeneration() === batchAuthGeneration) {
+      state.library = results[1] || [];
+      var reps = results[2] || { items: [], total: 0 };
+      var repsArray = reps.items || [];
+      repsArray.items = repsArray;
+      repsArray.total = reps.total || repsArray.length;
+      state.reports = repsArray;
+      state.notifications = results[3] || [];
+      state.progress = results[5] || [];
+      var mfaRes = results[6] || { data: { all: [] } };
+      state.mfaFactors = (mfaRes.data && mfaRes.data.all) || [];
+      state.recommendations = results[7] || null;
+    } else if (!batchUserId && !currentUserId) {
+      state.library = [];
+      state.reports = [];
+      state.notifications = [];
+      state.progress = [];
+      state.mfaFactors = [];
+      state.recommendations = results[7] || null;
+    }
   });
 }
 

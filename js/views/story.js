@@ -29,6 +29,9 @@ export function renderStoryDetails(ctx) {
   if (!story) {
     if (storyId && ctx.api) {
       ctx.api("/stories/" + storyId).then(function (fetched) {
+        if (fetched && !fetched.id && !fetched.title && Array.isArray(fetched.items)) {
+          fetched = fetched.items.find(function (s) { return s.id === storyId; }) || fetched.items[0];
+        }
         if (fetched && (fetched.id || fetched.title)) {
           var item = fetched.id ? fetched : Object.assign({ id: storyId }, fetched);
           var idx = ctx.state.stories.findIndex(function (s) { return s.id === storyId; });

@@ -156,6 +156,20 @@ pub struct UpdateProfileRequest {
     pub preferences: Option<serde_json::Value>,
 }
 
+fn validate_preferences(prefs: &serde_json::Value) -> Result<(), AppError> {
+    if !prefs.is_object() {
+        return Err(AppError::bad_request("preferences must be an object."));
+    }
+    if let Some(val) = prefs.get("two_factor_email_enabled") {
+        if !val.is_boolean() {
+            return Err(AppError::bad_request(
+                "two_factor_email_enabled must be a boolean."
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub async fn update_profile(
     auth: AuthUser,
     State(pool): State<PgPool>,
@@ -197,39 +211,15 @@ pub async fn update_profile(
         }
     }
 
-    // F-014: Protect two_factor_email_enabled from unverified modification.
+    // Only objects can be merged without replacing the existing security flag.
     if let Some(ref prefs) = body.preferences {
-        if let Some(val) = prefs.get("two_factor_email_enabled") {
-            if !val.is_boolean() {
-                return Err(AppError::bad_request(
-                    "two_factor_email_enabled must be a boolean."
-                ));
-            }
-
-            let requested_2fa = val.as_bool().unwrap_or(false);
-
-            let existing_prefs: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
-                "SELECT preferences FROM profiles WHERE id = $1"
-            )
-            .bind(auth.user_id)
-            .fetch_optional(&pool)
-            .await?;
-
-            let current_2fa_enabled = existing_prefs
-                .and_then(|(p,)| p)
-                .and_then(|p| p.get("two_factor_email_enabled").and_then(|v| v.as_bool()))
-                .unwrap_or(false);
-
-            // Disabling 2FA requires an MFA session
-            if current_2fa_enabled && !requested_2fa {
-                if auth.aal.as_deref() != Some("aal2") {
-                    return Err(AppError::forbidden(
-                        "Disabling two-factor authentication requires a verified second-factor session."
-                    ));
-                }
-            }
-        }
+        validate_preferences(prefs)?;
     }
+
+    let unverified_disable = auth.aal.as_deref() != Some("aal2")
+        && body.preferences.as_ref()
+            .and_then(|p| p.get("two_factor_email_enabled"))
+            .and_then(|v| v.as_bool()) == Some(false);
 
     let mut old_avatar_url: Option<String> = None;
     let mut avatar_was_replaced = false;
@@ -259,7 +249,7 @@ pub async fn update_profile(
     let avatar_url = body.avatar_url.map(|s| s.trim().to_string());
     let bio = body.bio.map(|s| s.trim().to_string());
 
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE profiles SET \
          username = COALESCE($1, username), \
          avatar_url = COALESCE($2, avatar_url), \
@@ -268,15 +258,22 @@ pub async fn update_profile(
              WHEN $4::jsonb IS NOT NULL THEN COALESCE(preferences, '{}'::jsonb) || $4::jsonb \
              ELSE preferences \
          END \
-         WHERE id = $5"
+         WHERE id = $5 AND (NOT $6 OR NOT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false))"
     )
     .bind(username)
     .bind(avatar_url)
     .bind(bio)
     .bind(body.preferences)
     .bind(auth.user_id)
+    .bind(unverified_disable)
     .execute(&pool)
     .await?;
+
+    if unverified_disable && result.rows_affected() == 0 {
+        return Err(AppError::forbidden(
+            "Disabling two-factor authentication requires a verified second-factor session."
+        ));
+    }
 
     if avatar_was_replaced {
         if let Some(ref url) = old_avatar_url {
@@ -892,5 +889,24 @@ mod username_tests {
         assert!(validate_username("<script>").is_err());
         assert!(validate_username("a/b").is_err());
         assert!(validate_username("a@b").is_err());
+    }
+}
+
+#[cfg(test)]
+mod preference_tests {
+    use super::validate_preferences;
+    use serde_json::json;
+
+    #[test]
+    fn accepts_object_preferences_with_boolean_security_flag() {
+        assert!(validate_preferences(&json!({"reader_theme": "dark"})).is_ok());
+        assert!(validate_preferences(&json!({"two_factor_email_enabled": false})).is_ok());
+    }
+
+    #[test]
+    fn rejects_values_that_could_remove_or_corrupt_the_security_flag() {
+        for value in [json!([]), json!("value"), json!(1), json!({"two_factor_email_enabled": null}), json!({"two_factor_email_enabled": "false"})] {
+            assert!(validate_preferences(&value).is_err());
+        }
     }
 }

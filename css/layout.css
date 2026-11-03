@@ -2528,6 +2528,233 @@ h2 {
   text-align: center;
 }
 
+/* ─── Site Footer ─── */
+.site-footer {
+  width: 100%;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  margin-top: var(--space-10);
+  padding: 48px 24px 36px;
+  position: relative;
+  z-index: 10;
+}
+
+.site-footer[hidden] {
+  display: none !important;
+}
+
+.footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 36px;
+}
+
+.footer-col-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.footer-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.footer-desc {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+  max-width: 360px;
+}
+
+.footer-copy {
+  font-size: 0.8rem;
+  color: var(--muted);
+  opacity: 0.8;
+  margin-top: auto;
+}
+
+.footer-heading {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  margin: 0 0 16px 0;
+}
+
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-links li {
+  margin: 0;
+}
+
+.footer-links a,
+.footer-link-btn {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: color 0.18s ease, transform 0.18s ease;
+  display: inline-block;
+}
+
+.footer-links a:hover,
+.footer-link-btn:hover {
+  color: var(--accent);
+  transform: translateX(2px);
+}
+
+.footer-links a:focus-visible,
+.footer-link-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Mobile responsive footer layout */
+@media (max-width: 768px) {
+  .site-footer {
+    padding: 36px 16px calc(78px + env(safe-area-inset-bottom, 0px));
+    margin-top: var(--space-8);
+  }
+
+  .footer-inner {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .footer-desc {
+    max-width: 100%;
+  }
+}
+
+/* ─── Legal & Contact Modal ─── */
+.legal-modal {
+  width: min(760px, 94vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 28px 24px;
+  overflow: hidden;
+}
+
+.legal-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-modal-title-group {
+  flex: 1;
+}
+
+.legal-modal-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 4px 0;
+}
+
+.legal-modal-subtitle {
+  font-size: 0.88rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.legal-modal-close {
+  flex-shrink: 0;
+  position: static;
+}
+
+.legal-tabs-nav {
+  display: flex;
+  gap: 6px;
+  padding: 12px 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+
+.legal-tab-btn {
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: all 0.18s ease;
+}
+
+.legal-tab-btn:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.legal-tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.legal-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 4px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.legal-section-block {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+
+.legal-section-heading {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 8px 0;
+}
+
+.legal-section-text {
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: var(--ink);
+  opacity: 0.9;
+  margin: 0;
+  white-space: pre-line;
+}
+
+
 
 
 

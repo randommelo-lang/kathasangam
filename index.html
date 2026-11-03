@@ -3,12 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="/">
   <title>KathaSangam – Stories in Motion</title>
   <meta name="description" content="A modern publishing platform for serialized web novels and chitrānk.">
+
+  <!-- Open Graph / Facebook / WhatsApp / Telegram -->
+  <meta property="og:site_name" content="KathaSangam">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="KathaSangam – Stories in Motion">
+  <meta property="og:description" content="A modern publishing platform for serialized web novels and chitrānk.">
+  <meta property="og:image" content="https://kathasangam.co.in/icons/kathasangam-banner.jpg">
+  <meta property="og:url" content="https://kathasangam.co.in/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="KathaSangam – Stories in Motion">
+  <meta name="twitter:description" content="A modern publishing platform for serialized web novels and chitrānk.">
+  <meta name="twitter:image" content="https://kathasangam.co.in/icons/kathasangam-banner.jpg">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260701-v11">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=20260701-v11">
 </head>
 <body>
 
@@ -581,6 +597,47 @@
     </div>
   </div>
 
+  <!-- ─── Site Footer ─── -->
+  <footer class="site-footer" id="siteFooter">
+    <div class="footer-inner">
+      <div class="footer-col footer-col-brand">
+        <a class="brand footer-brand-link" href="#discover" aria-label="KathaSangam home">
+          <span class="brand-mark" aria-hidden="true">KS</span>
+          <span class="brand-text">KathaSangam</span>
+        </a>
+        <p class="footer-desc">India's decentralized storytelling platform for serialized web novels and chitrānk webcomics.</p>
+        <p class="footer-copy">&copy; 2026 KathaSangam. All creator works remain 100% creator-owned.</p>
+      </div>
+      <div class="footer-col">
+        <h3 class="footer-heading">Platform</h3>
+        <ul class="footer-links">
+          <li><a href="#discover">Discover Stories</a></li>
+          <li><a href="#library">My Library</a></li>
+          <li><a href="#studio">Author Studio</a></li>
+          <li><a href="#about">About KathaSangam</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h3 class="footer-heading">Legal &amp; Trust</h3>
+        <ul class="footer-links">
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="terms">Terms of Service</button></li>
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="privacy">Privacy Policy</button></li>
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="takedown">Copyright &amp; Takedown</button></li>
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="guidelines">Community Guidelines</button></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h3 class="footer-heading">Contact &amp; Connect</h3>
+        <ul class="footer-links">
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="contact">Contact Support</button></li>
+          <li><a href="mailto:kathasangam@zohomail.in">kathasangam@zohomail.in</a></li>
+          <li><a href="https://x.com/kathasaangam" target="_blank" rel="noopener noreferrer">Twitter / X</a></li>
+          <li><a href="https://github.com/randommelo-lang/kathasangam" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
   <!-- ─── Mobile Bottom Navigation ─── -->
   <nav class="mobile-bottom-nav" aria-label="Mobile Navigation">
     <a href="#discover" class="mobile-nav-item active" data-mobile-nav="discover" aria-label="Discover">
@@ -602,11 +659,11 @@
   </nav>
 
   <!-- Supabase JS Client -->
-  <script src="js/vendor/supabase.min.js" integrity="sha384-GMmlk3PgEaV4QITo1ucN4bsD8RYSEL/EIfi3r1o+fi2ZOqjwXBDr5HvUyyt8XBBB" crossorigin="anonymous"></script>
+  <script src="/js/vendor/supabase.min.js" integrity="sha384-GMmlk3PgEaV4QITo1ucN4bsD8RYSEL/EIfi3r1o+fi2ZOqjwXBDr5HvUyyt8XBBB" crossorigin="anonymous"></script>
   <!-- Mammoth.js for docx text extraction -->
-  <script src="js/vendor/mammoth.browser.min.js" integrity="sha384-nFoSjZIoH3CCp8W639jJyQkuPHinJ2NHe7on1xvlUA7SuGfJAfvMldrsoAVm6ECz" crossorigin="anonymous"></script>
+  <script src="/js/vendor/mammoth.browser.min.js" integrity="sha384-nFoSjZIoH3CCp8W639jJyQkuPHinJ2NHe7on1xvlUA7SuGfJAfvMldrsoAVm6ECz" crossorigin="anonymous"></script>
   <!-- PDF.js for pdf text extraction -->
-  <script src="js/vendor/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
-  <script type="module" src="js/main.js"></script>
+  <script src="/js/vendor/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
+  <script type="module" src="/js/main.js"></script>
 </body>
 </html>

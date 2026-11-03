@@ -606,7 +606,10 @@ function settingsDrawer(ctx) {
     var fontSelect = select("readerFont", [
       ["sans", "Sans-serif (Inter / System)"],
       ["serif", "Serif (Georgia / Literary)"],
-      ["mono", "Monospace (JetBrains Mono)"]
+      ["mono", "Monospace (JetBrains Mono)"],
+      ["devanagari", "Devanagari (Noto Sans – हिंदी / मराठी)"],
+      ["tamil", "Tamil (Noto Sans – தமிழ்)"],
+      ["bengali", "Bengali (Noto Serif – বাংলা)"]
     ], ctx.ui.readerFont || "sans");
     fontSelect.dataset.action = "readerFontSelect";
     fontSelect.setAttribute("aria-label", "Select typography font style");

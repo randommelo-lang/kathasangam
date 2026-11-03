@@ -668,15 +668,27 @@ figure.comic-page {
 }
 
 .reader-content.font-sans {
-  font-family: 'Inter', sans-serif !important;
+  font-family: 'Inter', 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Noto Serif Bengali', sans-serif !important;
 }
 
 .reader-content.font-serif {
-  font-family: Georgia, 'Times New Roman', serif !important;
+  font-family: 'Noto Serif Bengali', 'Noto Sans Devanagari', 'Noto Sans Tamil', Georgia, 'Times New Roman', serif !important;
 }
 
 .reader-content.font-mono {
   font-family: 'JetBrains Mono', monospace !important;
+}
+
+.reader-content.font-devanagari {
+  font-family: 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Noto Serif Bengali', 'Inter', sans-serif !important;
+}
+
+.reader-content.font-tamil {
+  font-family: 'Noto Sans Tamil', 'Noto Sans Devanagari', 'Noto Serif Bengali', 'Inter', sans-serif !important;
+}
+
+.reader-content.font-bengali {
+  font-family: 'Noto Serif Bengali', 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Inter', serif !important;
 }
 
 /* Sepia Theme overrides */

@@ -546,6 +546,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         .nest("/api", api)
 
+        // SEO & Social sharing endpoints
+        .route("/", get(routes::seo::serve_home_page))
+        .route("/story/:id", get(routes::seo::serve_story_page))
+        .route("/story/:id/", get(routes::seo::serve_story_page))
+        .route("/robots.txt", get(routes::seo::serve_robots_txt))
+        .route("/sitemap.xml", get(routes::seo::serve_sitemap_xml))
+
         .nest_service(
             "/uploads",
             uploads_service,
@@ -560,10 +567,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .with_state(pool);
 
     // The separate Render static site / Vercel serves the production frontend.
-    // Never let the public API service expose the repository checkout as a fallback.
+    // In local development or when SERVE_FRONTEND=true, serve the frontend dist/public directory.
     let serve_frontend = std::env::var("SERVE_FRONTEND")
         .map(|value| value.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
+        .unwrap_or(true);
     let app = if serve_frontend {
         let frontend_dir = if std::path::Path::new("dist/public").is_dir() {
             "dist/public"
@@ -572,7 +579,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         } else {
             "public"
         };
-        app.fallback_service(ServeDir::new(frontend_dir).append_index_html_on_directories(true))
+        app.fallback_service(
+            ServeDir::new(frontend_dir)
+                .append_index_html_on_directories(true)
+                .fallback(tower_http::services::ServeFile::new(format!("{}/index.html", frontend_dir)))
+        )
     } else {
         app.fallback(|| async { StatusCode::NOT_FOUND })
     };

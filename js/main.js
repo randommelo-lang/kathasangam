@@ -23,6 +23,7 @@ import { renderStoryDetails } from "./views/story.js";
 import { renderWallet } from "./views/wallet.js";
 import { renderAbout } from "./views/about.js";
 import { openSupportModal } from "./components/supportModal.js";
+import { openLegalModal } from "./components/legalModal.js";
 import { canDeleteStory, storyCard } from "./views/shared.js";
 
 // Import controller modules
@@ -411,7 +412,7 @@ bootstrap();
 
 // ── Events ──
 function bindGlobalEvents() {
-  window.addEventListener("hashchange", function () {
+  var handleRouteChange = function () {
     ui.currentView = getRoute();
     if (ui.currentView === "discover") {
       var changed = syncDiscoverFromUrl();
@@ -422,7 +423,10 @@ function bindGlobalEvents() {
     }
     render();
     view.focus();
-  });
+  };
+
+  window.addEventListener("hashchange", handleRouteChange);
+  window.addEventListener("popstate", handleRouteChange);
   searchInput.addEventListener("input", function () {
     if (ui.currentView !== "discover") { ui.currentView = "discover"; window.location.hash = "discover"; }
     discoveryRequestId += 1;
@@ -434,6 +438,10 @@ function bindGlobalEvents() {
   view.addEventListener("click", handleViewClick);
   view.addEventListener("input", handleViewInput);
   view.addEventListener("change", handleViewInput);
+  var siteFooter = document.getElementById("siteFooter");
+  if (siteFooter) {
+    siteFooter.addEventListener("click", handleViewClick);
+  }
   document.addEventListener("submit", handleViewSubmit);
 
   // Mobile menu and search toggle events
@@ -735,6 +743,12 @@ function handleViewClick(e) {
     return;
   }
 
+  if (action === "openLegalModal") {
+    var tab = target.dataset.legalTab || "terms";
+    openLegalModal(tab);
+    return;
+  }
+
   if (action === "openSupportModal") {
     var sid = target.dataset.storyId;
     var stitle = target.dataset.storyTitle;
@@ -803,8 +817,17 @@ function getCurrentStory() {
     return null;
   }
   var hash = window.location.hash || "";
-  var params = new URLSearchParams(hash.split("?")[1] || "");
-  var targetId = params.get("id") || params.get("story") || ui.currentStoryId;
+  var hashParams = new URLSearchParams(hash.split("?")[1] || "");
+  var targetId = hashParams.get("id") || hashParams.get("story");
+  if (!targetId) {
+    var pathMatch = (typeof window !== "undefined" && window.location.pathname) ? window.location.pathname.match(/^\/story\/([a-zA-Z0-9_-]+)/) : null;
+    if (pathMatch) targetId = pathMatch[1];
+  }
+  if (!targetId) {
+    var searchParams = new URLSearchParams((typeof window !== "undefined" ? window.location.search : "") || "");
+    targetId = searchParams.get("id") || searchParams.get("story");
+  }
+  if (!targetId) targetId = ui.currentStoryId;
   if (!targetId) return null;
   return state.stories.find(function (s) { return s.id === targetId; }) || null;
 }

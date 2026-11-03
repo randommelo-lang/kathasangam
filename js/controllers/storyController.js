@@ -89,7 +89,56 @@ export function closeStoryModal() {
   previousStoryModalFocus = null;
 }
 
+function copyToClipboard(text, context) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () {
+      if (context && context.notify) context.notify("Story link copied to clipboard!", "success");
+    }).catch(function () {
+      fallbackCopyText(text, context);
+    });
+  } else {
+    fallbackCopyText(text, context);
+  }
+}
+
+function fallbackCopyText(text, context) {
+  try {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    if (context && context.notify) context.notify("Story link copied to clipboard!", "success");
+  } catch (_) {
+    if (context && context.notify) context.notify(text, "info");
+  }
+}
+
 export function handleStoryClick(context, action, target, e) {
+  if (action === "shareStory") {
+    var shareStoryId = target.dataset.storyId || (target.closest("[data-story-id]") && target.closest("[data-story-id]").dataset.storyId) || context.ui.currentStoryId;
+    var shareTitle = target.dataset.storyTitle || "Story on KathaSangam";
+    var shareUrl = (typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://kathasangam.co.in") + "/story/" + shareStoryId;
+
+    if (navigator.share) {
+      navigator.share({
+        title: shareTitle,
+        text: "Read '" + shareTitle + "' on KathaSangam:",
+        url: shareUrl
+      }).catch(function (err) {
+        if (err && err.name !== "AbortError") {
+          copyToClipboard(shareUrl, context);
+        }
+      });
+    } else {
+      copyToClipboard(shareUrl, context);
+    }
+    return true;
+  }
   if (action === "toggleStoryChapterSort") {
     context.ui.storyChapterSort = (context.ui.storyChapterSort === "desc") ? "asc" : "desc";
     context.render();

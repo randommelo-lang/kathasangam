@@ -62,3 +62,15 @@ Thumbs.db
 *~
 *.tmp
 *.temp
+
+# Project Docs / Internal Planning (Private)
+plan.md
+Plan.md
+security.md
+RELEASE_CHECKLIST.md
+PRIVACY_AND_RETENTION.md
+OPERATIONS_AND_RECOVERY.md
+Idea.md
+FRONTEND_MODULES.md
+CHANGELOG.md
+

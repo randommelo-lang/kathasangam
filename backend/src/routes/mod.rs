@@ -15,4 +15,5 @@ pub mod reading_lists;
 pub mod collaborators;
 pub mod internal_notes;
 pub mod wallet;
+pub mod seo;
 

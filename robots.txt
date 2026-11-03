@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /story/
+Allow: /icons/
+Allow: /styles.css
+Allow: /js/
+Disallow: /api/
+Disallow: /studio
+Disallow: /settings
+Disallow: /moderation
+
+Sitemap: https://kathasangam.co.in/sitemap.xml

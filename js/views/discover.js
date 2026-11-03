@@ -471,8 +471,8 @@ export function renderDiscover(ctx) {
   var featured = ctx.state.stories.filter(function (s) { return s.status && s.status !== "draft" && s.status !== "unpublished"; }).slice(0, 3);
   if (carouselIndex >= featured.length) carouselIndex = 0;
 
-  // Hero Carousel
-  if (featured.length) {
+  // Hero Carousel - only display when at least 3 stories exist
+  if (featured.length >= 3) {
   var carousel = el("section", { class: "hero-carousel", role: "region", "aria-label": "Featured stories", "aria-roledescription": "carousel" });
   var track = el("div", "carousel-track");
   track.setAttribute("aria-live", "off");
@@ -670,7 +670,7 @@ export function renderDiscover(ctx) {
     el("div", { style: "display: flex; align-items: center; gap: 10px; flex-wrap: wrap;" }, [
       aboutBtn,
       filterBtn,
-      el("div", { class: "mini-meta", role: "status", "aria-live": "polite" }, "Showing " + stories.length + " stories")
+      el("div", { class: "mini-meta", role: "status", "aria-live": "polite" }, "Showing " + stories.length + (stories.length === 1 ? " story" : " stories"))
     ])
   ]));
 
@@ -801,7 +801,7 @@ export function renderDiscover(ctx) {
       ));
     } else {
       mainCol.appendChild(emptyState(
-        "No stories published yet",
+        "Be the first author here",
         "KathaSangam is ready for original fiction! Be the first creator to publish an original Web Novel or Chitrānk comic.",
         el("a", {
           class: "btn primary",

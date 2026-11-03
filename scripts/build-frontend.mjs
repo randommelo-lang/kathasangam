@@ -10,9 +10,13 @@ const publicDir = resolve(repoRoot, "dist/public");
 rmSync(publicDir, { recursive: true, force: true });
 mkdirSync(publicDir, { recursive: true });
 
-for (const file of ["index.html", "styles.css"]) {
+for (const file of ["index.html", "styles.css", "robots.txt"]) {
   cpSync(resolve(repoRoot, file), resolve(publicDir, file));
 }
+// Keep backend embedded template in sync with root index.html
+try {
+  cpSync(resolve(repoRoot, "index.html"), resolve(repoRoot, "backend/src/index_template.html"));
+} catch (_) {}
 
 for (const directory of ["css", "icons", "js"]) {
   cpSync(resolve(repoRoot, directory), resolve(publicDir, directory), {

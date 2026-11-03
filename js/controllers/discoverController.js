@@ -119,9 +119,12 @@ export function handleDiscoverClick(ctx, action, target, e) {
   }
   if (action === "openStory") {
     if (e && e.target && e.target.closest("a[href]")) return false;
-    var storyId = target.dataset.id || (target.closest("[data-id]") && target.closest("[data-id]").dataset.id);
+    var storyId = target.dataset.id || target.dataset.storyId || (target.closest("[data-id]") && target.closest("[data-id]").dataset.id) || (target.closest("[data-story-id]") && target.closest("[data-story-id]").dataset.storyId);
     if (storyId) {
+      ctx.ui.currentStoryId = storyId;
+      ctx.ui.currentView = "story";
       window.location.hash = "story?id=" + storyId;
+      ctx.render();
       return true;
     }
   }

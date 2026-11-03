@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="/">
+  <title>KathaSangam – Stories in Motion</title>
+  <meta name="description" content="A modern publishing platform for serialized web novels and chitrānk.">
+
+  <!-- Open Graph / Facebook / WhatsApp / Telegram -->
+  <meta property="og:site_name" content="KathaSangam">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="KathaSangam – Stories in Motion">
+  <meta property="og:description" content="A modern publishing platform for serialized web novels and chitrānk.">
+  <meta property="og:image" content="https://kathasangam.co.in/icons/kathasangam-banner.jpg">
+  <meta property="og:url" content="https://kathasangam.co.in/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="KathaSangam – Stories in Motion">
+  <meta name="twitter:description" content="A modern publishing platform for serialized web novels and chitrānk.">
+  <meta name="twitter:image" content="https://kathasangam.co.in/icons/kathasangam-banner.jpg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=20260701-v11">
+</head>
+<body>
+
+  <!-- ─── Top Bar / Hero Bar ─── -->
+  <header class="hero-bar" id="heroBar">
+    <div class="hero-bar-inner">
+      <a class="brand" href="#discover" aria-label="KathaSangam home">
+        <span class="brand-mark" aria-hidden="true">KS</span>
+        <span class="brand-text">KathaSangam</span>
+      </a>
+
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#discover" data-nav="discover" class="active">Discover</a>
+        <a href="#library" data-nav="library">Library</a>
+        <a href="#studio" data-nav="studio">Studio</a>
+        <a href="#reader" data-nav="reader" class="nav-reader-link">Reader</a>
+        <a href="#moderation" data-nav="moderation" hidden>Moderation</a>
+      </nav>
+
+      <div class="hero-bar-right">
+        <div class="searchbar" role="search">
+          <label class="sr-only" for="searchInput">Search stories, authors, and tags</label>
+          <input id="searchInput" type="search" placeholder="Search stories…">
+          <label class="sr-only" for="genreFilter">Genre filter</label>
+          <select id="genreFilter">
+            <option value="all">All genres</option>
+          </select>
+        </div>
+
+        <!-- Auth area: shown based on login state -->
+        <div id="authArea" class="auth-area">
+          <button id="signInBtn" class="btn primary auth-signin-btn" type="button" disabled>Log In</button>
+        </div>
+        <div id="heroNotificationArea" class="hero-notification-area"></div>
+
+        <button id="themeToggleBtn" class="theme-toggle-btn" type="button" aria-label="Toggle light/dark theme">
+          <svg class="theme-icon sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#FFD700" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2" />
+            <path d="M12 20v2" />
+            <path d="M4.93 4.93l1.41 1.41" />
+            <path d="M17.66 17.66l1.41 1.41" />
+            <path d="M2 12h2" />
+            <path d="M20 12h2" />
+            <path d="M6.34 17.66l-1.41 1.41" />
+            <path d="M19.07 4.93l-1.41 1.41" />
+          </svg>
+          <svg class="theme-icon moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#FFD700" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+            <path d="M12 3a9 9 0 1 0 8.313 12.454a7.5 7.5 0 0 1 -7.92 -12.446c-.13 0 -.261 0 -.393 -.008z" transform="scale(-1, 1) translate(-24, 0)" />
+          </svg>
+        </button>
+
+        <!-- Mobile Search Toggle -->
+        <button id="mobileSearchBtn" class="mobile-toggle-btn mobile-search-btn" type="button" aria-label="Toggle search" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="close-icon" style="display: none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        
+        <!-- Mobile Menu Toggle -->
+        <button id="mobileMenuBtn" class="mobile-toggle-btn mobile-menu-btn" type="button" aria-label="Toggle navigation menu" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="menu-icon"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="close-icon" style="display: none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Auth Modal ─── -->
+  <div id="authModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal" role="dialog" aria-labelledby="authModalTitle" aria-modal="true">
+      <button class="auth-modal-close" id="authModalClose" type="button" aria-label="Close">&times;</button>
+
+      <div class="auth-modal-header">
+        <span class="brand-mark auth-modal-logo" aria-hidden="true">KS</span>
+        <h2 id="authModalTitle" class="auth-modal-title">Welcome back</h2>
+        <p class="auth-modal-subtitle">Log in to your KathaSangam account</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-auth-tab="login" type="button">Log In</button>
+        <button class="auth-tab" data-auth-tab="signup" type="button">Sign Up</button>
+      </div>
+
+      <div id="authError" class="auth-error" role="alert" aria-live="assertive" hidden></div>
+      <div id="authSuccess" class="auth-success" role="status" aria-live="polite" hidden></div>
+
+      <!-- Login Form -->
+      <form id="loginForm" class="auth-form" autocomplete="on">
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+        </label>
+        <label class="field">
+          <span style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Password</span>
+            <a href="#" id="forgotPasswordLink" style="font-size: 0.8rem; color: var(--accent); text-decoration: none;">Forgot password?</a>
+          </span>
+          <input type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Log In</button>
+      </form>
+
+      <!-- Sign Up Form -->
+      <form id="signupForm" class="auth-form" hidden autocomplete="on">
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password">
+        </label>
+        <label class="field">
+          <span>Confirm Password</span>
+          <input type="password" name="confirmPassword" placeholder="••••••••" required minlength="6" autocomplete="new-password">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Create Account</button>
+      </form>
+
+      <!-- 2FA Login Challenge Form -->
+      <form id="mfaLoginForm" class="auth-form" hidden>
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          Two-Factor Authentication is enabled for your account. Please enter the 6-digit verification code from your authenticator app.
+        </p>
+        <label class="field">
+          <span>Verification Code</span>
+          <input type="text" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Verify & Log In</button>
+        <button type="button" id="mfaLoginCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
+      </form>
+
+      <!-- Email OTP Login Challenge Form -->
+      <form id="emailOtpLoginForm" class="auth-form" hidden>
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          Two-Factor Authentication is enabled for your account. Please enter the 6-digit one-time code sent to your registered email address.
+        </p>
+        <label class="field">
+          <span>One-Time Passcode (OTP)</span>
+          <input type="text" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Verify & Log In</button>
+        <button type="button" id="emailOtpLoginCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
+      </form>
+
+      <!-- Signup OTP Verification Form -->
+      <form id="signupOtpForm" class="auth-form" hidden>
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          A 6-digit verification code has been sent to your email address. Please enter the code below to confirm and activate your account.
+        </p>
+        <label class="field">
+          <span>Verification Code</span>
+          <input type="text" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Verify & Activate</button>
+        <button type="button" id="signupOtpCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
+      </form>
+
+      <!-- Forgot Password Form -->
+      <form id="forgotPasswordForm" class="auth-form" hidden autocomplete="on">
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          Enter your email address and we'll send you a secure link to reset your password.
+        </p>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Send Reset Link</button>
+        <button type="button" id="forgotPasswordCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Back to Log In</button>
+      </form>
+
+      <!-- Forgot Password Confirmation (Email Sent) -->
+      <div id="forgotPasswordSentState" class="auth-form forgot-sent-state" hidden>
+        <div class="sent-icon-wrap">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+        </div>
+        <h3 class="sent-title">Check Your Email</h3>
+        <p class="sent-desc">
+          We've sent a password reset link to <strong id="forgotSentEmail"></strong>. Click the link in your email to choose a new password.
+        </p>
+        <div class="sent-hint">
+          Didn't receive an email? Check your spam folder or wait a moment before requesting another link.
+        </div>
+        <button type="button" id="forgotResendBtn" class="btn secondary" style="width: 100%; margin-bottom: 8px;">Resend Reset Link</button>
+        <button type="button" id="forgotSentBackBtn" class="btn secondary" style="width: 100%;">Back to Log In</button>
+      </div>
+
+      <!-- Forgot Password OTP Verification Form (Fallback) -->
+      <form id="forgotPasswordOtpForm" class="auth-form" hidden autocomplete="off" style="display: none !important;">
+        <input type="hidden" name="code" value="">
+      </form>
+
+      <!-- Reset Password Form -->
+      <form id="resetPasswordForm" class="auth-form" hidden autocomplete="off">
+        <p class="auth-modal-subtitle" style="margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; text-align: center; color: var(--ink);">
+          Please choose a strong new password for your account.
+        </p>
+        <label class="field">
+          <span>New Password</span>
+          <input type="password" name="password" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password">
+        </label>
+        <label class="field">
+          <span>Confirm New Password</span>
+          <input type="password" name="confirmPassword" placeholder="••••••••" required minlength="6" autocomplete="new-password">
+        </label>
+        <button type="submit" class="btn primary auth-submit-btn">Update Password</button>
+        <button type="button" id="resetPasswordCancelBtn" class="btn secondary" style="width: 100%; margin-top: 10px;">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Create Story Modal ─── -->
+  <div id="storyModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal" role="dialog" aria-labelledby="storyModalTitle" aria-modal="true">
+      <button class="auth-modal-close" id="storyModalClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="brand-mark auth-modal-logo" aria-hidden="true">KS</span>
+        <h2 id="storyModalTitle" class="auth-modal-title">Create New Story</h2>
+        <p class="auth-modal-subtitle">Start your series on KathaSangam</p>
+      </div>
+      <div id="storyModalContent"></div>
+    </div>
+  </div>
+
+  <!-- ─── Main Content ─── -->
+  <main class="main">
+    <h1 id="pageTitle" class="sr-only">Discover</h1>
+    <section id="alerts" class="alerts" aria-live="polite" aria-atomic="true"></section>
+    <section id="view" class="view" tabindex="-1"></section>
+  </main>
+
+  <!-- ─── Story Card Template ─── -->
+  <template id="storyCardTemplate">
+    <article class="story-card">
+      <button class="cover-button" type="button" aria-label="Story cover">
+        <span class="cover-art" aria-hidden="true"></span>
+        <span class="cover-badge"></span>
+        <div class="cover-hover">
+          <span class="cover-hover-label">Read →</span>
+        </div>
+      </button>
+      <div class="story-body">
+        <div class="story-meta"></div>
+        <h2></h2>
+        <p></p>
+        <div class="tag-row"></div>
+        <div class="story-actions"></div>
+      </div>
+    </article>
+  </template>
+
+  <!-- ─── Report Modal ─── -->
+  <div id="reportModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal report-modal" role="dialog" aria-labelledby="reportModalTitle" aria-modal="true">
+      <button class="auth-modal-close" id="reportModalClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true"><span class="icon icon-warning"></span></span>
+        <h2 id="reportModalTitle" class="auth-modal-title">Report Content</h2>
+        <p id="reportModalSubtitle" class="auth-modal-subtitle">Help us keep KathaSangam safe</p>
+      </div>
+
+      <form id="reportForm" class="auth-form">
+        <!-- Type selection (hidden for comment reports, shown for content reports) -->
+        <div id="reportTypeSection" class="report-type-section">
+          <label class="report-type-label">What would you like to report?</label>
+          <div class="report-type-options">
+            <label class="report-type-option">
+              <input type="radio" name="reportType" value="story" checked>
+              <span class="report-type-card">
+                <span class="report-type-icon">📖</span>
+                <span class="report-type-text">Story</span>
+              </span>
+            </label>
+            <label class="report-type-option">
+              <input type="radio" name="reportType" value="chapter">
+              <span class="report-type-card">
+                <span class="report-type-icon">📄</span>
+                <span class="report-type-text">Chapter</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>Reason for reporting</span>
+          <textarea id="reportReason" name="reason" placeholder="Please describe why you are reporting this content..." required rows="4" minlength="5"></textarea>
+        </label>
+
+        <label class="field" style="margin-top: 15px;">
+          <span>Severity level</span>
+          <select id="reportSeverity" name="severity" required style="width: 100%; padding: 8px 12px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); color: var(--ink);">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+
+        <div id="reportError" class="auth-error" hidden></div>
+
+        <button type="submit" id="reportSubmitBtn" class="btn primary auth-submit-btn">Submit Report</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Confirm Deletion Modal ─── -->
+  <div id="confirmDeleteModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal confirm-delete-modal" role="dialog" aria-labelledby="confirmDeleteTitle" aria-modal="true">
+      <button class="auth-modal-close" id="confirmDeleteClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🗑️</span>
+        <h2 id="confirmDeleteTitle" class="auth-modal-title">Delete Content</h2>
+        <p id="confirmDeleteSubtitle" class="auth-modal-subtitle">This action is permanent and cannot be undone.</p>
+      </div>
+
+      <div class="confirm-delete-body" style="margin-bottom: 20px; color: var(--ink);">
+        <p id="confirmDeleteText" style="font-size: 0.95rem; line-height: 1.5; margin: 0 0 16px 0;"></p>
+        
+        <label class="field" style="display: flex; flex-direction: column; gap: 6px; text-align: left;">
+          <span>Reason for removal</span>
+          <textarea id="confirmDeleteReason" name="reason" placeholder="Describe the reason for removing this content (violating guidelines, spamming, etc.)..." required rows="3" style="width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-size: 0.95rem; font-family: inherit; resize: vertical; box-sizing: border-box;"></textarea>
+        </label>
+      </div>
+
+      <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+        <button type="button" id="confirmDeleteCancelBtn" class="btn">Cancel</button>
+        <button type="button" id="confirmDeleteConfirmBtn" class="btn danger">Remove Content</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Ban User Modal ─── -->
+  <div id="banUserModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal ban-user-modal" role="dialog" aria-labelledby="banUserTitle" aria-modal="true">
+      <button class="auth-modal-close" id="banUserClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🚫</span>
+        <h2 id="banUserTitle" class="auth-modal-title">Ban User</h2>
+        <p id="banUserSubtitle" class="auth-modal-subtitle">Restrict this user from accessing KathaSangam.</p>
+      </div>
+
+      <form id="banUserForm" data-form="banUserForm">
+        <input type="hidden" id="banTargetUserId" name="userId">
+        
+        <div class="confirm-delete-body" style="margin-bottom: 20px; color: var(--ink);">
+          <p id="banUserText" style="font-size: 0.95rem; line-height: 1.5; margin: 0;"></p>
+        </div>
+
+        <label class="field">
+          <span>Reason for ban</span>
+          <textarea id="banReason" name="reason" placeholder="Describe the reason for this ban (violating guidelines, spamming, etc.)..." required rows="4" minlength="5"></textarea>
+        </label>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+          <button type="button" id="banUserCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="banUserSubmitBtn" class="btn danger">Ban User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Schedule Publishing Modal ─── -->
+  <div id="scheduleModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal schedule-modal" role="dialog" aria-labelledby="scheduleModalTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="scheduleModalClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true"><svg class="icon calendar-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; display: inline-block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></span>
+        <h2 id="scheduleModalTitle" class="auth-modal-title">Schedule Chapter</h2>
+        <p id="scheduleModalSubtitle" class="auth-modal-subtitle">Set a date and time for automatic publishing</p>
+      </div>
+
+      <form id="scheduleForm" data-form="scheduleForm">
+        <input type="hidden" id="scheduleChapterId" name="chapterId">
+
+        <label class="field">
+          <span>Publish Date & Time</span>
+          <input type="datetime-local" id="scheduleDateTime" name="scheduledAt" required style="width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text); font-size: 0.95rem;">
+        </label>
+
+        <p id="scheduleInfo" style="font-size: 0.82rem; color: var(--text-muted); margin: 12px 0 0; line-height: 1.4;"></p>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+          <button type="button" id="scheduleCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="scheduleConfirmBtn" class="btn primary orange-glow-btn"><svg class="icon calendar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: middle; display: inline-block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>Confirm Schedule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Two-Factor Authentication Setup Modal ─── -->
+  <div id="mfaSetupModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal mfa-setup-modal" role="dialog" aria-labelledby="mfaSetupTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="mfaSetupClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🔒</span>
+        <h2 id="mfaSetupTitle" class="auth-modal-title">Enable 2FA</h2>
+        <p id="mfaSetupSubtitle" class="auth-modal-subtitle">Secure your account with Time-based One-time Passwords (TOTP)</p>
+      </div>
+
+      <div class="mfa-setup-body" style="color: var(--ink); font-size: 0.92rem; line-height: 1.5;">
+        <ol style="padding-left: 20px; margin: 0 0 20px 0;">
+          <li>Scan the QR code below using your authenticator app (Google Authenticator, Authy, etc.):</li>
+          <div id="mfaQrContainer" style="display: flex; justify-content: center; margin: 15px 0; background: white; padding: 15px; border-radius: 8px; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);"></div>
+          <li>Or copy and enter this setup key manually if you're on a mobile device:</li>
+          <div style="display: flex; gap: 8px; margin: 10px 0 15px 0;">
+            <input type="text" id="mfaSecretInput" readonly style="flex: 1; padding: 8px 12px; font-family: monospace; font-size: 0.85rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+            <button type="button" id="mfaCopyKeyBtn" class="btn btn-sm">Copy</button>
+          </div>
+          <div id="mfaDeepLinkWrapper" style="margin-bottom: 20px; text-align: center;">
+            <a id="mfaDeepLink" href="#" class="btn primary btn-sm" style="display: inline-block; width: 100%; text-decoration: none; text-align: center; color: white;">📱 Open Authenticator App</a>
+          </div>
+          <li>Enter the 6-digit verification code generated by your app:</li>
+        </ol>
+
+        <form id="mfaSetupForm" data-form="mfaSetupForm">
+          <label class="field">
+            <span>Verification Code</span>
+            <input type="text" id="mfaSetupCode" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.4rem; letter-spacing: 0.4rem; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+          </label>
+
+          <div id="mfaSetupFeedback" class="form-feedback" style="display: none; margin-top: 12px;"></div>
+
+          <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+            <button type="button" id="mfaSetupCancelBtn" class="btn">Cancel</button>
+            <button type="submit" id="mfaSetupConfirmBtn" class="btn primary orange-glow-btn">Verify & Enable</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Two-Factor Authentication Disable Modal ─── -->
+  <div id="mfaDisableModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal mfa-disable-modal" role="dialog" aria-labelledby="mfaDisableTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="mfaDisableClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🔓</span>
+        <h2 id="mfaDisableTitle" class="auth-modal-title">Disable 2FA</h2>
+        <p id="mfaDisableSubtitle" class="auth-modal-subtitle">Enter your 6-digit authenticator code to confirm disabling Two-Factor Authentication.</p>
+      </div>
+
+      <form id="mfaDisableForm" data-form="mfaDisableForm">
+        <label class="field">
+          <span>Verification Code</span>
+          <input type="text" id="mfaDisableCode" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.4rem; letter-spacing: 0.4rem; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+
+        <div id="mfaDisableFeedback" class="form-feedback" style="display: none; margin-top: 12px;"></div>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+          <button type="button" id="mfaDisableCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="mfaDisableConfirmBtn" class="btn danger">Verify & Disable</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Email OTP Setup Modal ─── -->
+  <div id="emailOtpSetupModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal email-otp-setup-modal" role="dialog" aria-labelledby="emailOtpSetupTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="emailOtpSetupClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">✉️</span>
+        <h2 id="emailOtpSetupTitle" class="auth-modal-title">Enable Email 2FA</h2>
+        <p id="emailOtpSetupSubtitle" class="auth-modal-subtitle">Secure your account with one-time verification codes sent to your email.</p>
+      </div>
+
+      <div class="email-otp-setup-body" style="color: var(--ink); font-size: 0.92rem; line-height: 1.5;">
+        <p style="margin-bottom: 20px;">
+          We will send a 6-digit verification code to your registered email address. Enter the code below to enable Email Two-Factor Authentication.
+        </p>
+
+        <form id="emailOtpSetupForm" data-form="emailOtpSetupForm">
+          <label class="field">
+            <span>Verification Code</span>
+            <input type="text" id="emailOtpSetupCode" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.4rem; letter-spacing: 0.4rem; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+          </label>
+
+          <div id="emailOtpSetupFeedback" class="form-feedback" style="display: none; margin-top: 12px;"></div>
+
+          <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+            <button type="button" id="emailOtpSetupCancelBtn" class="btn">Cancel</button>
+            <button type="submit" id="emailOtpSetupConfirmBtn" class="btn primary orange-glow-btn">Verify & Enable</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Email OTP Disable Modal ─── -->
+  <div id="emailOtpDisableModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal email-otp-disable-modal" role="dialog" aria-labelledby="emailOtpDisableTitle" aria-modal="true" style="max-width: 440px;">
+      <button class="auth-modal-close" id="emailOtpDisableClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🔓</span>
+        <h2 id="emailOtpDisableTitle" class="auth-modal-title">Disable Email 2FA</h2>
+        <p id="emailOtpDisableSubtitle" class="auth-modal-subtitle">Enter the 6-digit one-time code sent to your email to confirm disabling Email 2FA.</p>
+      </div>
+
+      <form id="emailOtpDisableForm" data-form="emailOtpDisableForm">
+        <label class="field">
+          <span>Verification Code</span>
+          <input type="text" id="emailOtpDisableCode" name="code" placeholder="000000" inputmode="numeric" pattern="[0-9]*" maxlength="6" required style="text-align: center; font-size: 1.4rem; letter-spacing: 0.4rem; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);">
+        </label>
+
+        <div id="emailOtpDisableFeedback" class="form-feedback" style="display: none; margin-top: 12px;"></div>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+          <button type="button" id="emailOtpDisableCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="emailOtpDisableConfirmBtn" class="btn danger">Verify & Disable</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Moderator Action Note Modal ─── -->
+  <div id="modNoteModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal mod-note-modal" role="dialog" aria-labelledby="modNoteTitle" aria-modal="true" style="max-width: 480px;">
+      <button class="auth-modal-close" id="modNoteClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">📝</span>
+        <h2 id="modNoteTitle" class="auth-modal-title">Moderator Note</h2>
+        <p id="modNoteSubtitle" class="auth-modal-subtitle">Add an optional reason or note for this action.</p>
+      </div>
+
+      <form id="modNoteForm" data-form="modNoteForm">
+        <input type="hidden" id="modNoteReportId" name="reportId">
+        <input type="hidden" id="modNoteAction" name="action">
+
+        <div class="confirm-delete-body" style="margin-bottom: 16px; color: var(--ink);">
+          <p id="modNoteText" style="font-size: 0.95rem; line-height: 1.5; margin: 0;"></p>
+        </div>
+
+        <label class="field">
+          <span>Note (optional)</span>
+          <textarea id="modNoteInput" name="note" placeholder="Describe why you are taking this action…" rows="3"></textarea>
+        </label>
+
+        <div class="button-row" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+          <button type="button" id="modNoteCancelBtn" class="btn">Cancel</button>
+          <button type="submit" id="modNoteSubmitBtn" class="btn success">Confirm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Text Scan Results Modal ─── -->
+  <div id="textScanResultsModal" class="auth-modal-backdrop" hidden>
+    <div class="auth-modal text-scan-modal" role="dialog" aria-labelledby="textScanTitle" aria-modal="true" style="max-width: 600px;">
+      <button class="auth-modal-close" id="textScanClose" type="button" aria-label="Close">&times;</button>
+      <div class="auth-modal-header">
+        <span class="report-modal-icon" aria-hidden="true">🔍</span>
+        <h2 id="textScanTitle" class="auth-modal-title">Text Scan Results</h2>
+        <p id="textScanSubtitle" class="auth-modal-subtitle">Automated keyword profanity scan check summary.</p>
+      </div>
+
+      <div class="confirm-delete-body" style="margin-bottom: 20px; color: var(--ink);">
+        <p id="textScanSummaryText" style="font-size: 0.95rem; line-height: 1.5; margin-bottom: 16px; font-weight: 500;"></p>
+        
+        <div id="textScanDetailsContainer" style="max-height: 250px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 12px; background: rgba(0,0,0,0.2);">
+          <ul id="textScanDetailsList" style="margin: 0; padding-left: 18px; font-size: 0.9rem; line-height: 1.6; color: var(--muted-ink);"></ul>
+        </div>
+      </div>
+
+      <div class="button-row" style="display: flex; justify-content: flex-end; margin-top: 24px;">
+        <button type="button" id="textScanOkBtn" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Site Footer ─── -->
+  <footer class="site-footer" id="siteFooter">
+    <div class="footer-inner">
+      <div class="footer-col footer-col-brand">
+        <a class="brand footer-brand-link" href="#discover" aria-label="KathaSangam home">
+          <span class="brand-mark" aria-hidden="true">KS</span>
+          <span class="brand-text">KathaSangam</span>
+        </a>
+        <p class="footer-desc">India's decentralized storytelling platform for serialized web novels and chitrānk webcomics.</p>
+        <p class="footer-copy">&copy; 2026 KathaSangam. All creator works remain 100% creator-owned.</p>
+      </div>
+      <div class="footer-col">
+        <h3 class="footer-heading">Platform</h3>
+        <ul class="footer-links">
+          <li><a href="#discover">Discover Stories</a></li>
+          <li><a href="#library">My Library</a></li>
+          <li><a href="#studio">Author Studio</a></li>
+          <li><a href="#about">About KathaSangam</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h3 class="footer-heading">Legal &amp; Trust</h3>
+        <ul class="footer-links">
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="terms">Terms of Service</button></li>
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="privacy">Privacy Policy</button></li>
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="takedown">Copyright &amp; Takedown</button></li>
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="guidelines">Community Guidelines</button></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h3 class="footer-heading">Contact &amp; Connect</h3>
+        <ul class="footer-links">
+          <li><button type="button" class="footer-link-btn" data-action="openLegalModal" data-legal-tab="contact">Contact Support</button></li>
+          <li><a href="mailto:kathasangam@zohomail.in">kathasangam@zohomail.in</a></li>
+          <li><a href="https://x.com/kathasaangam" target="_blank" rel="noopener noreferrer">Twitter / X</a></li>
+          <li><a href="https://github.com/randommelo-lang/kathasangam" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── Mobile Bottom Navigation ─── -->
+  <nav class="mobile-bottom-nav" aria-label="Mobile Navigation">
+    <a href="#discover" class="mobile-nav-item active" data-mobile-nav="discover" aria-label="Discover">
+      <svg class="mobile-nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+      <span>Discover</span>
+    </a>
+    <a href="#library" class="mobile-nav-item" data-mobile-nav="library" aria-label="Library">
+      <svg class="mobile-nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+      <span>Library</span>
+    </a>
+    <a href="#studio" class="mobile-nav-item" data-mobile-nav="studio" aria-label="Studio">
+      <svg class="mobile-nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+      <span>Studio</span>
+    </a>
+    <a href="#profile" class="mobile-nav-item" data-mobile-nav="profile" aria-label="Profile">
+      <svg class="mobile-nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      <span>Profile</span>
+    </a>
+  </nav>
+
+  <!-- Supabase JS Client -->
+  <script src="/js/vendor/supabase.min.js" integrity="sha384-GMmlk3PgEaV4QITo1ucN4bsD8RYSEL/EIfi3r1o+fi2ZOqjwXBDr5HvUyyt8XBBB" crossorigin="anonymous"></script>
+  <!-- Mammoth.js for docx text extraction -->
+  <script src="/js/vendor/mammoth.browser.min.js" integrity="sha384-nFoSjZIoH3CCp8W639jJyQkuPHinJ2NHe7on1xvlUA7SuGfJAfvMldrsoAVm6ECz" crossorigin="anonymous"></script>
+  <!-- PDF.js for pdf text extraction -->
+  <script src="/js/vendor/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

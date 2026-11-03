@@ -53,6 +53,12 @@ services:
         source: /uploads/*
         destination: https://kathasangam-backend.onrender.com/uploads/*
       - type: rewrite
+        source: /story/*
+        destination: https://kathasangam-backend.onrender.com/story/*
+      - type: rewrite
+        source: /sitemap.xml
+        destination: https://kathasangam-backend.onrender.com/sitemap.xml
+      - type: rewrite
         source: /
         destination: /index.html
     headers:

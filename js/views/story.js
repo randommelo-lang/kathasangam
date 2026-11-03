@@ -21,8 +21,24 @@ import { openSupportModal } from "../components/supportModal.js";
 
 export function renderStoryDetails(ctx) {
   ctx = ctx || this;
-  var params = new URLSearchParams(window.location.hash.split("?")[1] || "");
-  var storyId = params.get("id");
+  var storyId = null;
+  if (typeof window !== "undefined") {
+    var hashParams = new URLSearchParams(window.location.hash.split("?")[1] || "");
+    storyId = hashParams.get("id");
+    if (!storyId) {
+      var pathMatch = window.location.pathname.match(/^\/story\/([a-zA-Z0-9_-]+)/);
+      if (pathMatch) {
+        storyId = pathMatch[1];
+      }
+    }
+    if (!storyId) {
+      var searchParams = new URLSearchParams(window.location.search || "");
+      storyId = searchParams.get("id");
+    }
+  }
+  if (!storyId && ctx && ctx.ui) {
+    storyId = ctx.ui.currentStoryId;
+  }
   if (!ctx.state.stories) ctx.state.stories = [];
   var story = ctx.state.stories.find(function (s) { return s.id === storyId; });
 
@@ -57,6 +73,12 @@ export function renderStoryDetails(ctx) {
 
   // Update current story ID so other actions (like follow, tip) refer to this story
   ctx.ui.currentStoryId = story.id;
+  if (typeof window !== "undefined" && window.history && window.history.replaceState) {
+    var targetPath = "/story/" + story.id;
+    if (window.location.pathname !== targetPath) {
+      window.history.replaceState(null, "", targetPath + (window.location.hash || ""));
+    }
+  }
 
   // 1. Back button
   var backBtn = el("a", "btn text-btn back-btn", "← Back to Discover");
@@ -257,6 +279,34 @@ export function renderStoryDetails(ctx) {
     "Support Creator"
   ]);
 
+  var shareBtn = el("button", {
+    class: "btn btn-share-story",
+    "data-action": "shareStory",
+    "data-story-id": story.id,
+    "data-story-title": story.title || "Story",
+    "aria-label": "Share story",
+    style: "display: flex; align-items: center; gap: 6px;"
+  }, [
+    el("svg", {
+      width: "16",
+      height: "16",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "icon"
+    }, [
+      el("circle", { cx: "18", cy: "5", r: "3" }),
+      el("circle", { cx: "6", cy: "12", r: "3" }),
+      el("circle", { cx: "18", cy: "19", r: "3" }),
+      el("line", { x1: "8.59", y1: "13.51", x2: "15.42", y2: "17.49" }),
+      el("line", { x1: "15.41", y1: "6.51", x2: "8.59", y2: "10.49" })
+    ]),
+    "Share"
+  ]);
+
   var primaryReadBtn = button(readBtnText, "btn primary orange-glow-btn story-main-cta", {
     action: "openReader",
     id: story.id,
@@ -329,6 +379,7 @@ export function renderStoryDetails(ctx) {
       el("div", "button-row details-action-row", [
         primaryReadBtn,
         donateBtn,
+        shareBtn,
         likeBtn,
         bookmarkBtn,
         playlistBtn

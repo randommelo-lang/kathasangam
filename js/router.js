@@ -7,12 +7,30 @@ const ABOUT_SECTIONS = [
 ];
 
 export function getRoute() {
-  var rawHash = window.location.hash.replace(/^#/, "");
-  var cleanHash = rawHash.split("?")[0].split("#")[0] || "discover";
-  if (cleanHash === "about" || ABOUT_SECTIONS.indexOf(cleanHash) !== -1 || cleanHash.startsWith("about/")) {
-    return "about";
+  if (typeof window !== "undefined") {
+    var rawHash = window.location.hash.replace(/^#/, "");
+    var cleanHash = rawHash.split("?")[0].split("#")[0];
+
+    // If explicit section hash is set (e.g. #discover, #library, #studio, etc.)
+    if (cleanHash && cleanHash !== "story") {
+      if (cleanHash === "about" || ABOUT_SECTIONS.indexOf(cleanHash) !== -1 || cleanHash.startsWith("about/")) {
+        return "about";
+      }
+      return cleanHash;
+    }
+
+    // Path-based story route: /story/:id
+    var pathname = window.location.pathname || "";
+    if (pathname.startsWith("/story/")) {
+      return "story";
+    }
+
+    if (cleanHash === "story") {
+      return "story";
+    }
   }
-  return cleanHash || "discover";
+
+  return "discover";
 }
 
 export function hydrateGenres(ctx) {
@@ -51,6 +69,11 @@ export function render(ctx) {
     ctx.ui.currentView = route;
   }
   markRouteStart(ctx.ui.currentView);
+  if (ctx.ui.currentView !== "story" && typeof window !== "undefined" && window.location.pathname.startsWith("/story/")) {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", "/" + (window.location.hash || ""));
+    }
+  }
   const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings", "story", "achievements", "wallet", "about"];
   if (allowed.indexOf(ctx.ui.currentView) === -1) {
     ctx.ui.currentView = "discover";
@@ -100,6 +123,10 @@ export function render(ctx) {
   document.querySelectorAll("[data-mobile-nav]").forEach(function (link) {
     link.classList.toggle("active", link.dataset.mobileNav === ctx.ui.currentView);
   });
+  var siteFooter = document.getElementById("siteFooter");
+  if (siteFooter) {
+    siteFooter.hidden = (ctx.ui.currentView === "reader" || ctx.ui.currentView === "editor");
+  }
   ctx.pageTitle.textContent = {
     discover: "Discover",
     library: "Library",

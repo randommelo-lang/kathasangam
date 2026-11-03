@@ -12,6 +12,22 @@
       "destination": "https://kathasangam-50046899580.development.catalystappsail.in/uploads/:path*"
     },
     {
+      "source": "/story/:id",
+      "destination": "https://kathasangam-50046899580.development.catalystappsail.in/story/:id"
+    },
+    {
+      "source": "/story/:id/(.*)",
+      "destination": "https://kathasangam-50046899580.development.catalystappsail.in/story/:id"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "https://kathasangam-50046899580.development.catalystappsail.in/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "https://kathasangam-50046899580.development.catalystappsail.in/robots.txt"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

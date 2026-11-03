@@ -9,13 +9,13 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const build = spawnSync(process.execPath, ['scripts/build-frontend.mjs'], { cwd: projectRoot, stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status || 1);
 const publicRoot = resolve(projectRoot, 'dist/public');
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2' };
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8' };
 
 createServer(async (request, response) => {
   let pathname;
   try { pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname); }
   catch { response.writeHead(400).end(); return; }
-  if (pathname === '/') pathname = '/index.html';
+  if (pathname === '/' || pathname.startsWith('/story/')) pathname = '/index.html';
   const file = resolve(publicRoot, `.${pathname}`);
   if (file !== publicRoot && !file.startsWith(publicRoot + sep)) { response.writeHead(404).end(); return; }
   try {

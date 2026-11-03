@@ -119,7 +119,11 @@ test('supports keyboard use of the featured carousel and honors reduced motion',
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installApiMocks(page, { stories: (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({
-      items: [story, { ...story, id: '33333333-3333-4333-8333-333333333333', title: 'Another Chronicle' }],
+      items: [
+        story,
+        { ...story, id: '33333333-3333-4333-8333-333333333333', title: 'Another Chronicle' },
+        { ...story, id: '44444444-4444-4444-4444-444444444444', title: 'Third Chronicle' }
+      ],
       has_more: false,
     }),
   }) });

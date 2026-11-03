@@ -126,7 +126,7 @@ export function openLegalModal(activeTab = "terms") {
 
   var backdrop = el("div", { class: "auth-modal-backdrop legal-modal-backdrop", id: "legalModalBackdrop" });
   var modal = el("div", {
-    class: "auth-modal legal-modal",
+    class: "legal-modal",
     role: "dialog",
     "aria-labelledby": "legalModalTitle",
     "aria-modal": "true"
@@ -139,7 +139,7 @@ export function openLegalModal(activeTab = "terms") {
     ]),
     el("button", {
       type: "button",
-      class: "auth-modal-close legal-modal-close",
+      class: "legal-modal-close",
       "aria-label": "Close legal dialog",
       id: "legalModalCloseBtn"
     }, [makeCloseIcon()])
@@ -148,12 +148,21 @@ export function openLegalModal(activeTab = "terms") {
   var tabsNav = el("nav", { class: "legal-tabs-nav", "aria-label": "Legal sections" }, [
     el("button", { type: "button", class: "legal-tab-btn" + (activeTab === "terms" ? " active" : ""), "data-tab": "terms" }, "Terms"),
     el("button", { type: "button", class: "legal-tab-btn" + (activeTab === "privacy" ? " active" : ""), "data-tab": "privacy" }, "Privacy"),
-    el("button", { type: "button", class: "legal-tab-btn" + (activeTab === "takedown" ? " active" : ""), "data-tab": "takedown" }, "Copyright / Takedown"),
+    el("button", { type: "button", class: "legal-tab-btn" + (activeTab === "takedown" ? " active" : ""), "data-tab": "takedown", title: "Copyright & DMCA Policy", "aria-label": "Copyright and Takedown Policy" }, "Copyright"),
     el("button", { type: "button", class: "legal-tab-btn" + (activeTab === "guidelines" ? " active" : ""), "data-tab": "guidelines" }, "Guidelines"),
     el("button", { type: "button", class: "legal-tab-btn" + (activeTab === "contact" ? " active" : ""), "data-tab": "contact" }, "Contact")
   ]);
 
   var contentBody = el("div", "legal-modal-body");
+
+  var footer = el("div", "legal-modal-footer", [
+    el("span", "legal-modal-footer-note", "KathaSangam • Creator-First Standards"),
+    el("button", {
+      type: "button",
+      class: "legal-modal-done-btn",
+      id: "legalModalDoneBtn"
+    }, "Close")
+  ]);
 
   function renderTabContent(tabKey) {
     var data = TAB_DATA[tabKey] || TAB_DATA.terms;
@@ -169,8 +178,12 @@ export function openLegalModal(activeTab = "terms") {
       contentBody.appendChild(secEl);
     });
 
+    contentBody.scrollTop = 0;
+
     tabsNav.querySelectorAll(".legal-tab-btn").forEach(function (btn) {
-      btn.classList.toggle("active", btn.dataset.tab === tabKey);
+      var isActive = btn.dataset.tab === tabKey;
+      btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-selected", isActive ? "true" : "false");
     });
   }
 
@@ -183,6 +196,7 @@ export function openLegalModal(activeTab = "terms") {
   modal.appendChild(header);
   modal.appendChild(tabsNav);
   modal.appendChild(contentBody);
+  modal.appendChild(footer);
   backdrop.appendChild(modal);
 
   function closeModal() {
@@ -198,7 +212,7 @@ export function openLegalModal(activeTab = "terms") {
   }
 
   backdrop.addEventListener("click", function (e) {
-    if (e.target === backdrop || e.target.closest("#legalModalCloseBtn")) {
+    if (e.target === backdrop || e.target.closest("#legalModalCloseBtn") || e.target.closest("#legalModalDoneBtn")) {
       closeModal();
     }
   });

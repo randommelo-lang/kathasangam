@@ -111,34 +111,45 @@ impl FromRequestParts<PgPool> for AuthUser {
 
         verify_not_banned(state, user_id).await?;
 
-        // F-001: Enforce 2FA for accounts that have two_factor_email_enabled
         // Supabase treats a missing assurance claim as aal1 as well.
         if aal.as_deref() != Some("aal2") {
-            let is_2fa_enabled: bool = sqlx::query_scalar(
-                "SELECT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false) FROM profiles WHERE id = $1"
-            )
-            .bind(user_id)
-            .fetch_optional(state)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "failed to check 2fa status");
-                AppError::internal_server_error("An internal error occurred.")
-            })?
-            .unwrap_or(false);
-
-            if is_2fa_enabled {
-                // Allow GET /api/profile so the client can inspect preferences during login flow
-                let is_profile_read = parts.method == Method::GET && parts.uri.path() == "/api/profile";
-                if !is_profile_read {
-                    return Err(AppError::forbidden(
-                        "Two-factor authentication required. Please complete 2FA verification to perform this action.",
-                    ));
-                }
+            let (email_enabled, factor_verified) = two_factor_status(state, user_id).await?;
+            // The email login flow reads preferences here before sending its OTP.
+            // TOTP challenges run directly against Supabase and need no API exception.
+            let email_login_profile_read = email_enabled && !factor_verified
+                && parts.method == Method::GET && parts.uri.path() == "/api/profile";
+            if (email_enabled || factor_verified) && !email_login_profile_read {
+                return Err(AppError::forbidden(
+                    "Two-factor authentication required. Please complete 2FA verification to perform this action.",
+                ));
             }
         }
 
         Ok(AuthUser { user_id, aal })
     }
+}
+
+/// Read both the application preference and Supabase's authoritative factor state.
+async fn two_factor_status(state: &PgPool, user_id: Uuid) -> Result<(bool, bool), AppError> {
+    let (email_enabled, factor_verified, rls_active): (bool, bool, bool) = sqlx::query_as(
+        "SELECT COALESCE((SELECT (preferences->>'two_factor_email_enabled')::boolean \
+         FROM profiles WHERE id = $1), false), \
+         EXISTS (SELECT 1 FROM auth.mfa_factors WHERE user_id = $1 AND status = 'verified'), \
+         row_security_active('auth.mfa_factors'::regclass)"
+    )
+    .bind(user_id)
+    .fetch_one(state)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to check 2fa status");
+        AppError::internal_server_error("An internal error occurred.")
+    })?;
+    // A policy-filtered result cannot establish that no verified factor exists.
+    if rls_active {
+        tracing::error!("row security prevents a reliable MFA factor lookup");
+        return Err(AppError::internal_server_error("An internal error occurred."));
+    }
+    Ok((email_enabled, factor_verified))
 }
 
 /// Rejects the request when the account carries an active ban.
@@ -257,29 +268,13 @@ impl FromRequestParts<PgPool> for OptionalAuthUser {
                 };
 
                 if let Some(user_id) = uid {
-                    // SB-05: this previously swallowed the query error with
-                    // `.unwrap_or(None)`, so a transient database fault silently
-                    // degraded an authenticated request to anonymous. Surface it.
-                    let banned = verify_not_banned(state, user_id)
-                        .await
-                        .is_err_and(|e| matches!(e, AppError::Forbidden(_)));
-
-                    if banned {
+                    if verify_not_banned(state, user_id).await.is_err() {
                         return Ok(OptionalAuthUser { user_id: None });
                     }
 
-                    // F-001: If user has 2FA enabled, but token is only aal1, do not grant optional auth privileges
                     if aal.as_deref() != Some("aal2") {
-                        let is_2fa_enabled: bool = sqlx::query_scalar(
-                            "SELECT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false) FROM profiles WHERE id = $1"
-                        )
-                        .bind(user_id)
-                        .fetch_optional(state)
-                        .await
-                        .unwrap_or(None)
-                        .unwrap_or(false);
-
-                        if is_2fa_enabled {
+                        // Fail closed if factor state cannot be read.
+                        if !matches!(two_factor_status(state, user_id).await, Ok((false, false))) {
                             return Ok(OptionalAuthUser { user_id: None });
                         }
                     }
@@ -305,5 +300,90 @@ mod tests {
         assert!(allow_mock_auth());
 
         std::env::remove_var("ALLOW_MOCK_AUTH");
+    }
+}
+
+#[cfg(test)]
+mod mfa_integration_tests {
+    use super::*;
+    use axum::http::Request;
+    use jsonwebtoken::{encode, EncodingKey, Header};
+    use sqlx::postgres::PgPoolOptions;
+
+    // Synthetic test key, used only to exercise JWT validation in this fixture.
+    const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgmUAoefaukm21Q6b+\nZi7i6LjvXzx9szVkKjUappVnGsqhRANCAAQ1l93ceyDQ1tB7XKFNcMdDQ0JsAR9M\nkEL0RuwD/A88I/EQGMZ1pah9m1SJ9LjRe/lWEMBctTiF3xC9VdphRbwv\n-----END PRIVATE KEY-----";
+    const PUBLIC_KEY: &str = "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENZfd3Hsg0NbQe1yhTXDHQ0NCbAEf\nTJBC9EbsA/wPPCPxEBjGdaWofZtUifS40Xv5VhDAXLU4hd8QvVXaYUW8Lw==\n-----END PUBLIC KEY-----";
+
+    fn request(user: Uuid, aal: Option<&str>, method: &str, path: &str) -> Parts {
+        let claims = JwtClaims {
+            sub: user.to_string(), aud: Some("authenticated".into()), iat: 0,
+            exp: 4_102_444_800, email: None, user_metadata: None,
+            aal: aal.map(str::to_owned),
+        };
+        let token = encode(&Header::new(Algorithm::ES256), &claims,
+            &EncodingKey::from_ec_pem(PRIVATE_KEY.as_bytes()).unwrap()).unwrap();
+        Request::builder().method(method).uri(path)
+            .header("Authorization", format!("Bearer {token}"))
+            .body(()).unwrap().into_parts().0
+    }
+
+    async fn required(pool: &PgPool, user: Uuid, aal: Option<&str>, method: &str, path: &str) -> Result<AuthUser, AppError> {
+        AuthUser::from_request_parts(&mut request(user, aal, method, path), pool).await
+    }
+
+    async fn optional(pool: &PgPool, user: Uuid, aal: Option<&str>) -> Option<Uuid> {
+        OptionalAuthUser::from_request_parts(&mut request(user, aal, "GET", "/api/stories"), pool)
+            .await.unwrap().user_id
+    }
+
+    // Run against an empty disposable database, never a real Supabase project.
+    #[tokio::test]
+    #[ignore = "requires an empty disposable PostgreSQL database in TEST_DATABASE_URL"]
+    async fn verified_factors_require_aal2_for_required_and_optional_auth() {
+        let pool = PgPoolOptions::new().max_connections(2)
+            .connect(&std::env::var("TEST_DATABASE_URL").unwrap()).await.unwrap();
+        assert!(JWT_DECODING_KEY.set(DecodingKey::from_ec_pem(PUBLIC_KEY.as_bytes()).unwrap()).is_ok());
+        sqlx::query("CREATE SCHEMA auth").execute(&pool).await.unwrap();
+        sqlx::query("CREATE TYPE auth.factor_status AS ENUM ('unverified', 'verified')").execute(&pool).await.unwrap();
+        sqlx::query("CREATE TABLE auth.mfa_factors (user_id UUID NOT NULL, status auth.factor_status NOT NULL)").execute(&pool).await.unwrap();
+        sqlx::query("CREATE TABLE profiles (id UUID PRIMARY KEY, preferences JSONB, is_banned BOOLEAN NOT NULL DEFAULT false, ban_reason TEXT)").execute(&pool).await.unwrap();
+        let user = Uuid::new_v4();
+        let other = Uuid::new_v4();
+        sqlx::query("INSERT INTO profiles (id, preferences) VALUES ($1, '{}')").bind(user).execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO auth.mfa_factors VALUES ($1, 'verified'), ($2, 'unverified')").bind(other).bind(user).execute(&pool).await.unwrap();
+
+        assert!(required(&pool, user, Some("aal1"), "DELETE", "/api/stories/1").await.is_ok());
+        assert_eq!(optional(&pool, user, Some("aal1")).await, Some(user));
+        sqlx::query("UPDATE auth.mfa_factors SET status = 'verified' WHERE user_id = $1").bind(user).execute(&pool).await.unwrap();
+        for aal in [None, Some("aal1")] {
+            assert!(matches!(required(&pool, user, aal, "DELETE", "/api/stories/1").await, Err(AppError::Forbidden(_))));
+            assert!(matches!(required(&pool, user, aal, "GET", "/api/profile").await, Err(AppError::Forbidden(_))));
+            assert_eq!(optional(&pool, user, aal).await, None);
+        }
+        assert!(required(&pool, user, Some("aal2"), "DELETE", "/api/stories/1").await.is_ok());
+        assert_eq!(optional(&pool, user, Some("aal2")).await, Some(user));
+        sqlx::query("UPDATE profiles SET preferences = '{\"two_factor_email_enabled\": true}' WHERE id = $1").bind(user).execute(&pool).await.unwrap();
+        assert!(matches!(required(&pool, user, Some("aal1"), "GET", "/api/profile").await, Err(AppError::Forbidden(_))));
+        sqlx::query("DELETE FROM auth.mfa_factors WHERE user_id = $1").bind(user).execute(&pool).await.unwrap();
+        assert!(required(&pool, user, Some("aal1"), "GET", "/api/profile").await.is_ok());
+        assert!(matches!(required(&pool, user, Some("aal1"), "DELETE", "/api/stories/1").await, Err(AppError::Forbidden(_))));
+        assert_eq!(optional(&pool, user, Some("aal1")).await, None);
+        sqlx::query("DELETE FROM profiles WHERE id = $1").bind(user).execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO auth.mfa_factors VALUES ($1, 'verified')").bind(user).execute(&pool).await.unwrap();
+        assert!(matches!(required(&pool, user, Some("aal1"), "DELETE", "/api/stories/1").await, Err(AppError::Forbidden(_))));
+        assert_eq!(optional(&pool, user, Some("aal1")).await, None);
+        sqlx::query("ALTER TABLE auth.mfa_factors ENABLE ROW LEVEL SECURITY").execute(&pool).await.unwrap();
+        sqlx::query("CREATE ROLE katha_mfa_test_reader NOLOGIN").execute(&pool).await.unwrap();
+        sqlx::query("GRANT USAGE ON SCHEMA auth TO katha_mfa_test_reader").execute(&pool).await.unwrap();
+        sqlx::query("GRANT SELECT ON profiles, auth.mfa_factors TO katha_mfa_test_reader").execute(&pool).await.unwrap();
+        let restricted = PgPoolOptions::new().max_connections(1)
+            .connect(&std::env::var("TEST_DATABASE_URL").unwrap()).await.unwrap();
+        sqlx::query("SET ROLE katha_mfa_test_reader").execute(&restricted).await.unwrap();
+        assert!(matches!(required(&restricted, user, Some("aal1"), "DELETE", "/api/stories/1").await, Err(AppError::InternalServerError(_))));
+        assert_eq!(optional(&restricted, user, Some("aal1")).await, None);
+        restricted.close().await;
+        sqlx::query("DROP TABLE auth.mfa_factors").execute(&pool).await.unwrap();
+        assert!(matches!(required(&pool, user, Some("aal1"), "DELETE", "/api/stories/1").await, Err(AppError::InternalServerError(_))));
+        assert_eq!(optional(&pool, user, Some("aal1")).await, None);
     }
 }

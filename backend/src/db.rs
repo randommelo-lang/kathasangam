@@ -112,7 +112,8 @@ impl FromRequestParts<PgPool> for AuthUser {
         verify_not_banned(state, user_id).await?;
 
         // F-001: Enforce 2FA for accounts that have two_factor_email_enabled
-        if aal.as_deref() == Some("aal1") {
+        // Supabase treats a missing assurance claim as aal1 as well.
+        if aal.as_deref() != Some("aal2") {
             let is_2fa_enabled: bool = sqlx::query_scalar(
                 "SELECT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false) FROM profiles WHERE id = $1"
             )
@@ -268,7 +269,7 @@ impl FromRequestParts<PgPool> for OptionalAuthUser {
                     }
 
                     // F-001: If user has 2FA enabled, but token is only aal1, do not grant optional auth privileges
-                    if aal.as_deref() == Some("aal1") {
+                    if aal.as_deref() != Some("aal2") {
                         let is_2fa_enabled: bool = sqlx::query_scalar(
                             "SELECT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false) FROM profiles WHERE id = $1"
                         )

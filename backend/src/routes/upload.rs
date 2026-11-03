@@ -13,8 +13,8 @@ const STORAGE_BUCKET: &str = "kathasangam";
 /// Validates that a stored media reference is one this application could have produced.
 ///
 /// SB-08: story `cover` values were previously accepted verbatim and later handed to
-/// [`delete_uploaded_file`], which builds a service-role `DELETE` from whatever follows
-/// `/storage/v1/object/public/` in the URL. An author could therefore set a cover of
+/// [`delete_uploaded_file`], which previously built a service-role `DELETE` from whatever
+/// followed `/storage/v1/object/public/` in the URL. An author could therefore set a cover of
 /// `…/public/kathasangam/../<other-bucket>/<file>` and delete arbitrary objects
 /// anywhere in the Supabase project just by deleting or editing their story.
 ///
@@ -382,8 +382,9 @@ fn is_safe_storage_object_path(path: &str) -> bool {
     if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
         return false;
     }
-    // Reject percent-encoding so `%2e%2e%2f` cannot slip past the literal checks above.
-    if filename.contains('%') {
+    // Only accept URL-unreserved ASCII characters, so parsing the DELETE URL
+    // cannot reinterpret the filename as a query, fragment, or encoded path.
+    if !filename.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~')) {
         return false;
     }
 
@@ -394,63 +395,60 @@ fn is_safe_storage_object_path(path: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Build a DELETE URL only when the reference is exactly the public URL for
+/// this configured project and a plain object name. Callers check references
+/// against the original string, so accepting an alias could delete a different
+/// referenced object.
+fn storage_delete_url(file_url: &str, supabase_url: &str) -> Option<String> {
+    if supabase_url.is_empty() {
+        return None;
+    }
+    let prefix = format!("{}/storage/v1/object/public/", supabase_url);
+    let path = file_url.strip_prefix(&prefix)?;
+    if !is_safe_storage_object_path(path) {
+        return None;
+    }
+    Some(format!("{}/storage/v1/object/{}", supabase_url, path))
+}
+
 /// Helper to delete a file from either Supabase Storage or local uploads folder based on its URL
 pub async fn delete_uploaded_file(file_url: &str) {
     if file_url.is_empty() {
         return;
     }
 
-    // Check if it's a Supabase Storage public URL
-    // e.g., "https://vvljxgoprncblowdmfxi.supabase.co/storage/v1/object/public/kathasangam/some-uuid.webp"
     if file_url.contains("/storage/v1/object/public/") {
         let supabase_url = std::env::var("SUPABASE_URL").ok();
         let service_role_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY").ok();
 
         if let (Some(url), Some(key)) = (supabase_url, service_role_key) {
-            if !url.is_empty() && !key.is_empty() {
-                // Parse out the part after "/storage/v1/object/public/"
-                // E.g., from ".../storage/v1/object/public/kathasangam/some-uuid.webp"
-                // we want "kathasangam/some-uuid.webp"
-                if let Some(pos) = file_url.find("/storage/v1/object/public/") {
-                    let path_part = &file_url[pos + "/storage/v1/object/public/".len()..];
+            if !key.is_empty() {
+                let Some(delete_url) = storage_delete_url(file_url, &url) else {
+                    tracing::warn!("Refusing to delete storage object from invalid reference: {:?}", file_url);
+                    return;
+                };
 
-                    // SB-08 defence in depth: refuse anything that is not exactly
-                    // `<bucket>/<filename>`. This function issues a service-role DELETE,
-                    // so a `..` segment or a different bucket name would authorise
-                    // deleting objects the caller does not own.
-                    if !is_safe_storage_object_path(path_part) {
-                        tracing::warn!(
-                            "Refusing to delete storage object: path {:?} is outside the {} bucket or is not a plain filename",
-                            path_part,
-                            STORAGE_BUCKET
-                        );
-                        return;
+                let client = reqwest::Client::new();
+                tracing::info!("🔶 Attempting to delete from Supabase Storage: {}", delete_url);
+                let res = client
+                    .delete(&delete_url)
+                    .header("apikey", &key)
+                    .header("Authorization", format!("Bearer {}", key))
+                    .send()
+                    .await;
+
+                match res {
+                    Ok(resp) => {
+                        if resp.status().is_success() {
+                            tracing::info!("✅ Deleted successfully from Supabase Storage: {}", file_url);
+                        } else {
+                            let status = resp.status();
+                            let text = resp.text().await.unwrap_or_default();
+                            tracing::error!("⚠️ Supabase Storage delete failed (status {}): {}", status, text);
+                        }
                     }
-
-                    let delete_url = format!("{}/storage/v1/object/{}", url, path_part);
-
-                    let client = reqwest::Client::new();
-                    tracing::info!("🔶 Attempting to delete from Supabase Storage: {}", delete_url);
-                    let res = client
-                        .delete(&delete_url)
-                        .header("apikey", &key)
-                        .header("Authorization", format!("Bearer {}", key))
-                        .send()
-                        .await;
-
-                    match res {
-                        Ok(resp) => {
-                            if resp.status().is_success() {
-                                tracing::info!("✅ Deleted successfully from Supabase Storage: {}", file_url);
-                            } else {
-                                let status = resp.status();
-                                let text = resp.text().await.unwrap_or_default();
-                                tracing::error!("⚠️ Supabase Storage delete failed (status {}): {}", status, text);
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!("⚠️ Supabase Storage delete request failed: {}", e);
-                        }
+                    Err(e) => {
+                        tracing::error!("⚠️ Supabase Storage delete request failed: {}", e);
                     }
                 }
             }
@@ -524,6 +522,32 @@ mod tests {
     fn accepts_plain_image_object() {
         assert!(is_safe_storage_object_path("kathasangam/6f1c.webp"));
         assert!(is_safe_storage_object_path("kathasangam/6f1c.PNG"));
+    }
+
+    #[test]
+    fn storage_delete_requires_the_exact_project_and_object_url() {
+        let project = "https://project.supabase.co";
+        let public = "https://project.supabase.co/storage/v1/object/public/kathasangam/image.webp";
+        let target = storage_delete_url(public, project).unwrap();
+        let request = reqwest::Client::new().delete(&target).build().unwrap();
+        assert_eq!(request.url().as_str(), "https://project.supabase.co/storage/v1/object/kathasangam/image.webp");
+        assert!(request.url().query().is_none());
+        assert!(request.url().fragment().is_none());
+
+        for reference in [
+            "https://attacker.example/storage/v1/object/public/kathasangam/image.webp",
+            "https://project.supabase.co.evil.example/storage/v1/object/public/kathasangam/image.webp",
+            "https://project.supabase.co/storage/v1/object/public/other/image.webp",
+            "https://project.supabase.co/storage/v1/object/public/kathasangam/image.webp?ignored.webp",
+            "https://project.supabase.co/storage/v1/object/public/kathasangam/image.webp#ignored.webp",
+            "https://project.supabase.co/storage/v1/object/public/kathasangam/%69mage.webp",
+            "https://project.supabase.co/storage/v1/object/public/kathasangam/ima\tge.webp",
+            "https://project.supabase.co/storage/v1/object/public/kathasangam/../image.webp",
+            " https://project.supabase.co/storage/v1/object/public/kathasangam/image.webp",
+        ] {
+            assert!(storage_delete_url(reference, project).is_none(), "accepted {reference:?}");
+        }
+        assert!(storage_delete_url(public, "").is_none());
     }
 
     #[test]

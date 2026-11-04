@@ -79,12 +79,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing::info!("✅ Connected to Supabase PostgreSQL");
 
     // Run pending migrations
-    tracing::info!("🔶 Running database migrations...");
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .map_err(|e| io::Error::other(format!("Database migration failed: {}", e)))?;
-    tracing::info!("✅ Database migrations completed");
+    let auto_migrate = std::env::var("AUTO_MIGRATE")
+        .unwrap_or_else(|_| "true".to_string())
+        .to_lowercase() != "false";
+
+    if auto_migrate {
+        tracing::info!("🔶 Running database migrations...");
+        let mut migrator = sqlx::migrate!("./migrations");
+        migrator.set_ignore_missing(true);
+        migrator
+            .run(&pool)
+            .await
+            .map_err(|e| io::Error::other(format!("Database migration failed: {}", e)))?;
+        tracing::info!("✅ Database migrations completed");
+    } else {
+        tracing::info!("ℹ️ Database migrations skipped (AUTO_MIGRATE=false)");
+    }
 
     // Auto-publisher: checks every 60 seconds for scheduled chapters
     let publish_pool = pool.clone();

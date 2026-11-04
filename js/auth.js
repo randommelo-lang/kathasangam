@@ -9,6 +9,7 @@ import {
   showAuthSuccess,
   switchAuthTab,
   setAuthLoading,
+  handleGoogleSignIn,
   handleLogin,
   handleSignup,
   handleSignupOtpSubmit,
@@ -65,6 +66,7 @@ export {
   showAuthSuccess,
   switchAuthTab,
   setAuthLoading,
+  handleGoogleSignIn,
   handleLogin,
   handleSignup,
   handleSignupOtpSubmit,
@@ -115,6 +117,7 @@ export function initAuthModule(context) {
   });
 
   const els = getAuthElements();
+  if (els.googleAuthBtn) els.googleAuthBtn.addEventListener("click", handleGoogleSignIn);
   if (els.loginForm) els.loginForm.addEventListener("submit", handleLogin);
   if (els.signupForm) els.signupForm.addEventListener("submit", handleSignup);
   if (els.signupOtpForm) els.signupOtpForm.addEventListener("submit", handleSignupOtpSubmit);

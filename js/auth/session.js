@@ -9,7 +9,7 @@ import {
   getSupabaseClient
 } from "../api.js";
 import { stopNotificationPolling } from "../notifications.js";
-import { openAuthModal, switchAuthTab } from "./authModal.js";
+import { openAuthModal, closeAuthModal, switchAuthTab } from "./authModal.js";
 import { updateAuthUI } from "./accountMenu.js";
 
 let authEffects = {};
@@ -214,6 +214,19 @@ export function onAuthStateChange(event, session) {
     if (session.access_token) {
       setTokenCache(session.access_token);
     }
+    if (typeof window !== "undefined" && window.location && window.location.hash) {
+      if (
+        window.location.hash.includes("access_token=") ||
+        window.location.hash.includes("error_description=")
+      ) {
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname + window.location.search
+        );
+      }
+    }
+    closeAuthModal();
     if (state.user && state.user.id === session.user.id && state.profile) {
       log.debug("[AUTH] User already logged in, skipping redundant profile refresh");
       state.user = session.user;

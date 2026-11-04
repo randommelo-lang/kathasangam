@@ -19,6 +19,10 @@ export function getAuthElements() {
     authError: document.getElementById("authError"),
     authSuccess: document.getElementById("authSuccess"),
     signInBtn: /** @type {HTMLButtonElement | null} */ (document.getElementById("signInBtn")),
+    googleAuthBtn: /** @type {HTMLButtonElement | null} */ (
+      document.getElementById("googleAuthBtn")
+    ),
+    oauthContainer: document.getElementById("oauthContainer"),
     forgotPasswordForm: /** @type {HTMLFormElement | null} */ (
       document.getElementById("forgotPasswordForm")
     ),
@@ -83,6 +87,7 @@ export function switchAuthTab(tab) {
   });
   if (els.loginForm) els.loginForm.hidden = tab !== "login";
   if (els.signupForm) els.signupForm.hidden = tab !== "signup";
+  if (els.oauthContainer) els.oauthContainer.hidden = tab !== "login" && tab !== "signup";
   if (els.signupOtpForm) els.signupOtpForm.hidden = tab !== "signup-otp";
   if (els.forgotPasswordForm) els.forgotPasswordForm.hidden = tab !== "forgot";
   if (els.forgotPasswordSentState) els.forgotPasswordSentState.hidden = true;
@@ -204,6 +209,30 @@ export function closeAuthModal() {
   document.body.style.overflow = "";
   if (previousAuthFocus && typeof previousAuthFocus.focus === "function") previousAuthFocus.focus();
   previousAuthFocus = null;
+}
+
+export async function handleGoogleSignIn() {
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) {
+    showAuthError("Authentication service is temporarily unavailable. Please try again later.");
+    return;
+  }
+  clearAuthMessages();
+  try {
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+    if (error) {
+      console.error("[AUTH] Google OAuth error:", error.message);
+      showAuthError(error.message);
+    }
+  } catch (err) {
+    console.error("[AUTH] Google sign in exception:", err);
+    showAuthError("Failed to initiate Google sign in. Please try again.");
+  }
 }
 
 export async function handleLogin(e) {

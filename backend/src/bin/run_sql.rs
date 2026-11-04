@@ -3,11 +3,24 @@ use std::env;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::from_filename("backend/.env").ok();
     dotenvy::dotenv().ok();
     let db_url = env::var("DATABASE_URL")?;
+
+    use std::str::FromStr;
+    let mut connect_opts = sqlx::postgres::PgConnectOptions::from_str(&db_url)?;
+    let original_host = connect_opts.get_host().to_string();
+    let port = connect_opts.get_port();
+
+    if let Ok(socket_addrs) = tokio::net::lookup_host(format!("{}:{}", original_host, port)).await {
+        if let Some(ipv4_addr) = socket_addrs.into_iter().find(|addr| addr.is_ipv4()) {
+            connect_opts = connect_opts.host(&ipv4_addr.ip().to_string());
+        }
+    }
+
     let pool = PgPoolOptions::new()
         .max_connections(1)
-        .connect(&db_url)
+        .connect_with(connect_opts)
         .await?;
 
     let args: Vec<String> = env::args().collect();

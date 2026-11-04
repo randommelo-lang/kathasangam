@@ -19,6 +19,7 @@ use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    dotenvy::from_filename("backend/.env").ok();
     dotenvy::dotenv().ok();
 
     // Initialize structured logging / tracing
@@ -47,10 +48,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let db_url = std::env::var("DATABASE_URL")?;
 
+    use std::str::FromStr;
+    let mut connect_opts = sqlx::postgres::PgConnectOptions::from_str(&db_url)?;
+    let original_host = connect_opts.get_host().to_string();
+    let port = connect_opts.get_port();
+
+    // Resolve host to IPv4 to prevent IPv6 blackhole timeouts (e.g. DNS64 / NAT64 synthesis or lack of IPv6 routes on local/Catalyst networks)
+    if let Ok(socket_addrs) = tokio::net::lookup_host(format!("{}:{}", original_host, port)).await {
+        if let Some(ipv4_addr) = socket_addrs.into_iter().find(|addr| addr.is_ipv4()) {
+            tracing::info!(
+                "Resolved DB host {} to IPv4 address {} to bypass IPv6 blackholes",
+                original_host,
+                ipv4_addr.ip()
+            );
+            connect_opts = connect_opts.host(&ipv4_addr.ip().to_string());
+        }
+    }
+
     let pool = PgPoolOptions::new()
-        .max_connections(12)
-        .acquire_timeout(std::time::Duration::from_secs(30))
-        .connect(&db_url)
+        .max_connections(5)
+        .min_connections(1)
+        .acquire_timeout(std::time::Duration::from_secs(15))
+        .idle_timeout(Some(std::time::Duration::from_secs(60)))
+        .max_lifetime(Some(std::time::Duration::from_secs(1800)))
+        .test_before_acquire(true)
+        .connect_with(connect_opts)
         .await
         .map_err(|e| io::Error::other(format!("Failed to connect to PostgreSQL: {}", e)))?;
 

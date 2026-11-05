@@ -24,6 +24,10 @@
       "destination": "https://kathasangam-50046899580.development.catalystappsail.in/sitemap.xml"
     },
     {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
       "source": "/robots.txt",
       "destination": "https://kathasangam-50046899580.development.catalystappsail.in/robots.txt"
     },

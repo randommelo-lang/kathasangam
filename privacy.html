@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy – KathaSangam</title>
+  <meta name="description" content="Privacy Policy for KathaSangam. Learn how we collect, protect, and respect your personal data.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0d0c;
+      --card-bg: #1a1614;
+      --border: rgba(229, 124, 51, 0.2);
+      --accent: #e57c33;
+      --text: #f5f2eb;
+      --muted: #a39b8e;
+      --heading: #ffffff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 840px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 40px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 1.25rem;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 2rem;
+      color: var(--heading);
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+    .effective-date {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    h2 {
+      font-size: 1.3rem;
+      color: var(--heading);
+      margin-top: 32px;
+      margin-bottom: 12px;
+      font-weight: 700;
+      border-left: 3px solid var(--accent);
+      padding-left: 12px;
+    }
+    p {
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+    ul {
+      margin-left: 24px;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+    li {
+      margin-bottom: 8px;
+    }
+    strong {
+      color: var(--heading);
+    }
+    a {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+    .footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 0.88rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    @media (max-width: 600px) {
+      .container { padding: 24px 20px; }
+      h1 { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <a class="brand" href="https://www.kathasangam.co.in/">
+        <span>KathaSangam</span>
+      </a>
+      <h1>Privacy Policy</h1>
+      <p class="effective-date">Last Updated: November 5, 2026 | Effective Date: November 5, 2026</p>
+    </div>
+
+    <section>
+      <h2>1. Overview</h2>
+      <p>
+        KathaSangam ("we", "our", or "the Platform"), accessible at <a href="https://www.kathasangam.co.in/">https://www.kathasangam.co.in/</a>, is an independent digital publishing platform for serialized web novels and chitrānk (graphic stories). We are committed to safeguarding your privacy and ensuring complete transparency regarding how your data is handled in compliance with India's Digital Personal Data Protection Act (DPDP Act) and international privacy frameworks (GDPR).
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Information We Collect</h2>
+      <p>We only collect data strictly necessary to operate our reading, authoring, and community features:</p>
+      <ul>
+        <li><strong>Account Information:</strong> When you register an account, we collect your email address, username, and encrypted credentials.</li>
+        <li><strong>Google OAuth Data:</strong> When you choose to sign in using Google Sign-In, KathaSangam accesses only basic, non-sensitive profile information provided by Google: your email address, full name, and profile picture avatar. We do not access your Google contacts, Google Drive files, search history, or any other private Google data.</li>
+        <li><strong>Reading & Creator Activity:</strong> Reading progress, saved library bookmarks, likes given, published stories, chapters, and community comments.</li>
+        <li><strong>Device & Interaction Data:</strong> Basic technical diagnostics (theme preferences, screen fit mode) stored locally in your browser to maintain your reading experience.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. How We Use Your Information</h2>
+      <p>We use your data solely to:</p>
+      <ul>
+        <li>Authenticate your identity and provide secure account access.</li>
+        <li>Personalize your reading experience (saving bookmarks, chapters, reading theme preferences).</li>
+        <li>Allow authors to publish stories, manage chapters, and engage with their readers.</li>
+        <li>Prevent fraud, abuse, spam, and copyright violations on the platform.</li>
+      </ul>
+      <p><strong>We never sell, rent, monetize, or trade your personal information</strong> with any third-party advertisers or data brokers.</p>
+    </section>
+
+    <section>
+      <h2>4. Data Storage and Security</h2>
+      <p>
+        Security is fundamental to KathaSangam:
+      </p>
+      <ul>
+        <li>All network transmissions are strictly encrypted using TLS 1.3/HTTPS.</li>
+        <li>Authentication tokens and user identities are managed securely via Supabase Authentication with cryptographic JWT verification and Row-Level Security (RLS).</li>
+        <li>We enforce secure password hashing and strict Content Security Policies (CSP) to protect against unauthorized access and cross-site scripting (XSS).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. Google API Limited Use Disclosure</h2>
+      <p>
+        KathaSangam's use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements. Specifically:
+      </p>
+      <ul>
+        <li>Google user data (email, name, profile picture) is strictly used for authentication and profile presentation.</li>
+        <li>No Google user data is transferred to external third parties or used for targeted advertising.</li>
+        <li>No human reads your Google account information unless required by law or explicitly requested by you for technical troubleshooting.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Your Rights and Data Deletion</h2>
+      <p>You have full ownership and control over your personal data:</p>
+      <ul>
+        <li><strong>Access & Export:</strong> You can access your account details, reading lists, and published works anytime.</li>
+        <li><strong>Correction:</strong> You can update your display name, biography, avatar, and notification settings directly in Profile Settings.</li>
+        <li><strong>Account Deletion:</strong> You can permanently delete your account and all associated personal records at any time directly through your KathaSangam Settings, or by submitting a deletion request to <a href="mailto:kathasangam@zohomail.in">kathasangam@zohomail.in</a>. Upon confirmation, your data is irreversibly expunged from our active databases.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. Contact Information</h2>
+      <p>If you have any questions, concerns, or requests regarding this Privacy Policy or your data, please contact our Data Protection and Support team:</p>
+      <ul>
+        <li><strong>Email:</strong> <a href="mailto:kathasangam@zohomail.in">kathasangam@zohomail.in</a></li>
+        <li><strong>Platform:</strong> KathaSangam</li>
+        <li><strong>Website:</strong> <a href="https://www.kathasangam.co.in/">https://www.kathasangam.co.in/</a></li>
+      </ul>
+    </section>
+
+    <div class="footer">
+      <p>&copy; 2026 KathaSangam. All rights reserved. <a href="https://www.kathasangam.co.in/">Back to KathaSangam</a></p>
+    </div>
+  </div>
+</body>
+</html>

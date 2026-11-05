@@ -209,7 +209,7 @@ async function bootstrap() {
   await loadSupabaseConfig();
   
   // Initialize auth module after Supabase client is configured
-  initAuthModule(ctx);
+  await initAuthModule(ctx);
 
   // Track daily visit & consecutive streak
   recordDailyVisit(state.user);

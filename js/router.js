@@ -9,6 +9,17 @@ const ABOUT_SECTIONS = [
 export function getRoute() {
   if (typeof window !== "undefined") {
     var rawHash = window.location.hash.replace(/^#/, "");
+
+    // Auth callback parameters in URL hash should default to discover and not be parsed as a route view
+    if (
+      rawHash.includes("access_token=") ||
+      rawHash.includes("refresh_token=") ||
+      rawHash.includes("error_description=") ||
+      rawHash.includes("type=recovery")
+    ) {
+      return "discover";
+    }
+
     var cleanHash = rawHash.split("?")[0].split("#")[0];
 
     // If explicit section hash is set (e.g. #discover, #library, #studio, etc.)
@@ -77,7 +88,15 @@ export function render(ctx) {
   const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings", "story", "achievements", "wallet", "about"];
   if (allowed.indexOf(ctx.ui.currentView) === -1) {
     ctx.ui.currentView = "discover";
-    if (window.location.hash.replace(/^#/, "").split("?")[0] !== "discover") {
+    var isAuthHash =
+      typeof window !== "undefined" &&
+      window.location &&
+      window.location.hash &&
+      (window.location.hash.includes("access_token=") ||
+        window.location.hash.includes("refresh_token=") ||
+        window.location.hash.includes("error_description=") ||
+        window.location.hash.includes("type=recovery"));
+    if (!isAuthHash && window.location.hash.replace(/^#/, "").split("?")[0] !== "discover") {
       window.location.hash = "discover";
     }
   }

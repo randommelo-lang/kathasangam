@@ -663,6 +663,18 @@
   outline-offset: -2px;
 }
 
+.account-trigger.account-trigger-highlight {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  animation: accountPulse 1.2s ease-in-out 3;
+}
+
+@keyframes accountPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(229, 124, 51, 0.7); }
+  50% { transform: scale(1.08); box-shadow: 0 0 14px 4px rgba(229, 124, 51, 0.5); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(229, 124, 51, 0); }
+}
+
 .account-chevron {
   font-size: .65rem;
   opacity: .5;

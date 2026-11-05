@@ -51,6 +51,15 @@ export function closeAccountMenu() {
   if (trigger) trigger.setAttribute("aria-expanded", "false");
 }
 
+export function highlightAccountMenu() {
+  var trigger = /** @type {HTMLElement | null} */ (document.querySelector(".account-trigger"));
+  if (!trigger) return;
+  trigger.classList.add("account-trigger-highlight");
+  setTimeout(function () {
+    trigger.classList.remove("account-trigger-highlight");
+  }, 4000);
+}
+
 export function updateAuthUI() {
   const els = getAuthElements();
   if (!els.authArea) return;

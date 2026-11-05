@@ -219,10 +219,14 @@ export async function handleGoogleSignIn() {
   }
   clearAuthMessages();
   try {
+    const redirectUrl =
+      typeof window !== "undefined" && window.location
+        ? window.location.origin + (window.location.pathname || "")
+        : undefined;
     const { error } = await supabaseClient.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin
+        redirectTo: redirectUrl
       }
     });
     if (error) {

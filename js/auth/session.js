@@ -10,7 +10,7 @@ import {
 } from "../api.js";
 import { stopNotificationPolling } from "../notifications.js";
 import { openAuthModal, closeAuthModal, switchAuthTab } from "./authModal.js";
-import { updateAuthUI } from "./accountMenu.js";
+import { updateAuthUI, highlightAccountMenu } from "./accountMenu.js";
 
 let authEffects = {};
 
@@ -109,14 +109,50 @@ export async function fetchProfile() {
         return null;
       }
       console.error("[PROFILE] Failed to load profile:", e.message);
+
+      // If profile record is not found yet (e.g. freshly created OAuth user whose DB row is delayed),
+      // synthesize a fallback profile from the session user metadata so the user is NOT kicked out!
+      if (e.status === 404 && state.user) {
+        log.debug("[PROFILE] Profile record 404. Falling back to session user metadata.");
+        var userMeta = state.user.user_metadata || {};
+        var fallbackProfile = {
+          username:
+            userMeta.full_name ||
+            userMeta.name ||
+            (state.user.email ? state.user.email.split("@")[0] : "reader"),
+          role: "reader",
+          avatar_url: userMeta.avatar_url || userMeta.picture || "",
+          bio: "",
+          preferences: {},
+          followers_count: 0,
+          following_count: 0
+        };
+        state.profile = fallbackProfile;
+        state.role = "reader";
+        loadPreferences();
+        return fallbackProfile;
+      }
+
       state.profile = null;
       state.role = "reader";
       loadPreferences();
-      if (e.status === 404 || e.status === 401) {
-        log.debug(
-          "[PROFILE] Session user profile not found or unauthorized (404/401). Forcing sign out."
-        );
-        handleSignOut();
+
+      // Only force sign-out if session is truly rejected/expired (401) and Supabase client confirms no active session
+      if (e.status === 401) {
+        const client = getSupabaseClient();
+        let activeSession = null;
+        if (client) {
+          try {
+            const res = await client.auth.getSession();
+            activeSession = res && res.data ? res.data.session : null;
+          } catch (_) {}
+        }
+        if (!activeSession) {
+          log.debug(
+            "[PROFILE] Session user unauthorized (401) and session confirmed dead. Forcing sign out."
+          );
+          handleSignOut();
+        }
       }
       throw e;
     } finally {
@@ -217,6 +253,7 @@ export function onAuthStateChange(event, session) {
     if (typeof window !== "undefined" && window.location && window.location.hash) {
       if (
         window.location.hash.includes("access_token=") ||
+        window.location.hash.includes("refresh_token=") ||
         window.location.hash.includes("error_description=")
       ) {
         window.history.replaceState(
@@ -227,6 +264,9 @@ export function onAuthStateChange(event, session) {
       }
     }
     closeAuthModal();
+
+    var isNewLogin = event === "SIGNED_IN";
+
     if (state.user && state.user.id === session.user.id && state.profile) {
       log.debug("[AUTH] User already logged in, skipping redundant profile refresh");
       state.user = session.user;
@@ -240,9 +280,22 @@ export function onAuthStateChange(event, session) {
     state.user = session.user;
     state.accessToken = session.access_token;
     window.kathasangam_loaded = false;
-    fetchProfile()
-      .then(function () {
+
+    // Immediately update UI to show logged in state so the user doesn't see "Log In" button while profile loads
+    updateAuthUI();
+
+    return fetchProfile()
+      .then(function (profile) {
         updateAuthUI();
+        if (isNewLogin) {
+          var name =
+            (profile && profile.username) ||
+            (state.user && state.user.email ? state.user.email.split("@")[0] : "reader");
+          if (authEffects.notify) {
+            authEffects.notify("Welcome, " + name + "!", "success");
+          }
+          highlightAccountMenu();
+        }
         if (authEffects.loadAll) return authEffects.loadAll();
       })
       .then(function () {
@@ -252,6 +305,13 @@ export function onAuthStateChange(event, session) {
       })
       .catch(function (err) {
         console.warn("Failed to refresh authenticated data:", err);
+        updateAuthUI();
+        if (isNewLogin && authEffects.notify) {
+          var fallbackName =
+            state.user && state.user.email ? state.user.email.split("@")[0] : "reader";
+          authEffects.notify("Welcome, " + fallbackName + "!", "success");
+          highlightAccountMenu();
+        }
         if (authEffects.render) authEffects.render();
         window.kathasangam_loaded = true;
       });

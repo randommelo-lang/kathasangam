@@ -55,7 +55,8 @@ import {
   accountMenuButton,
   toggleAccountMenu,
   closeAccountMenu,
-  updateAuthUI
+  updateAuthUI,
+  highlightAccountMenu
 } from "./auth/accountMenu.js";
 
 export {
@@ -104,7 +105,8 @@ export {
   accountMenuButton,
   toggleAccountMenu,
   closeAccountMenu,
-  updateAuthUI
+  updateAuthUI,
+  highlightAccountMenu
 };
 
 export function initAuthModule(context) {
@@ -289,7 +291,7 @@ export function initAuthModule(context) {
     onAuthStateChange(event, session);
   });
 
-  supabaseClient.auth
+  return supabaseClient.auth
     .getSession()
     .then(function (result) {
       var session = result && result.data ? result.data.session : null;
@@ -299,7 +301,7 @@ export function initAuthModule(context) {
           "[AUTH] Existing session found, user:",
           session.user ? session.user.email : "unknown"
         );
-        onAuthStateChange("INITIAL_SESSION", session);
+        return onAuthStateChange("INITIAL_SESSION", session);
       } else {
         log.debug("[AUTH] No existing session on startup");
         updateAuthUI();

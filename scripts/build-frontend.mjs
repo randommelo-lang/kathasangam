@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,7 +11,16 @@ rmSync(publicDir, { recursive: true, force: true });
 mkdirSync(publicDir, { recursive: true });
 
 for (const file of ["index.html", "privacy.html", "styles.css", "robots.txt"]) {
-  cpSync(resolve(repoRoot, file), resolve(publicDir, file));
+  if (existsSync(resolve(repoRoot, file))) {
+    cpSync(resolve(repoRoot, file), resolve(publicDir, file));
+  }
+}
+
+// Copy any Google Search Console verification files (e.g. google*.html)
+for (const entry of readdirSync(repoRoot)) {
+  if (entry.startsWith("google") && entry.endsWith(".html")) {
+    cpSync(resolve(repoRoot, entry), resolve(publicDir, entry));
+  }
 }
 // Keep backend embedded template in sync with root index.html
 try {

@@ -10,7 +10,7 @@ const publicDir = resolve(repoRoot, "dist/public");
 rmSync(publicDir, { recursive: true, force: true });
 mkdirSync(publicDir, { recursive: true });
 
-for (const file of ["index.html", "privacy.html", "styles.css", "robots.txt"]) {
+for (const file of ["index.html", "privacy.html", "google.svg", "styles.css", "robots.txt"]) {
   if (existsSync(resolve(repoRoot, file))) {
     cpSync(resolve(repoRoot, file), resolve(publicDir, file));
   }

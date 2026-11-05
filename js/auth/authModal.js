@@ -221,12 +221,15 @@ export async function handleGoogleSignIn() {
   try {
     const redirectUrl =
       typeof window !== "undefined" && window.location
-        ? window.location.origin + (window.location.pathname || "")
+        ? window.location.origin.replace(/\/+$/, "")
         : undefined;
     const { error } = await supabaseClient.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: redirectUrl
+        redirectTo: redirectUrl,
+        queryParams: {
+          prompt: "select_account"
+        }
       }
     });
     if (error) {

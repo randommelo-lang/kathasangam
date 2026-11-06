@@ -14,7 +14,8 @@ import {
   normalizeLanguage,
   normalizeStoryStatus,
   t,
-  makeTipIcon
+  makeTipIcon,
+  makeGiftIcon
 } from "../components.js";
 import { storyCard, emptyState } from "./shared.js";
 import {
@@ -313,17 +314,15 @@ function renderPublicProfile(ctx, profileData, isMe) {
       });
       if (authorStory) {
         var supportBtn = el("button", {
-          class: "btn btn-support-creator",
-          "data-action": "openSupportModal",
-          "data-story-id": authorStory.id,
-          "data-story-title": authorStory.title || "Story",
-          "data-author-name": username,
-          "data-author-id": profileData.id,
-          "aria-label": "Support " + username + " with a tip",
+          type: "button",
+          class: "btn btn-support-creator btn-gift-disabled",
+          disabled: true,
+          "aria-label": "Gift (coming soon)",
+          title: "Gifting and creator support will be available soon!",
           style: "display: flex; align-items: center; gap: 6px;"
         }, [
-          makeTipIcon("icon-tip-svg"),
-          "Tip Creator"
+          makeGiftIcon("icon-gift-svg"),
+          "Gift (coming soon)"
         ]);
         actionsContainer.appendChild(supportBtn);
       }

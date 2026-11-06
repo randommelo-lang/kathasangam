@@ -750,25 +750,7 @@ function handleViewClick(e) {
   }
 
   if (action === "openSupportModal") {
-    var sid = target.dataset.storyId;
-    var stitle = target.dataset.storyTitle;
-    var aname = target.dataset.authorName;
-    var aid = target.dataset.authorId;
-    if (!sid) {
-      var curr = getCurrentStory();
-      if (curr) {
-        sid = curr.id;
-        stitle = curr.title;
-        aname = curr.author || curr.author_name;
-        aid = curr.author_id;
-      }
-    }
-    openSupportModal({
-      storyId: sid,
-      storyTitle: stitle,
-      authorName: aname,
-      authorId: aid
-    });
+    ctx.notify("Gifting and creator support will be available soon!", "info");
     return;
   }
 

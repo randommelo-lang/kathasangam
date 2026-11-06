@@ -85,7 +85,7 @@ export function render(ctx) {
       window.history.replaceState(null, "", "/" + (window.location.hash || ""));
     }
   }
-  const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings", "story", "achievements", "wallet", "about"];
+  const allowed = ["discover", "library", "reader", "studio", "moderation", "editor", "profile", "settings", "story", "achievements", "about"];
   if (allowed.indexOf(ctx.ui.currentView) === -1) {
     ctx.ui.currentView = "discover";
     var isAuthHash =
@@ -156,7 +156,6 @@ export function render(ctx) {
     profile: "Profile",
     settings: "Settings",
     story: "Story Details",
-    wallet: "Creator Wallet",
     about: "About KathaSangam"
   }[ctx.ui.currentView];
 
@@ -173,7 +172,11 @@ export function render(ctx) {
   if (ctx.ui.currentView === "editor") ctx.renderEditor();
   if (ctx.ui.currentView === "profile" || ctx.ui.currentView === "settings") ctx.renderProfileSettings();
   if (ctx.ui.currentView === "story") ctx.renderStoryDetails();
-  if (ctx.ui.currentView === "wallet") ctx.renderWallet();
+  if (ctx.ui.currentView === "wallet") {
+    ctx.ui.currentView = "discover";
+    ctx.renderDiscover();
+    return;
+  }
   if (ctx.ui.currentView === "about") {
     ctx.renderAbout();
     var rawHash = (typeof window !== "undefined" && window.location.hash) ? window.location.hash.replace(/^#/, "") : "";

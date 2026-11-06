@@ -190,6 +190,14 @@ async function installApiMocks(page) {
       });
     }
 
+    if (url.pathname === '/api/notifications') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([])
+      });
+    }
+
     if (url.pathname === '/api/stats') {
       return route.fulfill({
         status: 200,
@@ -202,44 +210,20 @@ async function installApiMocks(page) {
   });
 }
 
-test('renders Support Creator button and opens donation modal with preset chips and fee note', async ({ page }) => {
+test('renders Gift (coming soon) disabled button in story action row', async ({ page }) => {
   await installApiMocks(page);
-  await page.goto('/#story?id=' + storyId);
+  await page.goto('/');
+  await page.evaluate((sId) => { window.location.hash = `story?id=${sId}`; }, storyId);
 
-  // 1. Verify Support Creator button is visible in action row
-  const supportBtn = page.locator('button.btn-support-creator').first();
-  await expect(supportBtn).toBeVisible();
-
-  // 2. Click to open modal
-  await supportBtn.click();
-  const modal = page.locator('.support-modal-box');
-  await expect(modal).toBeVisible();
-  await expect(modal).toContainText('Support A. Writer');
-  await expect(modal).toContainText('95% directly credited to the creator\'s wallet · 5% platform fee');
-
-  // 3. Verify preset chips
-  const chip100 = modal.locator('button[data-amount="100"]');
-  await expect(chip100).toBeVisible();
-  await chip100.click();
-
-  const payBtn = modal.locator('.support-pay-btn');
-  await expect(payBtn).toContainText('Proceed to Pay ₹100');
-
-  // 4. Test simulated payment flow
-  await payBtn.click();
-
-  // 5. Verify Celebration Success Dialog appears
-  const successModal = page.locator('.celebration-modal-box');
-  await expect(successModal).toBeVisible();
-  await expect(successModal).toContainText('Thank You for Supporting!');
-  await expect(successModal).toContainText('₹100');
-
-  // Close celebration dialog
-  await successModal.locator('button').click();
-  await expect(successModal).toBeHidden();
+  // 1. Verify Gift (coming soon) button is visible and disabled in action row
+  const giftBtn = page.locator('button.btn-support-creator').first();
+  await expect(giftBtn).toBeVisible();
+  await expect(giftBtn).toContainText('Gift (coming soon)');
+  await expect(giftBtn).toBeDisabled();
+  await expect(giftBtn.locator('svg.icon-gift-svg')).toBeVisible();
 });
 
-test('renders Creator Wallet with available balance, total earnings, and transaction history', async ({ page }) => {
+test('redirects #wallet to #discover when creator wallet is halted', async ({ page }) => {
   await installApiMocks(page);
   await page.goto('/');
 
@@ -250,33 +234,19 @@ test('renders Creator Wallet with available balance, total earnings, and transac
     window.location.hash = 'wallet';
   });
 
-  // Verify wallet header and stats cards
-  await expect(page.locator('.wallet-page-title')).toHaveText('Creator Wallet & Earnings');
-  await expect(page.locator('.balance-value')).toHaveText('₹475.00');
-  await expect(page.locator('.wallet-stats-grid')).toContainText('Total Net Earnings');
-  await expect(page.locator('.wallet-stats-grid')).toContainText('₹950.00');
-  await expect(page.locator('.wallet-stats-grid')).toContainText('95% creator share (5% platform fee)');
-
-  // Verify registered UPI ID banner
-  await expect(page.locator('.wallet-upi-banner')).toContainText('author@okhdfcbank');
-
-  // Verify transaction history table
-  await expect(page.locator('.wallet-history-table')).toBeVisible();
-  await expect(page.locator('.wallet-history-table')).toContainText('Tip Credit');
-  await expect(page.locator('.wallet-history-table')).toContainText('+₹47.50');
+  // Verify wallet routes safely back to Discover
+  await expect(page).toHaveURL(/#discover$/);
 });
 
-test('shows Tip Creator callout at the end of a reader chapter', async ({ page }) => {
+test('shows Gift (coming soon) callout at the end of a reader chapter', async ({ page }) => {
   await installApiMocks(page);
   await page.goto('/#reader?story=' + storyId + '&ch=0');
 
   const readerCallout = page.locator('.reader-support-callout');
   await expect(readerCallout).toBeVisible();
   await expect(readerCallout).toContainText('Enjoying the story?');
-  await expect(readerCallout.locator('button')).toContainText('Tip Creator');
-
-  // Verify Supporter emoji badge on comments
-  const supporterBadge = page.locator('.comment-supporter-badge');
-  await expect(supporterBadge).toBeVisible();
-  await expect(supporterBadge).toContainText('Supporter');
+  await expect(readerCallout.locator('svg.reader-support-gift-svg')).toBeVisible();
+  await expect(readerCallout.locator('button')).toContainText('Gift (coming soon)');
+  await expect(readerCallout.locator('button')).toBeDisabled();
+  await expect(readerCallout.locator('button svg.icon-gift-svg')).toBeVisible();
 });

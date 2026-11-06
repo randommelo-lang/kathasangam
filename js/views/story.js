@@ -14,7 +14,8 @@ import {
   normalizeStoryType,
   progress,
   t,
-  makeTipIcon
+  makeTipIcon,
+  makeGiftIcon
 } from "../components.js";
 import { state } from "../state.js";
 import { openSupportModal } from "../components/supportModal.js";
@@ -265,18 +266,16 @@ export function renderStoryDetails(ctx) {
     "Add to Playlist"
   ]);
 
-  var donateBtn = el("button", {
-    class: "btn btn-support-creator",
-    "data-action": "openSupportModal",
-    "data-story-id": story.id,
-    "data-story-title": story.title || "Story",
-    "data-author-name": authorName,
-    "data-author-id": story.author_id,
-    "aria-label": "Support creator with a tip",
+  var giftBtn = el("button", {
+    type: "button",
+    class: "btn btn-support-creator btn-gift-disabled",
+    disabled: true,
+    "aria-label": "Gift (coming soon)",
+    title: "Gifting and creator support will be available soon!",
     style: "display: flex; align-items: center; gap: 6px;"
   }, [
-    makeTipIcon("icon-tip-svg"),
-    "Support Creator"
+    makeGiftIcon("icon-gift-svg"),
+    "Gift (coming soon)"
   ]);
 
   var shareBtn = el("button", {
@@ -378,7 +377,7 @@ export function renderStoryDetails(ctx) {
       resumeCallout,
       el("div", "button-row details-action-row", [
         primaryReadBtn,
-        donateBtn,
+        giftBtn,
         shareBtn,
         likeBtn,
         bookmarkBtn,
@@ -590,9 +589,9 @@ export function renderStoryDetails(ctx) {
   ]);
   rightCol.appendChild(authorPanel);
 
-  // Story Supporters Panel
-  var supportersPanel = renderStorySupportersPanel(ctx, story, authorName);
-  rightCol.appendChild(supportersPanel);
+  // Story Supporters Panel (Temporarily halted pending regulatory & tax compliance)
+  // var supportersPanel = renderStorySupportersPanel(ctx, story, authorName);
+  // rightCol.appendChild(supportersPanel);
 
   // Story Rating & Review Panel
   var ratingPanel = renderStoryRatingPanel(ctx, story);

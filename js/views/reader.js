@@ -1,4 +1,4 @@
-import { button, el, field, form, formatDate, formatDateDDMMYYYY, formatNumber, input, list, progress, segmentButton, select, submitButton, textarea, svgEl, makeAnimatedDotsHorizontalIcon, makeAnimatedSendHorizontalIcon, makeTipIcon } from "../components.js";
+import { button, el, field, form, formatDate, formatDateDDMMYYYY, formatNumber, input, list, progress, segmentButton, select, submitButton, textarea, svgEl, makeAnimatedDotsHorizontalIcon, makeAnimatedSendHorizontalIcon, makeTipIcon, makeGiftIcon } from "../components.js";
 import { emptyState } from "./shared.js";
 import { recordStoryView } from "../controllers/readerController.js";
 
@@ -744,25 +744,22 @@ function readerContent(ctx, story, chapter) {
   var authorDisplayName = story.author || story.author_name || (story.profile && story.profile.username) || "the author";
   var supportCallout = el("div", "reader-support-callout", [
     el("div", "reader-support-info", [
-      el("span", "reader-support-icon-wrap", [makeTipIcon("reader-support-icon-svg")]),
+      el("span", "reader-support-icon-wrap", [makeGiftIcon("reader-support-gift-svg")]),
       el("div", "reader-support-text", [
         el("strong", null, "Enjoying the story?"),
-        el("span", null, "Send a direct UPI tip to support " + authorDisplayName + "!")
+        el("span", null, "Show appreciation for " + authorDisplayName + "!")
       ])
     ]),
     el("button", {
       type: "button",
-      class: "btn btn-support-creator",
-      "data-action": "openSupportModal",
-      "data-story-id": story.id,
-      "data-story-title": story.title || "Story",
-      "data-author-name": authorDisplayName,
-      "data-author-id": story.author_id,
-      "aria-label": "Support creator with a tip",
+      class: "btn btn-support-creator btn-gift-disabled",
+      disabled: true,
+      "aria-label": "Gift (coming soon)",
+      title: "Gifting and creator support will be available soon!",
       style: "display: flex; align-items: center; gap: 6px;"
     }, [
-      makeTipIcon("icon-tip-svg"),
-      "Tip Creator"
+      makeGiftIcon("icon-gift-svg"),
+      "Gift (coming soon)"
     ])
   ]);
 

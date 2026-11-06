@@ -72,13 +72,13 @@ export function renderAbout(ctx) {
         )
       ]),
       el("div", "about-card highlight-card", [
-        el("div", "card-label-badge", "Creator Economy"),
-        el("h3", null, "Direct Creator Support"),
+        el("div", "card-label-badge", "Community Spirit"),
+        el("h3", null, "Creator Appreciation & Gifts"),
         el("p", null,
-          "We believe storytellers deserve fair compensation for their craft. Through our Razorpay-powered creator wallet, readers can directly tip their favorite writers and comic illustrators via UPI, RuPay, and Cards."
+          "We believe storytellers deserve appreciation for their craft. A dedicated gifting and appreciation system is currently in development to allow readers to celebrate their favorite writers and comic illustrators."
         ),
         el("p", { style: "margin-top: 10px; color: var(--accent); font-weight: 500; font-size: 0.9rem;" },
-          "95% goes directly to the creator. The remaining 5% covers platform hosting and payment gateway infrastructure. Supporters receive an exclusive Supporter badge in chapter discussions."
+          "Coming Soon: Exclusive reader gifts, awards, and appreciation badges for community creators."
         )
       ])
     ]),
@@ -152,8 +152,8 @@ export function renderAbout(ctx) {
       ]),
       el("div", "about-feature-box", [
         el("div", "feature-num", "05"),
-        el("h4", null, "Creator Tipping"),
-        el("p", null, "Send direct tips to writers and illustrators starting at ₹10 using UPI, Cards, or NetBanking. 95% goes directly to the creator's wallet, and supporters get golden Supporter badges in comments.")
+        el("h4", null, "Creator Tipping & Gifting (Coming Soon)"),
+        el("p", null, "Show appreciation for your favorite authors with upcoming digital gifts, awards, and exclusive community badges in chapter discussions.")
       ]),
       el("div", "about-feature-box", [
         el("div", "feature-num", "06"),

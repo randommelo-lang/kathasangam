@@ -46,7 +46,8 @@ export function updateHeroNotificationUI() {
     bellIcon.style.height = "20px";
     trigger.appendChild(bellIcon);
 
-    var unreadCount = (state.notifications || []).filter(function (n) { return !n.is_read; }).length;
+    var notifs = Array.isArray(state.notifications) ? state.notifications : [];
+    var unreadCount = notifs.filter(function (n) { return !n.is_read; }).length;
     if (unreadCount > 0) {
       var badge = el("span", "hero-bell-badge");
       trigger.appendChild(badge);

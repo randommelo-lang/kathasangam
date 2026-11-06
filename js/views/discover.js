@@ -124,8 +124,8 @@ export function renderOnboardingModal(ctx) {
             innerHTML: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>'
           }),
           el("div", "onboarding-feature-text", [
-            el("strong", null, "Direct Creator Support: "),
-            document.createTextNode("Tip creators directly with 95% payout via UPI and Cards, earning dedicated Supporter badges in discussions.")
+            el("strong", null, "Creator Gifting (Coming Soon): "),
+            document.createTextNode("Celebrate your favorite storytellers with upcoming digital gifts, awards, and exclusive community badges.")
           ])
         ]),
         el("div", "onboarding-feature-item", [

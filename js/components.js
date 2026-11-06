@@ -159,6 +159,27 @@ export function makeTipIcon(className = "icon") {
   ]);
 }
 
+export function makeGiftIcon(className = "icon") {
+  return svgEl("svg", {
+    width: "16",
+    height: "16",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "var(--accent, #e57c33)",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: className,
+    "aria-hidden": "true"
+  }, [
+    svgEl("polyline", { points: "20 12 20 22 4 22 4 12", fill: "rgba(229, 124, 51, 0.12)" }),
+    svgEl("rect", { x: "2", y: "7", width: "20", height: "5", rx: "1", fill: "rgba(229, 124, 51, 0.22)" }),
+    svgEl("line", { x1: "12", y1: "7", x2: "12", y2: "22" }),
+    svgEl("path", { d: "M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z", fill: "rgba(229, 124, 51, 0.22)" }),
+    svgEl("path", { d: "M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z", fill: "rgba(229, 124, 51, 0.22)" })
+  ]);
+}
+
 export function makeDiscussionIcon(className = "icon") {
   return svgEl("svg", {
     width: "18",

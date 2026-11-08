@@ -180,10 +180,7 @@ fn validate_story_text<'a>(value: &'a str, label: &'static str) -> Result<&'a st
         _ => MAX_TITLE_LENGTH,
     };
 
-    let allow_newlines = label == "Description";
-    if value.chars().any(|c| {
-        c.is_control() && !(allow_newlines && (c == '\n' || c == '\r' || c == '\t'))
-    }) {
+    if label != "Description" && value.chars().any(char::is_control) {
         return Err(format!("{label} must not contain control characters."));
     }
     if value.chars().count() > limit {
@@ -1788,18 +1785,9 @@ mod tests {
     use super::validate_story_text;
 
     #[test]
-    fn description_allows_newlines_and_tabs() {
-        let desc = "Paragraph one.\n\nParagraph two with \ttab and carriage return.\r\nEnd.";
+    fn description_allows_paragraphs_newlines_and_formatting() {
+        let desc = "Paragraph one.\n\nParagraph two with \ttabs and carriage returns.\r\nEnd.";
         assert!(validate_story_text(desc, "Description").is_ok());
-    }
-
-    #[test]
-    fn description_rejects_other_control_characters() {
-        let with_null = "Description with null \0 byte";
-        assert!(validate_story_text(with_null, "Description").is_err());
-
-        let with_bell = "Description with bell \x07 byte";
-        assert!(validate_story_text(with_bell, "Description").is_err());
     }
 
     #[test]

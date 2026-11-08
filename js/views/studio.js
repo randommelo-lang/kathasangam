@@ -18,6 +18,7 @@ import {
   quickActionTile,
   svgEl,
   makeCalendarIcon,
+  makeClockIcon,
   makeCollaboratorsIcon,
   makeDiscussionIcon,
   t
@@ -325,7 +326,7 @@ export function renderStudio(ctx) {
       if (ch.status === "scheduled" && ch.scheduledAt) {
         var schedDate = new Date(ch.scheduledAt);
         var formatted = formatDateTime(schedDate);
-        detailsChildren.push(el("span", "schedule-date-label", [makeCalendarIcon("icon icon-sm"), " " + formatted]));
+        detailsChildren.push(el("span", "schedule-date-label", [makeClockIcon("icon icon-sm"), " " + formatted]));
       }
 
       // Reorder buttons
@@ -354,7 +355,7 @@ export function renderStudio(ctx) {
 
       if (ch.status === "draft" || ch.status === "scheduled") {
         actionButtons.push(
-          button(ch.status === "scheduled" ? "⏰" : makeCalendarIcon("icon icon-sm"), "btn btn-sm schedule-btn", { action: "openScheduleModal", id: ch.id, scheduledAt: ch.scheduledAt || "", tooltip: ch.status === "scheduled" ? "Reschedule" : "Schedule", "aria-label": "Schedule " + ch.title })
+          button(ch.status === "scheduled" ? makeClockIcon("icon icon-sm") : makeCalendarIcon("icon icon-sm"), "btn btn-sm schedule-btn", { action: "openScheduleModal", id: ch.id, scheduledAt: ch.scheduledAt || "", tooltip: ch.status === "scheduled" ? "Reschedule" : "Schedule", "aria-label": (ch.status === "scheduled" ? "Reschedule " : "Schedule ") + ch.title })
         );
       }
       if (ch.status !== "published") {

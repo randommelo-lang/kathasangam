@@ -655,6 +655,7 @@
 .icon-playlist { mask-image: url('../icons/playlist.svg'); -webkit-mask-image: url('../icons/playlist.svg'); }
 .icon-warning { mask-image: url('../icons/warning.svg'); -webkit-mask-image: url('../icons/warning.svg'); }
 .icon-error { mask-image: url('../icons/error.svg'); -webkit-mask-image: url('../icons/error.svg'); }
+.icon-clock { mask-image: url('../icons/clock.svg'); -webkit-mask-image: url('../icons/clock.svg'); }
 
 /* ─── Scheduled Publishing ─── */
 .badge-status.scheduled {

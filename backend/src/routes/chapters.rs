@@ -137,7 +137,7 @@ pub async fn list_chapters(
     .fetch_all(&pool);
 
     let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>, bool)>(
-        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id, \
+        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(NULLIF(p.display_name, ''), p.username, 'Reader'), c.paragraph_index, c.parent_id, \
                 EXISTS ( \
                     SELECT 1 FROM tips t \
                     JOIN chapters ch ON ch.id = c.chapter_id \

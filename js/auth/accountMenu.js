@@ -65,9 +65,10 @@ export function updateAuthUI() {
   if (!els.authArea) return;
   if (state.user && state.profile) {
     var username = state.profile.username || state.user.email.split("@")[0];
+    var displayName = state.profile.display_name || username;
     var role = (state.profile.role || "reader").toLowerCase();
     var avatarUrl = state.profile.avatar_url || "";
-    var initial = username.charAt(0).toUpperCase();
+    var initial = displayName.charAt(0).toUpperCase();
     var email = state.user.email || "";
 
     els.authArea.innerHTML = "";
@@ -95,7 +96,7 @@ export function updateAuthUI() {
 
     var triggerName = document.createElement("span");
     triggerName.className = "auth-username";
-    triggerName.textContent = username;
+    triggerName.textContent = displayName;
 
     var triggerChevron = document.createElement("span");
     triggerChevron.className = "account-chevron";
@@ -124,8 +125,12 @@ export function updateAuthUI() {
 
     var headerInfo = document.createElement("div");
     headerInfo.className = "account-dropdown-info";
-    headerInfo.appendChild(el("strong", null, username));
-    headerInfo.appendChild(el("span", null, email));
+    headerInfo.appendChild(el("strong", null, displayName));
+    var accountSubtext =
+      state.profile.display_name && state.profile.display_name !== username
+        ? "@" + username
+        : email;
+    headerInfo.appendChild(el("span", null, accountSubtext));
 
     header.appendChild(headerAvatar);
     header.appendChild(headerInfo);

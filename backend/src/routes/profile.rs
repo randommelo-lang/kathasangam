@@ -10,6 +10,7 @@ use crate::errors::AppError;
 pub struct PublicProfileResponse {
     pub id: Uuid,
     pub username: String,
+    pub display_name: Option<String>,
     pub role: String,
     pub avatar_url: String,
     pub bio: String,
@@ -21,6 +22,7 @@ pub struct PublicProfileResponse {
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct ProfileResponse {
     pub username: String,
+    pub display_name: Option<String>,
     pub role: String,
     pub avatar_url: String,
     pub bio: String,
@@ -39,7 +41,9 @@ pub async fn get_profile(
     State(pool): State<PgPool>,
 ) -> Result<Json<ProfileResponse>, AppError> {
     let profile = sqlx::query_as::<_, ProfileResponse>(
-        "SELECT username, role::TEXT, avatar_url, bio, preferences, \
+        "SELECT username, \
+         COALESCE(NULLIF(display_name, ''), preferences->>'display_name', '') AS display_name, \
+         role::TEXT, avatar_url, bio, preferences, \
          (SELECT COUNT(*) FROM public.follows WHERE followed_id = $1) AS followers_count, \
          (SELECT COUNT(*) FROM public.follows WHERE follower_id = $1) AS following_count \
          FROM profiles WHERE id = $1",
@@ -111,6 +115,7 @@ pub async fn update_profile_role(
 }
 
 const MAX_USERNAME_LENGTH: usize = 30;
+const MAX_DISPLAY_NAME_LENGTH: usize = 50;
 const MAX_BIO_LENGTH: usize = 500;
 
 /// SB-19: the username was previously accepted with any characters at all, so a
@@ -138,6 +143,29 @@ fn validate_username(username: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
+fn validate_display_name(display_name: &str) -> Result<(), &'static str> {
+    if display_name.is_empty() {
+        return Ok(());
+    }
+    if display_name.chars().count() > MAX_DISPLAY_NAME_LENGTH {
+        return Err("Display name must be 50 characters or fewer.");
+    }
+    if display_name.chars().any(|c| c.is_control()) {
+        return Err("Display name must not contain control characters.");
+    }
+    if display_name.chars().any(|c| {
+        matches!(c,
+            '\u{200B}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{FEFF}'
+        )
+    }) {
+        return Err("Display name contains invalid or hidden characters.");
+    }
+    Ok(())
+}
+
 /// Validates that an avatar URL is either empty (to clear the avatar),
 /// a local upload path, or a Supabase Storage URL matching our configured host.
 ///
@@ -151,6 +179,7 @@ fn is_valid_avatar_url(url: &str) -> bool {
 #[derive(Debug, Deserialize)]
 pub struct UpdateProfileRequest {
     pub username: Option<String>,
+    pub display_name: Option<String>,
     pub avatar_url: Option<String>,
     pub bio: Option<String>,
     pub preferences: Option<serde_json::Value>,
@@ -175,6 +204,13 @@ pub async fn update_profile(
     State(pool): State<PgPool>,
     Json(body): Json<UpdateProfileRequest>,
 ) -> Result<StatusCode, AppError> {
+    if let Some(ref display_name) = body.display_name {
+        let display_name_trimmed = display_name.trim();
+        if let Err(message) = validate_display_name(display_name_trimmed) {
+            return Err(AppError::bad_request(message));
+        }
+    }
+
     if let Some(ref username) = body.username {
         let username_trimmed = username.trim();
         if let Err(message) = validate_username(username_trimmed) {
@@ -246,21 +282,24 @@ pub async fn update_profile(
     }
 
     let username = body.username.map(|s| s.trim().to_string());
+    let display_name = body.display_name.map(|s| s.trim().to_string());
     let avatar_url = body.avatar_url.map(|s| s.trim().to_string());
     let bio = body.bio.map(|s| s.trim().to_string());
 
     let result = sqlx::query(
         "UPDATE profiles SET \
          username = COALESCE($1, username), \
-         avatar_url = COALESCE($2, avatar_url), \
-         bio = COALESCE($3, bio), \
+         display_name = COALESCE($2, display_name), \
+         avatar_url = COALESCE($3, avatar_url), \
+         bio = COALESCE($4, bio), \
          preferences = CASE \
-             WHEN $4::jsonb IS NOT NULL THEN COALESCE(preferences, '{}'::jsonb) || $4::jsonb \
+             WHEN $5::jsonb IS NOT NULL THEN COALESCE(preferences, '{}'::jsonb) || $5::jsonb \
              ELSE preferences \
          END \
-         WHERE id = $5 AND (NOT $6 OR NOT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false))"
+         WHERE id = $6 AND (NOT $7 OR NOT COALESCE((preferences->>'two_factor_email_enabled')::boolean, false))"
     )
     .bind(username)
+    .bind(display_name)
     .bind(avatar_url)
     .bind(bio)
     .bind(body.preferences)
@@ -312,7 +351,9 @@ pub async fn get_public_profile(
 ) -> Result<Json<PublicProfileResponse>, AppError> {
     let trimmed = username.trim();
     let profiles = sqlx::query_as::<_, PublicProfileResponse>(
-        "SELECT id, username, role::TEXT, avatar_url, bio, \
+        "SELECT id, username, \
+         COALESCE(NULLIF(display_name, ''), preferences->>'display_name', '') AS display_name, \
+         role::TEXT, avatar_url, bio, \
          (SELECT COUNT(*) FROM public.follows WHERE followed_id = id) AS followers_count, \
          (SELECT COUNT(*) FROM public.follows WHERE follower_id = id) AS following_count, \
          COALESCE((SELECT EXISTS(SELECT 1 FROM public.follows WHERE follower_id = $2 AND followed_id = id)), false) AS is_following \
@@ -908,5 +949,33 @@ mod preference_tests {
         for value in [json!([]), json!("value"), json!(1), json!({"two_factor_email_enabled": null}), json!({"two_factor_email_enabled": "false"})] {
             assert!(validate_preferences(&value).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod display_name_tests {
+    use super::validate_display_name;
+
+    #[test]
+    fn accepts_empty_and_normal_display_names() {
+        assert!(validate_display_name("").is_ok());
+        assert!(validate_display_name("Melo Sanyal").is_ok());
+        assert!(validate_display_name("Dr. J. K. Rowling, Ph.D.").is_ok());
+        assert!(validate_display_name("বাংলা লেখক").is_ok());
+        assert!(validate_display_name("हिन्दी लेखक 123").is_ok());
+        assert!(validate_display_name(&"a".repeat(50)).is_ok());
+    }
+
+    #[test]
+    fn rejects_overlong_display_names() {
+        assert!(validate_display_name(&"a".repeat(51)).is_err());
+    }
+
+    #[test]
+    fn rejects_control_and_invisible_characters() {
+        assert!(validate_display_name("Line\nBreak").is_err());
+        assert!(validate_display_name("Null\0Byte").is_err());
+        assert!(validate_display_name("Melo\u{200B}Sanyal").is_err());
+        assert!(validate_display_name("Melo\u{202E}Sanyal").is_err());
     }
 }

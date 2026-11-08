@@ -220,6 +220,7 @@ export function renderProfileSettings(context) {
   var myData = {
     id: ctx.state.user.id,
     username: myUsername,
+    display_name: (ctx.state.profile && ctx.state.profile.display_name) || "",
     role: (ctx.state.profile.role || "reader").toLowerCase(),
     avatar_url: ctx.state.profile.avatar_url || "",
     bio: ctx.state.profile.bio || "",
@@ -234,10 +235,11 @@ export function renderProfileSettings(context) {
 function renderPublicProfile(ctx, profileData, isMe) {
   var view = ctx.view;
   var username = profileData.username;
+  var displayName = profileData.display_name || username;
   var role = (profileData.role || "reader").toLowerCase();
   var avatarUrl = profileData.avatar_url || "";
   var bio = profileData.bio || "";
-  var initial = (username.charAt(0) || "U").toUpperCase();
+  var initial = ((displayName || username).charAt(0) || "U").toUpperCase();
 
   // Header Avatar
   var avatarEl = el("div", "profile-avatar-lg");
@@ -262,8 +264,15 @@ function renderPublicProfile(ctx, profileData, isMe) {
     showcaseStrip.appendChild(createCoinBadgeElement(firstP.achievement, { size: "sm", isUnlocked: false, progressData: firstP }));
   }
 
+  var nameRow = [
+    el("h2", "profile-display-name", displayName)
+  ];
+  if (profileData.display_name && profileData.display_name !== username) {
+    nameRow.push(el("span", "profile-username-handle", "@" + username));
+  }
+
   var headerInfo = el("div", "profile-header-info", [
-    el("h2", "profile-display-name", username),
+    el("div", "profile-name-group", nameRow),
     el("div", { style: "display: flex; align-items: center; gap: 8px; flex-wrap: wrap;" }, [
       el("span", "auth-role-badge profile-role-badge " + role, role.charAt(0).toUpperCase() + role.slice(1)),
       showcaseStrip
@@ -791,6 +800,10 @@ function renderPrivateSettings(ctx) {
   // Blocked Users
   var blockedUsers = (ctx.state.profile && ctx.state.profile.preferences && ctx.state.profile.preferences.blocked_users) || [];
 
+  // Display Name field
+  var displayName = (ctx.state.profile && ctx.state.profile.display_name) || "";
+  var dInput = input("text", displayName, { name: "display_name", placeholder: "Your public display name", maxlength: "50" });
+
   // Username field with availability checker
   var uInput = input("text", username, { name: "username", placeholder: "Your username" });
   var uHint = el("p", "username-hint", "");
@@ -1018,6 +1031,19 @@ function renderPrivateSettings(ctx) {
           ])
         ]);
       })(),
+
+      // Display Name
+      el("div", "settings-group", [
+        el("label", "settings-label", "Display Name"),
+        el("div", "settings-field-row", [
+          el("div", "settings-input-wrapper", [
+            el("span", "settings-input-addon", [makeSettingsSvg("user", 16)]),
+            dInput
+          ]),
+          button("Update Display Name", "btn primary btn-sm", { action: "updateDisplayName" })
+        ]),
+        el("p", "settings-hint", "Your public display name is shown on your profile, stories, and comments. You may use real names, pen names, or spaces.")
+      ]),
 
       // Username
       el("div", "settings-group", [

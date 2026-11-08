@@ -203,6 +203,35 @@ export function handleProfileClick(ctx, action, target, e) {
     openEmailOtpDisable({ notify: ctx.notify });
     return true;
   }
+  if (action === "updateDisplayName") {
+    var dGroup = target.closest(".settings-group");
+    var dRow = target.closest(".settings-field-row");
+    var dInput = dRow ? dRow.querySelector("input[name='display_name']") : null;
+    var newDisplayName = dInput ? dInput.value.trim() : "";
+
+    setFormFeedback(dGroup, "", "");
+
+    if (newDisplayName.length > 50) {
+      setFormFeedback(dGroup, "Display name must be 50 characters or fewer. Please check your input and try again.", "error");
+      return true;
+    }
+
+    setButtonLoading(target, true, "Updating...");
+    ctx.apiPut("/profile", { display_name: newDisplayName }).then(function () {
+      setButtonLoading(target, false);
+      setFormFeedback(dGroup, "Display name updated successfully!", "success");
+      if (ctx.state.profile) ctx.state.profile.display_name = newDisplayName;
+      setTimeout(function () {
+        ctx.render();
+      }, 1000);
+    }).catch(function (err) {
+      setButtonLoading(target, false);
+      console.error(err);
+      var msg = err.message || "Failed to update display name.";
+      setFormFeedback(dGroup, msg + " Please check your input and try again.", "error");
+    });
+    return true;
+  }
   if (action === "updateUsername") {
     var group = target.closest(".settings-group");
     var row = target.closest(".settings-field-row");

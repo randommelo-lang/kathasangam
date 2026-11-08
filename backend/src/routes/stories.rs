@@ -14,7 +14,7 @@ use crate::db::{AuthUser, OptionalAuthUser};
 use crate::models::*;
 use crate::errors::AppError;
 
-const STORY_SELECT_BY_ID: &str = "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw, COALESCE(stories.content_rating, 'All ages') AS content_rating FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE stories.id = $1";
+const STORY_SELECT_BY_ID: &str = "SELECT stories.id, stories.author_id, COALESCE(NULLIF(profiles.display_name, ''), profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw, COALESCE(stories.content_rating, 'All ages') AS content_rating FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE stories.id = $1";
 
 pub const CANONICAL_GENRES: &[&str] = &[
     "Fantasy",
@@ -277,12 +277,12 @@ pub async fn list_stories(
     } else { None };
 
     let mut sql = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw, COALESCE(stories.content_rating, 'All ages') AS content_rating FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE TRUE"
+        "SELECT stories.id, stories.author_id, COALESCE(NULLIF(profiles.display_name, ''), profiles.username, 'You') AS author_name, stories.title, stories.type, stories.genre, stories.language, stories.license, stories.status, stories.tags, stories.description, stories.cover, stories.followers, stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw, COALESCE(stories.content_rating, 'All ages') AS content_rating FROM stories LEFT JOIN profiles ON profiles.id = stories.author_id WHERE TRUE"
     );
     if !query.is_empty() {
         let pattern = format!("%{query}%");
         sql.push(" AND (stories.title ILIKE ").push_bind(pattern.clone())
-            .push(" OR COALESCE(profiles.username, 'You') ILIKE ").push_bind(pattern.clone())
+            .push(" OR COALESCE(NULLIF(profiles.display_name, ''), profiles.username, 'You') ILIKE ").push_bind(pattern.clone())
             .push(" OR stories.description ILIKE ").push_bind(pattern.clone())
             .push(" OR stories.genre ILIKE ").push_bind(pattern.clone())
             .push(" OR stories.tags::text ILIKE ").push_bind(pattern).push(")");
@@ -1158,7 +1158,7 @@ async fn build_story_responses_batch_mode(
 
     // Include c.chapter_id as first field so we can group by it
     let comments_fut = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>, bool)>(
-        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id, \
+        "SELECT c.chapter_id, c.id, c.user_id, c.content, COALESCE(NULLIF(p.display_name, ''), p.username, 'Reader'), c.paragraph_index, c.parent_id, \
                 EXISTS ( \
                     SELECT 1 FROM tips t \
                     JOIN chapters ch ON ch.id = c.chapter_id \
@@ -1393,7 +1393,7 @@ pub async fn recommended_stories(
 
             if let Some((top_genre, _)) = genre_counts.into_iter().max_by_key(|(_, count)| *count) {
                 let rows: Vec<StoryRow> = sqlx::query_as(
-                    "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, \
+                    "SELECT stories.id, stories.author_id, COALESCE(NULLIF(profiles.display_name, ''), profiles.username, 'You') AS author_name, \
                             stories.title, stories.type, stories.genre, stories.language, stories.license, \
                             stories.status, stories.tags, stories.description, stories.cover, stories.followers, \
                             stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \
@@ -1445,7 +1445,7 @@ pub async fn recommended_stories(
 
     // Cold-start / fallback: Not enough trustworthy data yet or visitor
     let trending_rows: Vec<StoryRow> = sqlx::query_as(
-        "SELECT stories.id, stories.author_id, COALESCE(profiles.username, 'You') AS author_name, \
+        "SELECT stories.id, stories.author_id, COALESCE(NULLIF(profiles.display_name, ''), profiles.username, 'You') AS author_name, \
                 stories.title, stories.type, stories.genre, stories.language, stories.license, \
                 stories.status, stories.tags, stories.description, stories.cover, stories.followers, \
                 stories.views, stories.likes, stories.earnings, stories.progress, stories.created_at, stories.is_nsfw \

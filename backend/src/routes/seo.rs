@@ -197,7 +197,7 @@ pub async fn serve_story_page(
         Some(uuid) => {
             sqlx::query_as(
                 "SELECT stories.id, stories.title, stories.description, stories.cover, \
-                 COALESCE(profiles.username, 'Author') AS author_name \
+                 COALESCE(NULLIF(profiles.display_name, ''), profiles.username, 'Author') AS author_name \
                  FROM stories \
                  LEFT JOIN profiles ON profiles.id = stories.author_id \
                  WHERE stories.id = $1",

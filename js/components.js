@@ -736,18 +736,22 @@ export function calculateGenreAverages(stories) {
   const genres = {};
   if (stories && stories.length > 0) {
     stories.forEach(s => {
-      const g = s.genre || "General";
-      if (!genres[g]) {
-        genres[g] = { totalViews: 0, count: 0 };
-      }
-      genres[g].totalViews += s.views || 0;
-      genres[g].count += 1;
+      const rawGenre = typeof s.genre === "string" ? s.genre : "General";
+      const parts = rawGenre.split(",").map(p => p.trim()).filter(Boolean);
+      const genreList = parts.length > 0 ? parts : ["General"];
+      genreList.forEach(g => {
+        if (!genres[g]) {
+          genres[g] = { totalViews: 0, count: 0 };
+        }
+        genres[g].totalViews += s.views || 0;
+        genres[g].count += 1;
+      });
     });
   }
 
   const list = Object.keys(genres).map(g => ({
     genre: g,
-    avgViews: Math.round(genres[g].totalViews / genres[g].count),
+    avgViews: Math.round(genres[g].totalViews / (genres[g].count || 1)),
     count: genres[g].count
   }));
 

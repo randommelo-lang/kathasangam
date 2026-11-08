@@ -33,7 +33,7 @@ pub async fn create_tip_order(
 
     // Story must exist, be published, and have an author (F-030)
     let story: Option<(String, String, Option<Uuid>, Option<String>, bool)> = sqlx::query_as(
-        "SELECT stories.title, stories.status, stories.author_id, profiles.username, stories.is_nsfw
+        "SELECT stories.title, stories.status, stories.author_id, COALESCE(NULLIF(profiles.display_name, ''), profiles.username), stories.is_nsfw
          FROM stories
          LEFT JOIN profiles ON profiles.id = stories.author_id
          WHERE stories.id = $1",

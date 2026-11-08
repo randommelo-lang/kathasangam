@@ -108,7 +108,7 @@ pub async fn list_comments(
 
     let rows: Vec<(Uuid, Option<Uuid>, String, String, Option<i32>, Option<Uuid>, bool)> =
         sqlx::query_as(
-            "SELECT c.id, c.user_id, c.content, COALESCE(p.username, 'Reader'), c.paragraph_index, c.parent_id, \
+            "SELECT c.id, c.user_id, c.content, COALESCE(NULLIF(p.display_name, ''), p.username, 'Reader'), c.paragraph_index, c.parent_id, \
                     EXISTS ( \
                         SELECT 1 FROM tips t \
                         WHERE t.user_id = c.user_id \
@@ -238,7 +238,7 @@ pub async fn create_comment(
 
     // Retrieve commenter's real username from profile
     let username_row: Option<(String,)> = sqlx::query_as(
-        "SELECT username FROM profiles WHERE id = $1"
+        "SELECT COALESCE(NULLIF(display_name, ''), username) FROM profiles WHERE id = $1"
     )
     .bind(user_id)
     .fetch_optional(&pool)

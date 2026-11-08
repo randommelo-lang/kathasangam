@@ -116,10 +116,8 @@ export async function fetchProfile() {
         log.debug("[PROFILE] Profile record 404. Falling back to session user metadata.");
         var userMeta = state.user.user_metadata || {};
         var fallbackProfile = {
-          username:
-            userMeta.full_name ||
-            userMeta.name ||
-            (state.user.email ? state.user.email.split("@")[0] : "reader"),
+          username: state.user.email ? state.user.email.split("@")[0] : "reader",
+          display_name: userMeta.full_name || userMeta.name || "",
           role: "reader",
           avatar_url: userMeta.avatar_url || userMeta.picture || "",
           bio: "",
@@ -289,7 +287,7 @@ export function onAuthStateChange(event, session) {
         updateAuthUI();
         if (isNewLogin) {
           var name =
-            (profile && profile.username) ||
+            (profile && (profile.display_name || profile.username)) ||
             (state.user && state.user.email ? state.user.email.split("@")[0] : "reader");
           if (authEffects.notify) {
             authEffects.notify("Welcome, " + name + "!", "success");

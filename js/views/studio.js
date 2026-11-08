@@ -808,10 +808,9 @@ export function renderStudio(ctx) {
           el("span", "analytics-empty-hint", "Publish stories to see genre comparisons.")
         ]);
       } else {
-        var maxAvg = Math.max.apply(Math, genreData.map(function (g) { return g.avgViews; })) || 10;
-        var barWidth = 30;
-        var barGap = 20;
-        var startX = 30;
+        var topGenres = genreData.slice(0, 5);
+        var maxAvg = Math.max.apply(Math, topGenres.map(function (g) { return g.avgViews; })) || 10;
+        var count = topGenres.length;
         var chartContent = [];
         
         var genreGradientId = "genreChartGrad-" + Math.random().toString(36).substring(2, 9);
@@ -827,17 +826,27 @@ export function renderStudio(ctx) {
         
         chartContent.push(svgEl("defs", null, [genreGradient, defaultGradient]));
         
-        genreData.slice(0, 5).forEach(function (g, idx) {
-          var isActiveGenre = (active.genre && g.genre.toLowerCase() === active.genre.toLowerCase());
-          var barHeight = (g.avgViews / maxAvg) * 60;
-          var x = startX + idx * (barWidth + barGap);
+        var activeGenres = (active && active.genre ? active.genre : "")
+          .split(",")
+          .map(function (s) { return s.trim().toLowerCase(); })
+          .filter(Boolean);
+        
+        var totalWidth = 260;
+        var slotWidth = count > 0 ? (totalWidth / count) : 52;
+        var barWidth = Math.min(32, Math.max(16, slotWidth * 0.46));
+        
+        topGenres.forEach(function (g, idx) {
+          var isActiveGenre = activeGenres.indexOf(g.genre.toLowerCase()) !== -1;
+          var barHeight = maxAvg > 0 ? Math.max(2, (g.avgViews / maxAvg) * 58) : 2;
+          var centerX = 20 + idx * slotWidth + slotWidth / 2;
+          var x = centerX - barWidth / 2;
           var y = 80 - barHeight;
           
           var rect = svgEl("rect", {
-            x: String(x),
-            y: String(y),
-            width: String(barWidth),
-            height: String(barHeight),
+            x: String(Math.round(x)),
+            y: String(Math.round(y)),
+            width: String(Math.round(barWidth)),
+            height: String(Math.round(barHeight)),
             rx: "4",
             class: isActiveGenre ? "genre-bar-active" : "genre-bar-inactive",
             fill: "url(#" + (isActiveGenre ? genreGradientId : defaultGradientId) + ")",
@@ -845,27 +854,36 @@ export function renderStudio(ctx) {
           });
           
           var valText = svgEl("text", {
-            x: String(x + barWidth / 2),
-            y: String(y - 6),
+            x: String(Math.round(centerX)),
+            y: String(Math.round(y - 6)),
             "text-anchor": "middle",
             fill: isActiveGenre ? "#f36b15" : "var(--text-muted)",
             "font-size": "7",
             "font-weight": isActiveGenre ? "bold" : "normal"
           }, [formatNumber(g.avgViews)]);
           
+          var rawLabel = g.genre;
+          var maxChars = count >= 4 ? 8 : (count === 3 ? 10 : 14);
+          var truncatedLabel = rawLabel.length > maxChars ? rawLabel.slice(0, maxChars - 1) + "…" : rawLabel;
+          var labelTextContent = truncatedLabel + (isActiveGenre ? " ★" : "");
+          
           var labelText = svgEl("text", {
-            x: String(x + barWidth / 2),
+            x: String(Math.round(centerX)),
             y: "92",
             "text-anchor": "middle",
             fill: isActiveGenre ? "#f36b15" : "var(--text)",
             "font-size": "7",
             "font-weight": isActiveGenre ? "bold" : "normal"
-          }, [g.genre + (isActiveGenre ? " ★" : "")]);
+          }, [labelTextContent]);
           
-          chartContent.push(rect, valText, labelText);
+          var tooltipText = g.genre + ": " + formatNumber(g.avgViews) + " avg views (" + g.count + " " + (g.count === 1 ? "story" : "stories") + ")" + (isActiveGenre ? " • Active story genre" : "");
+          var titleEl = svgEl("title", null, [tooltipText]);
+          
+          var barGroup = svgEl("g", { class: "genre-chart-bar-group" }, [titleEl, rect, valText, labelText]);
+          chartContent.push(barGroup);
         });
         
-        chartContent.push(svgEl("line", { x1: "10", y1: "80", x2: "290", y2: "80", class: "chart-axis-line" }));
+        chartContent.push(svgEl("line", { x1: "15", y1: "80", x2: "285", y2: "80", class: "chart-axis-line" }));
         
         var genreSvg = svgEl("svg", {
           viewBox: "0 0 300 100",

@@ -180,7 +180,10 @@ fn validate_story_text<'a>(value: &'a str, label: &'static str) -> Result<&'a st
         _ => MAX_TITLE_LENGTH,
     };
 
-    if value.chars().any(char::is_control) {
+    let allow_newlines = label == "Description";
+    if value.chars().any(|c| {
+        c.is_control() && !(allow_newlines && (c == '\n' || c == '\r' || c == '\t'))
+    }) {
         return Err(format!("{label} must not contain control characters."));
     }
     if value.chars().count() > limit {
@@ -1778,5 +1781,35 @@ pub async fn get_story_rating(
         user_rating,
         distribution,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_story_text;
+
+    #[test]
+    fn description_allows_newlines_and_tabs() {
+        let desc = "Paragraph one.\n\nParagraph two with \ttab and carriage return.\r\nEnd.";
+        assert!(validate_story_text(desc, "Description").is_ok());
+    }
+
+    #[test]
+    fn description_rejects_other_control_characters() {
+        let with_null = "Description with null \0 byte";
+        assert!(validate_story_text(with_null, "Description").is_err());
+
+        let with_bell = "Description with bell \x07 byte";
+        assert!(validate_story_text(with_bell, "Description").is_err());
+    }
+
+    #[test]
+    fn title_and_tag_reject_newlines_and_control_characters() {
+        assert!(validate_story_text("Story\nTitle", "Title").is_err());
+        assert!(validate_story_text("Story\tTitle", "Title").is_err());
+        assert!(validate_story_text("Story\rTitle", "Title").is_err());
+        assert!(validate_story_text("tag\n1", "Tag").is_err());
+        assert!(validate_story_text("Valid Title", "Title").is_ok());
+        assert!(validate_story_text("valid-tag", "Tag").is_ok());
+    }
 }
 

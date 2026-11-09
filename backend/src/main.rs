@@ -102,78 +102,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
             interval.tick().await;
-            let rows: Vec<(uuid::Uuid, uuid::Uuid, String, i32)> = match sqlx::query_as(
-                "SELECT id, story_id, title, sort_order FROM chapters WHERE status = 'scheduled' AND scheduled_at <= NOW()"
-            )
-            .fetch_all(&publish_pool)
-            .await {
-                Ok(r) => r,
-                Err(e) => {
-                    tracing::error!("Auto-publisher query failed: {:?}", e);
-                    continue;
-                }
-            };
-
-            for (ch_id, story_id, title, sort_order) in &rows {
-                // F-020: Conditional update ensures we don't overwrite a chapter that was cancelled or rescheduled
-                let update_res = sqlx::query(
-                    "UPDATE chapters SET status = 'published', scheduled_at = NULL \
-                     WHERE id = $1 AND status = 'scheduled' AND scheduled_at <= NOW()"
-                )
-                .bind(ch_id)
-                .execute(&publish_pool)
-                .await;
-
-                match update_res {
-                    Ok(result) if result.rows_affected() > 0 => {}
-                    Ok(_) => {
-                        tracing::debug!("Auto-publisher: chapter {} was cancelled or rescheduled, skipping", ch_id);
-                        continue;
-                    }
-                    Err(e) => {
-                        tracing::error!("Auto-publisher failed to publish chapter {}: {:?}", ch_id, e);
-                        continue;
-                    }
-                }
-
-                // F-010: Use structured logging to prevent log injection
-                tracing::info!(chapter_id = %ch_id, title = ?title, "Auto-published scheduled chapter");
-
-                let _ = sqlx::query("UPDATE stories SET status = 'ongoing' WHERE id = $1 AND (status = 'draft' OR status = 'unpublished')")
-                    .bind(story_id)
-                    .execute(&publish_pool)
-                    .await;
-
-                // Notify followers
-                let story_info: Option<(String,)> = sqlx::query_as("SELECT title FROM stories WHERE id = $1")
-                    .bind(story_id)
-                    .fetch_optional(&publish_pool)
-                    .await
-                    .unwrap_or(None);
-
-                // F-011: Bound titles before constructing notifications
-                let trunc_title: String = title.chars().take(200).collect();
-                let story_title = story_info.map(|s| s.0.chars().take(200).collect()).unwrap_or_else(|| "a followed story".to_string());
-                let message = format!("New chapter '{}' published for '{}'", trunc_title, story_title);
-
-                let _ = sqlx::query(
-                    "INSERT INTO notifications (user_id, message, story_id, chapter_sort_order) \
-                     SELECT DISTINCT target_users.user_id, $1, $2, $3 \
-                     FROM ( \
-                         SELECT user_id FROM public.bookmarks WHERE story_id = $2 \
-                         UNION \
-                         SELECT user_id FROM public.library WHERE story_id = $2 \
-                     ) AS target_users \
-                     JOIN public.profiles p ON target_users.user_id = p.id \
-                     JOIN public.stories s ON s.id = $2 \
-                     WHERE target_users.user_id != s.author_id \
-                       AND (COALESCE(p.preferences->>'in_app_notifications', 'true'))::boolean = true"
-                )
-                .bind(&message)
-                .bind(story_id)
-                .bind(sort_order)
-                .execute(&publish_pool)
-                .await;
+            if let Err(e) = routes::chapters::publish_due_chapters(&publish_pool).await {
+                tracing::error!("Auto-publisher background loop failed: {:?}", e);
             }
         }
     });
@@ -245,6 +175,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route(
             "/chapters/scheduled",
             get(routes::chapters::list_scheduled_chapters),
+        )
+        .route(
+            "/chapters/publish-due",
+            post(routes::chapters::trigger_publish_due),
         )
         .route(
             "/chapters/:chapter_id",

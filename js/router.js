@@ -160,6 +160,10 @@ export function render(ctx) {
   }[ctx.ui.currentView];
 
   var savedScrollY = (typeof window !== "undefined") ? window.scrollY : 0;
+  if (ctx.ui.currentView !== "studio" && typeof window !== "undefined" && window._studioCountdownInterval) {
+    clearInterval(window._studioCountdownInterval);
+    window._studioCountdownInterval = null;
+  }
   ctx.view.innerHTML = "";
   if (ctx.ui.currentView === "discover") ctx.renderDiscover();
   if (ctx.ui.currentView === "library") ctx.renderLibrary();

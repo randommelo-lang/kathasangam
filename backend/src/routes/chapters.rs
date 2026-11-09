@@ -7,7 +7,7 @@ use axum::{
 };
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 
 use crate::db::{AuthUser, OptionalAuthUser};
 use crate::models::*;
@@ -58,6 +58,108 @@ async fn verify_story_owner_or_admin(
     Err(AppError::forbidden("You do not have permission to manage chapters for this story."))
 }
 
+/// Parses a scheduled_at string in ISO 8601 / RFC 3339 format, normalizing to UTC NaiveDateTime.
+pub fn parse_scheduled_at_str(s: &str) -> Result<NaiveDateTime, AppError> {
+    // 1. Try RFC 3339 / ISO 8601 with timezone (e.g. 2026-11-09T12:30:00.000Z or +05:30)
+    if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+        return Ok(dt.with_timezone(&Utc).naive_utc());
+    }
+    // 2. Try ISO 8601 naive with seconds
+    if let Ok(naive) = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S") {
+        return Ok(naive);
+    }
+    // 3. Try ISO 8601 naive without seconds
+    if let Ok(naive) = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M") {
+        return Ok(naive);
+    }
+    Err(AppError::bad_request(
+        "Invalid scheduledAt format. Use ISO 8601 (e.g. 2026-11-09T10:00:00Z).",
+    ))
+}
+
+/// Auto-publishes any chapters whose scheduled_at has arrived.
+/// Uses atomic conditional updates to prevent race conditions and duplicate notifications.
+pub async fn publish_due_chapters(pool: &PgPool) -> Result<usize, sqlx::Error> {
+    let rows: Vec<(Uuid, Uuid, String, i32)> = sqlx::query_as(
+        "SELECT id, story_id, title, sort_order FROM chapters \
+         WHERE status = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= (NOW() AT TIME ZONE 'UTC')"
+    )
+    .fetch_all(pool)
+    .await?;
+
+    if rows.is_empty() {
+        return Ok(0);
+    }
+
+    let mut published_count = 0;
+
+    for (ch_id, story_id, title, sort_order) in &rows {
+        // Atomic conditional update ensures we only publish if still scheduled and due
+        let update_res = sqlx::query(
+            "UPDATE chapters SET status = 'published', scheduled_at = NULL \
+             WHERE id = $1 AND status = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= (NOW() AT TIME ZONE 'UTC')"
+        )
+        .bind(ch_id)
+        .execute(pool)
+        .await;
+
+        match update_res {
+            Ok(result) if result.rows_affected() > 0 => {
+                published_count += 1;
+            }
+            Ok(_) => {
+                tracing::debug!("Auto-publisher: chapter {} was already updated or cancelled, skipping", ch_id);
+                continue;
+            }
+            Err(e) => {
+                tracing::error!("Auto-publisher failed to publish chapter {}: {:?}", ch_id, e);
+                continue;
+            }
+        }
+
+        tracing::info!(chapter_id = %ch_id, title = ?title, "Auto-published scheduled chapter");
+
+        let _ = sqlx::query(
+            "UPDATE stories SET status = 'ongoing' WHERE id = $1 AND (status = 'draft' OR status = 'unpublished')"
+        )
+        .bind(story_id)
+        .execute(pool)
+        .await;
+
+        // Fetch story title for notification
+        let story_info: Option<(String,)> = sqlx::query_as("SELECT title FROM stories WHERE id = $1")
+            .bind(story_id)
+            .fetch_optional(pool)
+            .await
+            .unwrap_or(None);
+
+        let trunc_title: String = title.chars().take(200).collect();
+        let story_title = story_info.map(|s| s.0.chars().take(200).collect()).unwrap_or_else(|| "a followed story".to_string());
+        let message = format!("New chapter '{}' published for '{}'", trunc_title, story_title);
+
+        let _ = sqlx::query(
+            "INSERT INTO notifications (user_id, message, story_id, chapter_sort_order) \
+             SELECT DISTINCT target_users.user_id, $1, $2, $3 \
+             FROM ( \
+                 SELECT user_id FROM public.bookmarks WHERE story_id = $2 \
+                 UNION \
+                 SELECT user_id FROM public.library WHERE story_id = $2 \
+             ) AS target_users \
+             JOIN public.profiles p ON target_users.user_id = p.id \
+             JOIN public.stories s ON s.id = $2 \
+             WHERE target_users.user_id != s.author_id \
+               AND (COALESCE(p.preferences->>'in_app_notifications', 'true'))::boolean = true"
+        )
+        .bind(&message)
+        .bind(story_id)
+        .bind(sort_order)
+        .execute(pool)
+        .await;
+    }
+
+    Ok(published_count)
+}
+
 /// GET /api/stories/:story_id/chapters
 pub async fn list_chapters(
     // SB-05: was `Option<AuthUser>`, which turned a banned user into an anonymous one.
@@ -65,6 +167,9 @@ pub async fn list_chapters(
     State(pool): State<PgPool>,
     Path(story_id): Path<Uuid>,
 ) -> Result<Json<Vec<ChapterResponse>>, AppError> {
+    // Opportunistically auto-publish any due chapters
+    let _ = publish_due_chapters(&pool).await;
+
     let story: Option<(Option<Uuid>, String, bool)> = sqlx::query_as("SELECT author_id, status, is_nsfw FROM stories WHERE id = $1")
         .bind(story_id)
         .fetch_optional(&pool)
@@ -113,7 +218,7 @@ pub async fn list_chapters(
             .fetch_all(&pool)
             .await?
     } else {
-        sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 AND status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW()) ORDER BY sort_order")
+        sqlx::query_as("SELECT * FROM chapters WHERE story_id = $1 AND status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= (NOW() AT TIME ZONE 'UTC')) ORDER BY sort_order")
             .bind(story_id)
             .fetch_all(&pool)
             .await?
@@ -226,7 +331,7 @@ pub async fn list_chapters(
                 title: ch.title.clone(),
                 status: ch.status.clone(),
                 access: ch.access.clone(),
-                scheduled_at: ch.scheduled_at,
+                scheduled_at: ch.scheduled_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
                 created_at: ch.created_at,
                 words: ch.words,
                 reads: ch.reads,
@@ -288,9 +393,7 @@ pub async fn create_chapter(
     // Parse optional scheduled_at
     let scheduled_at: Option<NaiveDateTime> = match &body.scheduled_at {
         Some(s) if !s.is_empty() => {
-            let parsed = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
-                .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M"))
-                .map_err(|_| AppError::bad_request("Invalid scheduledAt format. Use ISO 8601 (e.g. 2026-07-15T10:00:00)."))?;
+            let parsed = parse_scheduled_at_str(s)?;
             status = "scheduled".to_string();
             Some(parsed)
         }
@@ -500,9 +603,7 @@ pub async fn update_chapter(
     // Handle scheduled_at field
     let parsed_scheduled_at: Option<NaiveDateTime> = match &body.scheduled_at {
         Some(s) if !s.is_empty() => {
-            let parsed = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
-                .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M"))
-                .map_err(|_| AppError::bad_request("Invalid scheduledAt format. Use ISO 8601."))?;
+            let parsed = parse_scheduled_at_str(s)?;
             Some(parsed)
         }
         Some(_) => None,  // Empty string means clear schedule
@@ -679,6 +780,9 @@ pub async fn list_scheduled_chapters(
     auth: AuthUser,
     State(pool): State<PgPool>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    // Opportunistically auto-publish any due chapters
+    let _ = publish_due_chapters(&pool).await;
+
     let rows: Vec<(Uuid, Uuid, String, String, NaiveDateTime, i32)> = sqlx::query_as(
         "SELECT c.id, c.story_id, c.title, s.title, c.scheduled_at, c.sort_order \
          FROM chapters c \
@@ -696,12 +800,27 @@ pub async fn list_scheduled_chapters(
             "storyId": r.1,
             "title": r.2,
             "storyTitle": r.3,
-            "scheduledAt": r.4.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            "scheduledAt": format!("{}Z", r.4.format("%Y-%m-%dT%H:%M:%S")),
             "sortOrder": r.5
         })
     }).collect();
 
     Ok(Json(result))
+}
+
+/// POST /api/chapters/publish-due
+pub async fn trigger_publish_due(
+    State(pool): State<PgPool>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let published_count = publish_due_chapters(&pool).await.map_err(|e| {
+        tracing::error!("Manual or triggered publish_due failed: {:?}", e);
+        AppError::internal_server_error("Failed to auto-publish due chapters.")
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "published": published_count
+    })))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -735,4 +854,38 @@ pub async fn reorder_chapters(
 
     Ok(StatusCode::OK)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_scheduled_at_rfc3339_utc() {
+        let parsed = parse_scheduled_at_str("2026-11-09T12:30:00.000Z").expect("should parse");
+        assert_eq!(parsed.format("%Y-%m-%d %H:%M:%S").to_string(), "2026-11-09 12:30:00");
+    }
+
+    #[test]
+    fn parse_scheduled_at_rfc3339_with_offset() {
+        // 18:00 at +05:30 is 12:30 UTC
+        let parsed = parse_scheduled_at_str("2026-11-09T18:00:00+05:30").expect("should parse");
+        assert_eq!(parsed.format("%Y-%m-%d %H:%M:%S").to_string(), "2026-11-09 12:30:00");
+    }
+
+    #[test]
+    fn parse_scheduled_at_naive_formats() {
+        let parsed = parse_scheduled_at_str("2026-11-09T12:30:00").expect("should parse");
+        assert_eq!(parsed.format("%Y-%m-%d %H:%M:%S").to_string(), "2026-11-09 12:30:00");
+
+        let parsed_no_sec = parse_scheduled_at_str("2026-11-09T12:30").expect("should parse");
+        assert_eq!(parsed_no_sec.format("%Y-%m-%d %H:%M:%S").to_string(), "2026-11-09 12:30:00");
+    }
+
+    #[test]
+    fn parse_scheduled_at_rejects_invalid() {
+        assert!(parse_scheduled_at_str("invalid-date").is_err());
+        assert!(parse_scheduled_at_str("2026/11/09").is_err());
+    }
+}
+
 

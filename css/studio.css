@@ -756,6 +756,7 @@
 .upcoming-countdown-badge {
   font-size: 0.78rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: #818cf8;
   background: rgba(99, 102, 241, 0.1);
   padding: 4px 10px;

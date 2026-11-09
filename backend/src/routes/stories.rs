@@ -8,7 +8,7 @@ use axum::{
 use std::net::SocketAddr;
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::Datelike;
+use chrono::{Datelike, DateTime, Utc};
 
 use crate::db::{AuthUser, OptionalAuthUser};
 use crate::models::*;
@@ -326,7 +326,7 @@ pub async fn list_stories(
     match auth.user_id {
         Some(uid) => {
             sql.push(" AND (lower(stories.status) NOT IN ('draft', 'unpublished') \
-                      OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW())) \
+                      OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= (NOW() AT TIME ZONE 'UTC'))) \
                       OR stories.author_id = ").push_bind(uid)
                .push(" OR EXISTS (SELECT 1 FROM story_collaborators sc WHERE sc.story_id = stories.id AND sc.user_id = ")
                .push_bind(uid)
@@ -334,7 +334,7 @@ pub async fn list_stories(
         }
         None => {
             sql.push(" AND (lower(stories.status) NOT IN ('draft', 'unpublished') \
-                      OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW())))");
+                      OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= (NOW() AT TIME ZONE 'UTC'))))");
         }
     }
 
@@ -355,7 +355,7 @@ pub async fn list_stories(
          CROSS JOIN LATERAL unnest(string_to_array(stories.genre, ',')) AS genre_item \
          WHERE trim(genre_item) <> '' \
            AND (lower(stories.status) NOT IN ('draft', 'unpublished') \
-                OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW()))) \
+                OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= (NOW() AT TIME ZONE 'UTC')))) \
          ORDER BY trim(genre_item)"
     ).fetch_all(&pool).await?;
     let genres = raw_genres
@@ -369,7 +369,7 @@ pub async fn list_stories(
         "SELECT DISTINCT trim(stories.language) FROM stories \
          WHERE trim(stories.language) <> '' \
            AND (lower(stories.status) NOT IN ('draft', 'unpublished') \
-                OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= NOW()))) \
+                OR EXISTS (SELECT 1 FROM chapters WHERE chapters.story_id = stories.id AND chapters.status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= (NOW() AT TIME ZONE 'UTC')))) \
          ORDER BY trim(stories.language)"
     ).fetch_all(&pool).await?;
     let languages = raw_languages
@@ -1080,7 +1080,7 @@ async fn build_story_responses_batch_mode(
         } else {
             sqlx::query_as::<_, ChapterRow>(
                 "SELECT * FROM chapters WHERE story_id = ANY($1) AND status = 'published' \
-                 AND (scheduled_at IS NULL OR scheduled_at <= NOW()) ORDER BY sort_order",
+                 AND (scheduled_at IS NULL OR scheduled_at <= (NOW() AT TIME ZONE 'UTC')) ORDER BY sort_order",
             )
             .bind(&non_owned_ids)
             .fetch_all(pool)
@@ -1114,7 +1114,7 @@ async fn build_story_responses_batch_mode(
                     title: ch.title.clone(),
                     status: ch.status.clone(),
                     access: ch.access.clone(),
-                    scheduled_at: ch.scheduled_at,
+                    scheduled_at: ch.scheduled_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
                     created_at: ch.created_at,
                     words: ch.words,
                     reads: ch.reads,
@@ -1253,7 +1253,7 @@ async fn build_story_responses_batch_mode(
                                 title: ch.title.clone(),
                                 status: ch.status.clone(),
                                 access: ch.access.clone(),
-                                scheduled_at: ch.scheduled_at,
+                                scheduled_at: ch.scheduled_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
                                 created_at: ch.created_at,
                                 words: ch.words,
                                 reads: ch.reads,

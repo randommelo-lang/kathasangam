@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -181,7 +181,7 @@ pub struct ChapterResponse {
     pub status: String,
     pub access: String,
     #[serde(rename = "scheduledAt", skip_serializing_if = "Option::is_none")]
-    pub scheduled_at: Option<NaiveDateTime>,
+    pub scheduled_at: Option<DateTime<Utc>>,
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<NaiveDateTime>,
     pub words: i32,

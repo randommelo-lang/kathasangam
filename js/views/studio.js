@@ -25,8 +25,48 @@ import {
 } from "../components.js";
 import { storyGrid, storyCardSkeleton } from "./shared.js";
 
+/**
+ * Parses a scheduled timestamp string, ensuring it is treated as UTC if no timezone is provided.
+ */
+export function parseScheduledDate(schedStr) {
+  if (!schedStr) return null;
+  var s = String(schedStr).trim();
+  if (!s.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(s)) {
+    s += "Z";
+  }
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Formats remaining milliseconds into a human-readable countdown.
+ * Under 1 hour displays min:sec (e.g. 45m 12s) for accurate tracking.
+ */
+export function formatCountdown(diffMs) {
+  if (diffMs <= 0) return "Publishing soon...";
+  var totalSecs = Math.floor(diffMs / 1000);
+  var days = Math.floor(totalSecs / 86400);
+  var hours = Math.floor((totalSecs % 86400) / 3600);
+  var mins = Math.floor((totalSecs % 3600) / 60);
+  var secs = totalSecs % 60;
+
+  if (days > 0) {
+    return days + "d " + hours + "h";
+  }
+  if (hours > 0) {
+    return hours + "h " + mins + "m";
+  }
+  var sStr = secs < 10 ? "0" + secs : String(secs);
+  return mins + "m " + sStr + "s";
+}
+
 export function renderStudio(ctx) {
   ctx = ctx || this;
+
+  if (typeof window !== "undefined" && window._studioCountdownInterval) {
+    clearInterval(window._studioCountdownInterval);
+    window._studioCountdownInterval = null;
+  }
 
   // Reactively fetch pending invites if not loaded/stale
   if (ctx.state.user && ctx.state.pendingInvitesUserId !== ctx.state.user.id) {
@@ -324,7 +364,7 @@ export function renderStudio(ctx) {
       ];
 
       if (ch.status === "scheduled" && ch.scheduledAt) {
-        var schedDate = new Date(ch.scheduledAt);
+        var schedDate = parseScheduledDate(ch.scheduledAt) || new Date(ch.scheduledAt);
         var formatted = formatDateTime(schedDate);
         detailsChildren.push(el("span", "schedule-date-label", [makeClockIcon("icon icon-sm"), " " + formatted]));
       }
@@ -423,26 +463,29 @@ export function renderStudio(ctx) {
       scheduledChapters = active.chapters.filter(function(ch) {
         return ch.status === "scheduled" && ch.scheduledAt;
       }).sort(function(a, b) {
-        return new Date(a.scheduledAt) - new Date(b.scheduledAt);
+        var da = parseScheduledDate(a.scheduledAt) || new Date(a.scheduledAt);
+        var db = parseScheduledDate(b.scheduledAt) || new Date(b.scheduledAt);
+        return da - db;
       });
     }
     if (scheduledChapters.length > 0) {
       var scheduleItems = scheduledChapters.map(function(ch) {
-        var schedDate = new Date(ch.scheduledAt);
+        var schedDate = parseScheduledDate(ch.scheduledAt) || new Date(ch.scheduledAt);
         var now = new Date();
         var diffMs = schedDate - now;
-        var diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        var diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        var countdown = diffMs > 0 ? (diffDays > 0 ? diffDays + "d " + diffHours + "h" : diffHours + "h") : "Publishing soon...";
+        var countdown = formatCountdown(diffMs);
         var formatted = formatDateTime(schedDate);
         
+        var badge = el("span", "upcoming-countdown-badge", countdown);
+        badge.dataset.targetTime = schedDate.toISOString();
+
         return el("div", "upcoming-schedule-card", [
           el("div", "upcoming-schedule-info", [
             el("strong", null, ch.title),
             el("span", "upcoming-schedule-date", [makeCalendarIcon("icon icon-sm"), " " + formatted])
           ]),
           el("div", "upcoming-schedule-right", [
-            el("span", "upcoming-countdown-badge", countdown),
+            badge,
             button("Cancel", "btn btn-sm danger", { action: "cancelSchedule", id: ch.id })
           ])
         ]);
@@ -1042,6 +1085,47 @@ export function renderStudio(ctx) {
   ]);
 
   ctx.view.appendChild(gridLayout);
+
+  // Live real-time ticker for upcoming scheduled chapters
+  if (typeof window !== "undefined" && scheduledChapters && scheduledChapters.length > 0) {
+    window._studioCountdownInterval = setInterval(function () {
+      var badges = document.querySelectorAll(".upcoming-countdown-badge[data-target-time]");
+      if (!badges || badges.length === 0) {
+        if (window._studioCountdownInterval) {
+          clearInterval(window._studioCountdownInterval);
+          window._studioCountdownInterval = null;
+        }
+        return;
+      }
+      var now = Date.now();
+      var triggeredPublish = false;
+      badges.forEach(function (badge) {
+        var targetIso = badge.dataset.targetTime;
+        if (!targetIso) return;
+        var targetTime = new Date(targetIso).getTime();
+        var diffMs = targetTime - now;
+        if (diffMs <= 0) {
+          badge.textContent = "Publishing soon...";
+          if (!badge.dataset.triggered) {
+            badge.dataset.triggered = "true";
+            triggeredPublish = true;
+          }
+        } else {
+          badge.textContent = formatCountdown(diffMs);
+        }
+      });
+      if (triggeredPublish) {
+        ctx.apiPost("/chapters/publish-due").then(function () {
+          return ctx.api("/stories");
+        }).then(function (s) {
+          ctx.state.stories = s;
+          ctx.render();
+        }).catch(function (err) {
+          console.error("Auto-publisher trigger error:", err);
+        });
+      }
+    }, 1000);
+  }
 
   // Reader-Accurate Chapter Preview Modal
   if (ctx.ui.previewingChapterId && active) {

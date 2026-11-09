@@ -377,7 +377,7 @@ export function handleStudioClick(ctx, action, target, e) {
         var story = ctx.getCurrentStudioStory();
         var isComic = story && story.type === "Chitrānk";
         
-        var payload = { title: titleEl ? titleEl.value.trim() : "Untitled", content: [], status: "scheduled", scheduledAt: scheduledAt + ":00" };
+        var payload = { title: titleEl ? titleEl.value.trim() : "Untitled", content: [], status: "scheduled", scheduledAt: selectedDate.toISOString() };
         if (isComic) {
           payload.pages = ctx.ui.editingPages || [];
         } else if (contentEl) {
@@ -422,7 +422,7 @@ export function handleStudioClick(ctx, action, target, e) {
           title: chapter ? chapter.title : "Untitled",
           content: chapter && chapter.content ? chapter.content : [],
           status: "scheduled",
-          scheduledAt: scheduledAt + ":00"
+          scheduledAt: selectedDate.toISOString()
         };
         if (chapter && chapter.pages) payload.pages = chapter.pages;
         

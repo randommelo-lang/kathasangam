@@ -908,9 +908,15 @@ h2 {
 }
 
 /* MangaPlus card layout on Discover & Shelves: cover, title, and subline only */
-.story-card:not(.manage-card) .tag-row,
-.shelf-card .tag-row,
-.shelf-row .tag-row {
+.story-card:not(.manage-card) .tag-row .tag:not(.tag-promoted),
+.shelf-card .tag-row .tag:not(.tag-promoted),
+.shelf-row .tag-row .tag:not(.tag-promoted) {
+  display: none !important;
+}
+
+.story-card:not(.manage-card) .tag-row:not(:has(.tag-promoted)),
+.shelf-card .tag-row:not(:has(.tag-promoted)),
+.shelf-row .tag-row:not(:has(.tag-promoted)) {
   display: none !important;
 }
 

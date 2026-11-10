@@ -3,6 +3,7 @@ import { api, apiPost, apiPut, getSupabaseClient } from "../api.js";
 import {
   el,
   button,
+  iconButton,
   field,
   input,
   textarea,
@@ -61,25 +62,6 @@ function makeEyeIcon() {
   }, [
     svgEl("path", { d: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" }),
     svgEl("circle", { cx: "12", cy: "12", r: "3" })
-  ]);
-}
-
-function makeGearIcon(size, className) {
-  size = size || 14;
-  return svgEl("svg", {
-    width: String(size),
-    height: String(size),
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    "stroke-width": "2",
-    "stroke-linecap": "round",
-    "stroke-linejoin": "round",
-    class: className || "btn-icon-svg",
-    "aria-hidden": "true"
-  }, [
-    svgEl("circle", { cx: "12", cy: "12", r: "3" }),
-    svgEl("path", { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" })
   ]);
 }
 
@@ -370,15 +352,7 @@ function renderPublicProfile(ctx, profileData, isMe) {
   });
 
   if (isMe) {
-    var settingsBtn = el("button", {
-      type: "button",
-      class: "btn secondary btn-sm",
-      "data-action": "goToSettings",
-      "aria-label": "Settings"
-    }, [
-      makeGearIcon(14),
-      el("span", null, "Settings")
-    ]);
+    var settingsBtn = iconButton("Settings", "btn secondary btn-sm", { action: "goToSettings" }, "icon-gear icon-sm");
     var shareBtn = el("button", {
       type: "button",
       class: "btn secondary btn-sm",

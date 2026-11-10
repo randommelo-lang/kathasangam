@@ -595,44 +595,48 @@ h2 {
 /* ─── Story Grid & Cards ─── */
 .story-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 340px));
-  justify-content: start;
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 22px 18px;
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
 }
 
-.story-card {
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--line);
+.story-card,
+.shelf-card {
+  border-radius: 10px;
+  overflow: visible;
+  background: transparent;
+  border: none;
   content-visibility: auto;
-  contain-intrinsic-size: 320px 420px;
-  transition: 
-    transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
-    box-shadow 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
-    border-color 0.3s ease;
+  contain-intrinsic-size: 180px 320px;
+  transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: flex;
+  flex-direction: column;
 }
 
-.story-card:hover {
-  transform: translateY(-6px);
-  border-color: rgba(229, 124, 51, 0.45);
-  box-shadow: 
-    0 16px 38px rgba(0, 0, 0, 0.4), 
-    0 0 20px rgba(229, 124, 51, 0.15);
+.story-card:hover,
+.shelf-card:hover {
+  transform: translateY(-4px);
 }
 
 .cover-button {
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 5/3;
+  aspect-ratio: 0.72;
   padding: 0;
   border: 0;
-  background: var(--warm-gradient);
-  overflow: hidden
+  border-radius: 10px;
+  background: var(--surface-2, #1c1c22);
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.story-card:hover .cover-button,
+.shelf-card:hover .cover-button {
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55);
 }
 
 .cover-button:focus-visible {
@@ -642,7 +646,7 @@ h2 {
 
 .cover-button:focus-visible .cover-art,
 .cover-button:focus-visible .cover-img {
-  transform: scale(1.06);
+  transform: scale(1.05);
 }
 
 .cover-art {
@@ -652,7 +656,7 @@ h2 {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  transition: transform .4s ease
+  transition: transform .4s ease;
 }
 
 .cover-img {
@@ -660,61 +664,315 @@ h2 {
   height: 100%;
   object-fit: cover;
   display: block;
-  aspect-ratio: 5 / 3;
+  aspect-ratio: 0.72;
   transition: transform .4s ease, opacity .25s ease;
 }
 
 .story-card:hover .cover-art,
-.story-card:hover .cover-img {
-  transform: scale(1.06)
+.story-card:hover .cover-img,
+.shelf-card:hover .cover-art,
+.shelf-card:hover .cover-img {
+  transform: scale(1.04);
 }
 
 .cover-badge {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: rgba(0, 0, 0, .55);
-  backdrop-filter: blur(4px);
+  top: 8px;
+  left: 8px;
+  right: auto;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: #fff;
-  font-size: .72rem;
-  font-weight: 800
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.cover-date-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  left: auto;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.cover-date-badge.is-recent {
+  background: #e54d2e;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(229, 77, 46, 0.45);
 }
 
 .cover-hover {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, .45);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
+  align-items: flex-start;
+  text-align: left;
+  padding: 16px 14px;
   opacity: 0;
-  transition: opacity .25s ease;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(.16, 1, .3, 1);
+  z-index: 4;
+  border-radius: 10px;
 }
 
-.story-card:hover .cover-hover {
-  opacity: 1
+.story-card:hover .cover-hover,
+.shelf-card:hover .cover-hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.cover-hover-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.cover-hover .hover-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #111111;
+  margin: 0 0 2px 0;
+  line-height: 1.25;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cover-hover .hover-title::before {
+  content: attr(data-title);
+  display: block;
+}
+
+.cover-hover .hover-author {
+  font-size: 0.85rem;
+  color: #555555;
+  margin: 0 0 10px 0;
+  font-weight: 500;
+}
+
+.cover-hover .hover-author a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.cover-hover .hover-author a:hover {
+  text-decoration: underline;
+  color: var(--accent);
+}
+
+.cover-hover .hover-chapter-badge {
+  background: #111111;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 4px;
+  letter-spacing: 0.2px;
+}
+
+.cover-hover .hover-chapter-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2b2b2b;
+  margin: 0 0 6px 0;
+  line-height: 1.3;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cover-hover .hover-views {
+  font-size: 0.8rem;
+  color: #666666;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .cover-hover-label {
-  background: var(--accent);
-  color: #fff;
-  padding: 10px 28px;
-  border-radius: 24px;
-  font-weight: 800;
-  transform: translateY(8px);
-  transition: transform .3s cubic-bezier(.16, 1, .3, 1);
-}
-
-.story-card:hover .cover-hover-label {
-  transform: translateY(0)
+  display: none;
 }
 
 .story-body {
-  padding: 16px;
+  padding: 10px 2px 4px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.story-body[data-action="openStory"] {
+  cursor: pointer;
+}
+
+.story-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.story-card:hover .story-card-title,
+.shelf-card:hover .story-card-title {
+  color: var(--accent);
+}
+
+.story-card-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.story-sub-chapter {
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.story-sub-views {
+  color: #8c8c9a;
+  font-weight: 500;
+}
+
+.meta-rating {
+  color: #f5a623;
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.story-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted, #8c8c9a);
+  margin: 4px 0 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.story-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* Shelf rows (Newly Added & Classics) strictly show MangaPlus card: cover, title, and subline only */
+.shelf-row .story-desc,
+.shelf-row .tag-row,
+.shelf-row .story-actions,
+.shelf-row .story-progress-row {
+  display: none !important;
+}
+
+/* When in manage-card mode (Studio), display full layout */
+.story-card.manage-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.story-card.manage-card .story-body {
+  padding: 12px;
   display: grid;
-  gap: 8px
+  gap: 8px;
+}
+
+/* ─── Discover Shelves (Newly Added & Classics) ─── */
+.discover-shelf {
+  margin-bottom: 32px;
+  width: 100%;
+}
+
+.shelf-scroll-container {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding: 4px 0 12px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.shelf-scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.shelf-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.shelf-row {
+  display: flex;
+  gap: 16px;
+  padding: 4px 2px;
+}
+
+.shelf-row .shelf-card,
+.shelf-row .story-card {
+  flex: 0 0 170px;
+  max-width: 170px;
+}
+
+@media (max-width: 640px) {
+  .story-grid {
+    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+    gap: 16px 12px;
+  }
+
+  .shelf-row .shelf-card,
+  .shelf-row .story-card {
+    flex: 0 0 135px;
+    max-width: 135px;
+  }
 }
 
 .story-body[data-action="openStory"] {

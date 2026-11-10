@@ -276,14 +276,25 @@
       <button class="cover-button" type="button" aria-label="Story cover">
         <span class="cover-art" aria-hidden="true"></span>
         <span class="cover-badge"></span>
+        <span class="cover-date-badge"></span>
         <div class="cover-hover">
-          <span class="cover-hover-label">Read →</span>
+          <div class="cover-hover-content">
+            <div class="hover-title"></div>
+            <div class="hover-author"></div>
+            <div class="hover-chapter-badge"></div>
+            <div class="hover-chapter-name"></div>
+            <div class="hover-views"></div>
+          </div>
+          <span class="cover-hover-label" style="display: none;">Read →</span>
         </div>
       </button>
       <div class="story-body">
-        <div class="story-meta"></div>
-        <h2></h2>
-        <p></p>
+        <h2 class="story-card-title"></h2>
+        <div class="story-meta story-card-sub">
+          <span class="story-sub-chapter"></span>
+          <span class="story-sub-views"></span>
+        </div>
+        <p class="story-desc"></p>
         <div class="tag-row"></div>
         <div class="story-actions"></div>
       </div>

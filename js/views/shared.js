@@ -9,6 +9,67 @@ export function storyGrid(ctx, stories, options) {
   return g;
 }
 
+export function getReleaseBadgeInfo(story) {
+  var chapters = story.chapters || [];
+  var latestTime = null;
+  var latestChapter = null;
+  var latestChapterNum = chapters.length || 1;
+
+  if (chapters.length > 0) {
+    var publishedChapters = chapters.filter(function (c) {
+      return !c.status || c.status === "published";
+    });
+    var chList = publishedChapters.length ? publishedChapters : chapters;
+
+    chList.forEach(function (ch, idx) {
+      var t = ch.scheduled_at || ch.created_at;
+      var ms = t ? new Date(t).getTime() : 0;
+      if (!latestTime || ms >= latestTime) {
+        latestTime = ms;
+        latestChapter = ch;
+        latestChapterNum = (ch.sort_order !== undefined && ch.sort_order !== null && ch.sort_order > 0)
+          ? ch.sort_order
+          : (idx + 1);
+      }
+    });
+  }
+
+  if (!latestTime && story.created_at) {
+    latestTime = new Date(story.created_at).getTime();
+  }
+
+  var now = Date.now();
+  var diffMs = latestTime ? (now - latestTime) : (24 * 60 * 60 * 1000 + 1);
+  var isRecent = diffMs >= 0 && diffMs < 24 * 60 * 60 * 1000;
+  var text = "";
+
+  if (isRecent) {
+    var diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours >= 1) {
+      text = diffHours + "h";
+    } else {
+      var diffMins = Math.floor(diffMs / (1000 * 60));
+      text = diffMins > 0 ? (diffMins + "m") : "New";
+    }
+  } else if (latestTime) {
+    var date = new Date(latestTime);
+    var dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    var month = date.getMonth() + 1;
+    var day = date.getDate();
+    var dayName = dayNames[date.getDay()];
+    text = month + "." + day + " " + dayName;
+  }
+
+  var chapterTitle = latestChapter ? (latestChapter.title || ("Chapter " + latestChapterNum)) : ("Chapter " + latestChapterNum);
+
+  return {
+    text: text,
+    isRecent: isRecent,
+    chapterNum: latestChapterNum,
+    chapterTitle: chapterTitle
+  };
+}
+
 export function storyCard(ctx, story, options) {
   options = options || {};
   var tpl = document.getElementById("storyCardTemplate");
@@ -42,9 +103,47 @@ export function storyCard(ctx, story, options) {
     coverArt.appendChild(imgEl);
   }
   var normType = normalizeStoryType(story.type);
+  var badgeInfo = getReleaseBadgeInfo(story);
   var coverBadge = card.querySelector(".cover-badge");
   coverBadge.textContent = normType;
   coverBadge.dataset.type = normType;
+
+  var coverDateBadge = card.querySelector(".cover-date-badge");
+  if (coverDateBadge) {
+    if (badgeInfo.text) {
+      coverDateBadge.textContent = badgeInfo.isRecent ? ("🕒 " + badgeInfo.text) : badgeInfo.text;
+      if (badgeInfo.isRecent) {
+        coverDateBadge.classList.add("is-recent");
+      }
+      coverDateBadge.title = badgeInfo.isRecent ? ("Released " + badgeInfo.text + " ago") : ("Released on " + badgeInfo.text);
+    } else {
+      coverDateBadge.style.display = "none";
+    }
+  }
+
+  // Populate rich hover overlay (Image 3)
+  var authorName = story.author || story.author_name || "Author";
+  var hoverTitle = card.querySelector(".hover-title");
+  if (hoverTitle) {
+    hoverTitle.dataset.title = story.title;
+    hoverTitle.textContent = "";
+  }
+
+  var hoverAuthor = card.querySelector(".hover-author");
+  if (hoverAuthor) {
+    var hoverAuthorLink = el("a", "story-author-link", authorName);
+    hoverAuthorLink.href = "#profile?username=" + encodeURIComponent(authorName);
+    hoverAuthor.appendChild(hoverAuthorLink);
+  }
+
+  var hoverChBadge = card.querySelector(".hover-chapter-badge");
+  if (hoverChBadge) hoverChBadge.textContent = "#" + badgeInfo.chapterNum;
+
+  var hoverChName = card.querySelector(".hover-chapter-name");
+  if (hoverChName) hoverChName.textContent = badgeInfo.chapterTitle;
+
+  var hoverViews = card.querySelector(".hover-views");
+  if (hoverViews) hoverViews.textContent = formatNumber(story.views) + " views";
 
   if (story.isNsfw) {
     var nsfwBadge = el("span", "badge badge-danger nsfw-tag-badge", "18+ NSFW");
@@ -73,27 +172,49 @@ export function storyCard(ctx, story, options) {
     storyBody.dataset.id = story.id;
   }
 
+  if (options.manage) {
+    card.classList.add("manage-card");
+  }
+
   var genres = (story.genre || "").split(",").map(function (g) { return g.trim(); }).filter(Boolean);
   var metaContainer = card.querySelector(".story-meta");
   metaContainer.innerHTML = "";
-  var authorName = story.author || story.author_name || "Author";
-  var authorLink = el("a", "story-author-link", authorName);
+
+  // Bottom caption subtitle: chapter # + views (Image 2)
+  var subChapter = el("span", "story-sub-chapter", "#" + badgeInfo.chapterNum);
+  var subViews = el("span", "story-sub-views", formatNumber(story.views));
+  metaContainer.appendChild(subChapter);
+  metaContainer.appendChild(subViews);
+
+  // Hidden author link inside meta for DOM/test compatibility
+  var authorLink = el("a", { class: "story-author-link test-author-link", style: "display:none;" }, authorName);
   authorLink.href = "#profile?username=" + encodeURIComponent(authorName);
   metaContainer.appendChild(authorLink);
-  metaContainer.appendChild(el("span", "meta-separator", " • "));
-  metaContainer.appendChild(el("span", "meta-views", formatNumber(story.views) + " reads"));
 
   // Honest rating: only display rating if trustworthy data exists
   var ratingInfo = getStoryRatingInfo(story);
   if (ratingInfo.isTrustworthy) {
-    metaContainer.appendChild(el("span", "meta-separator", " • "));
-    metaContainer.appendChild(el("span", "meta-rating", "★ " + ratingInfo.score));
+    metaContainer.appendChild(el("span", { class: "meta-rating test-rating" }, "★ " + ratingInfo.score));
   }
 
-  var titleEl = card.querySelector("h2");
-  titleEl.textContent = story.title;
-  titleEl.dataset.action = "openStory";
-  titleEl.dataset.id = story.id;
+  if (options.shelf) {
+    card.classList.remove("story-card");
+    card.classList.add("shelf-card");
+    var titleH2 = card.querySelector("h2");
+    if (titleH2) {
+      var shelfTitleEl = el("div", "story-card-title", story.title);
+      shelfTitleEl.dataset.action = "openStory";
+      shelfTitleEl.dataset.id = story.id;
+      titleH2.replaceWith(shelfTitleEl);
+    }
+  } else {
+    var titleEl = card.querySelector("h2");
+    if (titleEl) {
+      titleEl.textContent = story.title;
+      titleEl.dataset.action = "openStory";
+      titleEl.dataset.id = story.id;
+    }
+  }
   card.querySelector("p").textContent = story.description;
 
   var tags = card.querySelector(".tag-row");

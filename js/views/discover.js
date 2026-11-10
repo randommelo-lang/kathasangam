@@ -261,6 +261,92 @@ export function renderActiveFilterChips(ctx) {
   return container;
 }
 
+export function renderNewlyAddedSection(ctx) {
+  var allStories = (ctx.state.stories || []).slice();
+  if (!allStories.length) return null;
+
+  var candidates = allStories
+    .filter(function (s) {
+      return s.status && s.status !== "draft" && s.status !== "unpublished";
+    })
+    .map(function (s) {
+      var latestTime = 0;
+      var chapters = s.chapters || [];
+      chapters.forEach(function (ch) {
+        if (!ch.status || ch.status === "published") {
+          var t = ch.scheduled_at || ch.created_at;
+          var ms = t ? new Date(t).getTime() : 0;
+          if (ms > latestTime) latestTime = ms;
+        }
+      });
+      if (!latestTime && s.created_at) {
+        latestTime = new Date(s.created_at).getTime();
+      }
+      return { story: s, latestTime: latestTime };
+    })
+    .sort(function (a, b) {
+      return b.latestTime - a.latestTime;
+    });
+
+  if (!candidates.length) return null;
+
+  var items = candidates.slice(0, 10).map(function (c) { return c.story; });
+
+  var container = el("section", { class: "discover-shelf newly-added-shelf", "aria-label": "Newly Added", role: "region" }, [
+    el("div", "shelf-header", [
+      el("div", "shelf-title-row", [
+        el("h2", "shelf-title", "Newly Added"),
+        el("span", "badge badge-accent badge-pill", "Latest Chapters")
+      ]),
+      el("p", "shelf-subtitle mini-meta", "Fresh chapter releases and recent story updates")
+    ]),
+    el("div", { class: "shelf-scroll-container" }, [
+      el("div", { class: "shelf-row" },
+        items.map(function (s) {
+          return storyCard(ctx, s, { shelf: true });
+        })
+      )
+    ])
+  ]);
+  return container;
+}
+
+export function renderClassicsSection(ctx) {
+  var allStories = (ctx.state.stories || []).slice();
+  if (!allStories.length) return null;
+
+  var classics = allStories.filter(function (s) {
+    if (s.status === "draft" || s.status === "unpublished") return false;
+    var tags = Array.isArray(s.tags) ? s.tags : [];
+    var hasClassicTag = tags.some(function (t) {
+      var clean = String(t).trim().toLowerCase().replace(/^#/, "");
+      return clean === "classic" || clean === "classics";
+    });
+    var hasClassicGenre = (s.genre || "").toLowerCase().includes("classic");
+    return hasClassicTag || hasClassicGenre;
+  });
+
+  if (!classics.length) return null;
+
+  var container = el("section", { class: "discover-shelf classics-shelf", "aria-label": "Classics", role: "region" }, [
+    el("div", "shelf-header", [
+      el("div", "shelf-title-row", [
+        el("h2", "shelf-title", "Classics"),
+        el("span", "badge badge-neutral badge-pill", "Timeless")
+      ]),
+      el("p", "shelf-subtitle mini-meta", "Timeless literature, mythological epics, and classic Bengali masterpieces")
+    ]),
+    el("div", { class: "shelf-scroll-container" }, [
+      el("div", { class: "shelf-row" },
+        classics.slice(0, 10).map(function (s) {
+          return storyCard(ctx, s, { shelf: true });
+        })
+      )
+    ])
+  ]);
+  return container;
+}
+
 export function renderRecommendedSection(ctx) {
   var recData = ctx.state.recommendations;
   if (!recData || !recData.items || !recData.items.length) return null;
@@ -621,6 +707,14 @@ export function renderDiscover(ctx) {
   );
 
   if (!hasActiveFilters) {
+    var newlyAddedShelf = renderNewlyAddedSection(ctx);
+    if (newlyAddedShelf) {
+      ctx.view.appendChild(newlyAddedShelf);
+    }
+    var classicsShelf = renderClassicsSection(ctx);
+    if (classicsShelf) {
+      ctx.view.appendChild(classicsShelf);
+    }
     var recommendedShelf = renderRecommendedSection(ctx);
     if (recommendedShelf) {
       ctx.view.appendChild(recommendedShelf);

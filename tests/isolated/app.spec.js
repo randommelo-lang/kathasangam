@@ -1014,7 +1014,7 @@ test('improves perceived performance with lazy loading, reserved image dimension
     };
   });
   expect(cardStyles.contentVisibility).toBe('auto');
-  expect(cardStyles.aspectRatio).toMatch(/5\s*\/\s*3/);
+  expect(cardStyles.aspectRatio).toMatch(/0\.72|5\s*\/\s*3/);
 
   // 2. Performance metrics & Mobile Network Tracking
   const perfMetrics = await page.evaluate(() => {

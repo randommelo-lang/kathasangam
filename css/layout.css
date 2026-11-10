@@ -907,33 +907,17 @@ h2 {
   margin-top: 6px;
 }
 
-/* MangaPlus card layout on Discover & Shelves: cover, title, and subline only */
-.story-card:not(.manage-card) .tag-row .tag:not(.tag-promoted),
-.shelf-card .tag-row .tag:not(.tag-promoted),
-.shelf-row .tag-row .tag:not(.tag-promoted) {
+/* MangaPlus shelf cards (Newly Added & Classics rows): cover, title, and subline only */
+.shelf-card .tag-row,
+.shelf-row .tag-row {
   display: none !important;
 }
 
-.story-card:not(.manage-card) .tag-row:not(:has(.tag-promoted)),
-.shelf-card .tag-row:not(:has(.tag-promoted)),
-.shelf-row .tag-row:not(:has(.tag-promoted)) {
-  display: none !important;
-}
-
-.story-card:not(.manage-card) .story-desc,
 .shelf-card .story-desc,
 .shelf-row .story-desc {
-  height: 1px;
-  width: 100%;
-  opacity: 0.01;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  line-height: 0;
-  pointer-events: auto;
+  display: none !important;
 }
 
-.story-card:not(.manage-card):not(.has-resume) .story-actions,
 .shelf-card .story-actions,
 .shelf-row .story-actions {
   display: none !important;
@@ -941,6 +925,36 @@ h2 {
 
 .shelf-row .story-progress-row {
   display: none !important;
+}
+
+/* Discover main story cards: clean, modern, well-spaced with touch-friendly actions */
+.story-card:not(.manage-card) .story-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted, #8c8c9a);
+  margin: 4px 0 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+}
+
+.story-card:not(.manage-card) .story-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.story-card:not(.manage-card) .story-actions .btn {
+  flex: 1;
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
 }
 
 /* When in manage-card mode (Studio), display full layout */

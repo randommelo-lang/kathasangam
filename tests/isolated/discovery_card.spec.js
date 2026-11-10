@@ -65,9 +65,11 @@ test('Discovery MangaPlus cards: DD.MM release date, latest chapter number, clic
   const chSub = card.locator('.story-sub-chapter');
   await expect(chSub).toHaveText('#3');
 
-  // 3. Verify clean MangaPlus UI: no cluttered tag pills or buttons visible on browse card
-  await expect(card.locator('.tag-row')).toBeHidden();
-  await expect(card.locator('.story-actions')).toBeHidden();
+  // 3. Verify story actions exist and have accessible touch height >= 44px
+  const readBtn = card.locator('.story-actions button').first();
+  await expect(readBtn).toBeVisible();
+  const readHeight = await readBtn.evaluate((el) => el.getBoundingClientRect().height);
+  expect(Math.round(readHeight)).toBeGreaterThanOrEqual(44);
 
   // 4. Clicking the Cover goes to #story details
   const coverBtn = card.locator('.cover-button');

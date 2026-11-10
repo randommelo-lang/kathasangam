@@ -288,9 +288,15 @@ export function storyCard(ctx, story, options) {
     actions.appendChild(iconButton("Manage", "btn success", { action: "manageStory", id: story.id }, "icon-gear"));
     actions.appendChild(iconButton(readBtnText, "btn", { action: primaryBtnAction, id: story.id }, "icon-book"));
     actions.appendChild(iconButton("Delete", "btn danger", { action: "deleteStory", id: story.id }, "icon-trash", !canDeleteStory(ctx, story)));
+  } else if (options.shelf) {
+    // Shelf row cards (Newly Added & Classics) keep MangaPlus horizontal card without action buttons
   } else if (isResume) {
     card.classList.add("has-resume");
     actions.appendChild(button(readBtnText, "btn primary btn-sm", { action: "openReader", id: story.id }));
+    actions.appendChild(button(ctx.state.library.indexOf(story.id) === -1 ? "Follow" : "Following", "btn", { action: "follow", id: story.id }));
+  } else {
+    actions.appendChild(button(readBtnText, "btn primary", { action: primaryBtnAction, id: story.id }));
+    actions.appendChild(button(ctx.state.library.indexOf(story.id) === -1 ? "Follow" : "Following", "btn", { action: "follow", id: story.id }));
   }
 
   return card;

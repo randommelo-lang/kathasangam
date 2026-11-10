@@ -925,7 +925,33 @@ h2 {
   gap: 8px;
 }
 
-/* ─── Discover Shelves (Newly Added & Classics) ─── */
+/* ─── Discover Shelves (Newly Added & Classics inside #storyGrid) ─── */
+.story-grid-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 14px 0 2px 0;
+  padding-bottom: 4px;
+}
+
+.story-grid-header:first-child {
+  margin-top: 0;
+}
+
+.story-grid-header-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-high, #ffffff);
+  letter-spacing: 0.3px;
+}
+
+.story-grid-row {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
 .discover-shelf {
   margin-bottom: 32px;
   width: 100%;

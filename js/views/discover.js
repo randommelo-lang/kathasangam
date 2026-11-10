@@ -261,9 +261,9 @@ export function renderActiveFilterChips(ctx) {
   return container;
 }
 
-export function renderNewlyAddedSection(ctx) {
+export function getNewlyAddedStories(ctx) {
   var allStories = (ctx.state.stories || []).slice();
-  if (!allStories.length) return null;
+  if (!allStories.length) return [];
 
   var candidates = allStories
     .filter(function (s) {
@@ -288,32 +288,12 @@ export function renderNewlyAddedSection(ctx) {
       return b.latestTime - a.latestTime;
     });
 
-  if (!candidates.length) return null;
-
-  var items = candidates.slice(0, 10).map(function (c) { return c.story; });
-
-  var container = el("section", { class: "discover-shelf newly-added-shelf", "aria-label": "Newly Added", role: "region" }, [
-    el("div", "shelf-header", [
-      el("div", "shelf-title-row", [
-        el("h2", "shelf-title", "Newly Added"),
-        el("span", "badge badge-accent badge-pill", "Latest Chapters")
-      ]),
-      el("p", "shelf-subtitle mini-meta", "Fresh chapter releases and recent story updates")
-    ]),
-    el("div", { class: "shelf-scroll-container" }, [
-      el("div", { class: "shelf-row" },
-        items.map(function (s) {
-          return storyCard(ctx, s, { shelf: true });
-        })
-      )
-    ])
-  ]);
-  return container;
+  return candidates.slice(0, 10).map(function (c) { return c.story; });
 }
 
-export function renderClassicsSection(ctx) {
+export function getClassicsStories(ctx) {
   var allStories = (ctx.state.stories || []).slice();
-  if (!allStories.length) return null;
+  if (!allStories.length) return [];
 
   var classics = allStories.filter(function (s) {
     if (s.status === "draft" || s.status === "unpublished") return false;
@@ -326,25 +306,7 @@ export function renderClassicsSection(ctx) {
     return hasClassicTag || hasClassicGenre;
   });
 
-  if (!classics.length) return null;
-
-  var container = el("section", { class: "discover-shelf classics-shelf", "aria-label": "Classics", role: "region" }, [
-    el("div", "shelf-header", [
-      el("div", "shelf-title-row", [
-        el("h2", "shelf-title", "Classics"),
-        el("span", "badge badge-neutral badge-pill", "Timeless")
-      ]),
-      el("p", "shelf-subtitle mini-meta", "Timeless literature, mythological epics, and classic Bengali masterpieces")
-    ]),
-    el("div", { class: "shelf-scroll-container" }, [
-      el("div", { class: "shelf-row" },
-        classics.slice(0, 10).map(function (s) {
-          return storyCard(ctx, s, { shelf: true });
-        })
-      )
-    ])
-  ]);
-  return container;
+  return classics.slice(0, 10);
 }
 
 export function renderRecommendedSection(ctx) {
@@ -707,14 +669,6 @@ export function renderDiscover(ctx) {
   );
 
   if (!hasActiveFilters) {
-    var newlyAddedShelf = renderNewlyAddedSection(ctx);
-    if (newlyAddedShelf) {
-      ctx.view.appendChild(newlyAddedShelf);
-    }
-    var classicsShelf = renderClassicsSection(ctx);
-    if (classicsShelf) {
-      ctx.view.appendChild(classicsShelf);
-    }
     var recommendedShelf = renderRecommendedSection(ctx);
     if (recommendedShelf) {
       ctx.view.appendChild(recommendedShelf);
@@ -854,6 +808,45 @@ export function renderDiscover(ctx) {
   // Story grid
   var grid = el("section", "story-grid");
   grid.id = "storyGrid";
+
+  if (!hasActiveFilters && stories.length) {
+    var newlyAddedItems = getNewlyAddedStories(ctx);
+    if (newlyAddedItems.length) {
+      grid.appendChild(el("div", "story-grid-header", [
+        el("span", "story-grid-header-title", "Newly Added")
+      ]));
+      var newlyAddedRow = el("div", { class: "story-grid-row", "data-shelf": "newly-added" }, [
+        el("div", "shelf-scroll-container", [
+          el("div", "shelf-row", newlyAddedItems.map(function (s) {
+            return storyCard(ctx, s, { shelf: true });
+          }))
+        ])
+      ]);
+      grid.appendChild(newlyAddedRow);
+    }
+
+    var classicsItems = getClassicsStories(ctx);
+    if (classicsItems.length) {
+      grid.appendChild(el("div", "story-grid-header", [
+        el("span", "story-grid-header-title", "Classics")
+      ]));
+      var classicsRow = el("div", { class: "story-grid-row", "data-shelf": "classics" }, [
+        el("div", "shelf-scroll-container", [
+          el("div", "shelf-row", classicsItems.map(function (s) {
+            return storyCard(ctx, s, { shelf: true });
+          }))
+        ])
+      ]);
+      grid.appendChild(classicsRow);
+    }
+
+    if (newlyAddedItems.length || classicsItems.length) {
+      grid.appendChild(el("div", "story-grid-header", [
+        el("span", "story-grid-header-title", "All Stories")
+      ]));
+    }
+  }
+
   stories.forEach(function (story) {
     grid.appendChild(storyCard(ctx, story));
   });

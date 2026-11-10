@@ -16,6 +16,30 @@ export function recordStoryView(ctx, storyId) {
     });
 }
 
+export function findLatestPublishedChapterIndex(chapters) {
+  if (!chapters || !chapters.length) return 0;
+  var now = Date.now();
+  var published = chapters.map(function (ch, idx) {
+    return { ch: ch, originalIndex: idx };
+  }).filter(function (item) {
+    if (item.ch.status && item.ch.status !== "published") return false;
+    var sched = item.ch.scheduledAt || item.ch.scheduled_at;
+    if (sched && new Date(sched).getTime() > now) return false;
+    return true;
+  });
+  var candidates = published.length ? published : chapters.map(function (ch, idx) { return { ch: ch, originalIndex: idx }; });
+  var latestItem = candidates[0];
+  for (var i = 1; i < candidates.length; i++) {
+    var cur = candidates[i];
+    var curOrder = (cur.ch.sort_order !== undefined && cur.ch.sort_order !== null) ? cur.ch.sort_order : cur.originalIndex;
+    var latestOrder = (latestItem.ch.sort_order !== undefined && latestItem.ch.sort_order !== null) ? latestItem.ch.sort_order : latestItem.originalIndex;
+    if (curOrder >= latestOrder) {
+      latestItem = cur;
+    }
+  }
+  return latestItem.originalIndex;
+}
+
 export function handleReaderClick(ctx, action, target, e) {
   if (action === "readerMode") {
     ctx.ui.readerMode = target.dataset.value;
@@ -107,6 +131,65 @@ export function handleReaderClick(ctx, action, target, e) {
             ctx.ui.currentTextPageIndex = pIdx;
           }
         }
+      }
+
+      recordStoryView(ctx, storyId);
+      if (window.location.hash.indexOf("reader") !== -1) {
+        ctx.render();
+      }
+    }).catch(function (error) {
+      if (requestId !== readerRequestId) return;
+      if (existingStory) existingStory._loadingFull = false;
+      ctx.notify(error.status === 401 ? "Your session expired. Please sign in again." : (error.status === 403 ? "You do not have permission to read this story." : "The story could not be opened. Check your connection and try again."));
+      if (error.status === 401) ctx.openAuthModal();
+    });
+    return true;
+  }
+  if (action === "openLatestChapter") {
+    if (e && e.stopPropagation) e.stopPropagation();
+    var storyId = target.dataset.id || target.id || target.dataset.storyId || (target.closest("[data-id]") && target.closest("[data-id]").dataset.id);
+    if (!storyId) return true;
+    var requestId = ++readerRequestId;
+    ctx.ui.currentStoryId = storyId;
+    var existingStory = ctx.state.stories ? ctx.state.stories.find(function (item) { return item.id === storyId; }) : null;
+    var chapterIdx = 0;
+    if (existingStory && existingStory.chapters && existingStory.chapters.length) {
+      chapterIdx = findLatestPublishedChapterIndex(existingStory.chapters);
+    }
+    ctx.ui.currentChapterIndex = chapterIdx;
+    ctx.ui.currentComicPageIndex = 0;
+    ctx.ui.currentTextPageIndex = 0;
+    window.location.hash = "reader";
+
+    if (existingStory && existingStory._fullLoaded) {
+      recordStoryView(ctx, storyId);
+      return true;
+    }
+
+    if (existingStory) existingStory._loadingFull = true;
+
+    var initiatingUserId = ctx.state.user && ctx.state.user.id;
+
+    ctx.api("/stories/" + storyId).then(function (fullStory) {
+      if (requestId !== readerRequestId) return;
+      var currentUserId = ctx.state.user && ctx.state.user.id;
+      if (currentUserId !== initiatingUserId) return;
+      fullStory._fullLoaded = true;
+      if (fullStory.chapters) {
+        fullStory.chapters.forEach(function (ch) {
+          if (fullStory.type !== "Chitrānk" && ch.content == null) {
+            ch.content = [];
+          }
+        });
+      }
+      var index = (ctx.state.stories || []).findIndex(function (item) { return item.id === storyId; });
+      if (index >= 0) ctx.state.stories[index] = fullStory;
+      else ctx.state.stories.push(fullStory);
+
+      if (fullStory.chapters && fullStory.chapters.length) {
+        ctx.ui.currentChapterIndex = findLatestPublishedChapterIndex(fullStory.chapters);
+        ctx.ui.currentComicPageIndex = 0;
+        ctx.ui.currentTextPageIndex = 0;
       }
 
       recordStoryView(ctx, storyId);

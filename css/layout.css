@@ -848,10 +848,13 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.3;
+  cursor: pointer;
+  transition: color 0.15s ease;
 }
 
 .story-card:hover .story-card-title,
-.shelf-card:hover .story-card-title {
+.shelf-card:hover .story-card-title,
+.story-card-title:hover {
   color: var(--accent);
 }
 
@@ -904,10 +907,32 @@ h2 {
   margin-top: 6px;
 }
 
-/* Shelf rows (Newly Added & Classics) strictly show MangaPlus card: cover, title, and subline only */
-.shelf-row .story-desc,
-.shelf-row .tag-row,
-.shelf-row .story-actions,
+/* MangaPlus card layout on Discover & Shelves: cover, title, and subline only */
+.story-card:not(.manage-card) .tag-row,
+.shelf-card .tag-row,
+.shelf-row .tag-row {
+  display: none !important;
+}
+
+.story-card:not(.manage-card) .story-desc,
+.shelf-card .story-desc,
+.shelf-row .story-desc {
+  height: 1px;
+  width: 100%;
+  opacity: 0.01;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  line-height: 0;
+  pointer-events: auto;
+}
+
+.story-card:not(.manage-card):not(.has-resume) .story-actions,
+.shelf-card .story-actions,
+.shelf-row .story-actions {
+  display: none !important;
+}
+
 .shelf-row .story-progress-row {
   display: none !important;
 }
@@ -917,6 +942,21 @@ h2 {
   background: var(--surface);
   border: 1px solid var(--line);
   padding-bottom: 12px;
+}
+
+.story-card.manage-card .tag-row {
+  display: flex !important;
+}
+
+.story-card.manage-card .story-desc {
+  height: auto !important;
+  opacity: 1 !important;
+  display: -webkit-box !important;
+  line-height: 1.35 !important;
+}
+
+.story-card.manage-card .story-actions {
+  display: flex !important;
 }
 
 .story-card.manage-card .story-body {

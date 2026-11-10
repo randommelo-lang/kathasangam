@@ -21,20 +21,23 @@ export function getReleaseBadgeInfo(story) {
     });
     var chList = publishedChapters.length ? publishedChapters : chapters;
 
+    var latestOrder = -1;
     chList.forEach(function (ch, idx) {
-      var t = ch.scheduled_at || ch.created_at;
+      var t = ch.scheduledAt || ch.scheduled_at || ch.createdAt || ch.created_at;
       var ms = t ? new Date(t).getTime() : 0;
-      if (!latestTime || ms >= latestTime) {
+      var order = (ch.sort_order !== undefined && ch.sort_order !== null) ? ch.sort_order : idx;
+      if (latestChapter === null || ms > latestTime || (ms === latestTime && order >= latestOrder)) {
         latestTime = ms;
+        latestOrder = order;
         latestChapter = ch;
-        latestChapterNum = (ch.sort_order !== undefined && ch.sort_order !== null && ch.sort_order > 0)
-          ? ch.sort_order
+        latestChapterNum = (ch.sort_order !== undefined && ch.sort_order !== null)
+          ? (ch.sort_order + 1)
           : (idx + 1);
       }
     });
   }
 
-  if (!latestTime && story.created_at) {
+  if ((!latestTime || latestTime === 0) && story.created_at) {
     latestTime = new Date(story.created_at).getTime();
   }
 
@@ -57,7 +60,8 @@ export function getReleaseBadgeInfo(story) {
     var month = date.getMonth() + 1;
     var day = date.getDate();
     var dayName = dayNames[date.getDay()];
-    text = month + "." + day + " " + dayName;
+    // DD.MM DAY format (e.g. 10.11 TUE or 12.7 SUN)
+    text = day + "." + month + " " + dayName;
   }
 
   var chapterTitle = latestChapter ? (latestChapter.title || ("Chapter " + latestChapterNum)) : ("Chapter " + latestChapterNum);
@@ -203,16 +207,20 @@ export function storyCard(ctx, story, options) {
     var titleH2 = card.querySelector("h2");
     if (titleH2) {
       var shelfTitleEl = el("div", "story-card-title", story.title);
-      shelfTitleEl.dataset.action = "openStory";
+      shelfTitleEl.title = "Read latest: " + badgeInfo.chapterTitle;
+      shelfTitleEl.dataset.action = options.manage ? "manageStory" : "openLatestChapter";
       shelfTitleEl.dataset.id = story.id;
+      shelfTitleEl.style.cursor = "pointer";
       titleH2.replaceWith(shelfTitleEl);
     }
   } else {
     var titleEl = card.querySelector("h2");
     if (titleEl) {
       titleEl.textContent = story.title;
-      titleEl.dataset.action = "openStory";
+      titleEl.title = "Read latest: " + badgeInfo.chapterTitle;
+      titleEl.dataset.action = options.manage ? "manageStory" : "openLatestChapter";
       titleEl.dataset.id = story.id;
+      titleEl.style.cursor = "pointer";
     }
   }
   card.querySelector("p").textContent = story.description;
@@ -280,9 +288,9 @@ export function storyCard(ctx, story, options) {
     actions.appendChild(iconButton("Manage", "btn success", { action: "manageStory", id: story.id }, "icon-gear"));
     actions.appendChild(iconButton(readBtnText, "btn", { action: primaryBtnAction, id: story.id }, "icon-book"));
     actions.appendChild(iconButton("Delete", "btn danger", { action: "deleteStory", id: story.id }, "icon-trash", !canDeleteStory(ctx, story)));
-  } else {
-    actions.appendChild(button(readBtnText, "btn primary", { action: primaryBtnAction, id: story.id }));
-    actions.appendChild(button(ctx.state.library.indexOf(story.id) === -1 ? "Follow" : "Following", "btn", { action: "follow", id: story.id }));
+  } else if (isResume) {
+    card.classList.add("has-resume");
+    actions.appendChild(button(readBtnText, "btn primary btn-sm", { action: "openReader", id: story.id }));
   }
 
   return card;

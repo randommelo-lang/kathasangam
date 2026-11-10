@@ -825,7 +825,7 @@ test('makes profiles safer by separating public info from private settings, clar
   await expect(profileHeader.getByText('private_author@example.com')).toHaveCount(0);
 
   // Settings action button is present and routes cleanly to #settings
-  const settingsBtn = page.getByRole('button', { name: '⚙️ Settings' });
+  const settingsBtn = page.getByRole('button', { name: 'Settings', exact: true });
   await expect(settingsBtn).toBeVisible();
 
   // 2. Contextual Empty States for New Creators on Public Profile

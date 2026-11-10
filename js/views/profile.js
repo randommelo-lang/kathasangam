@@ -64,6 +64,84 @@ function makeEyeIcon() {
   ]);
 }
 
+function makeGearIcon(size, className) {
+  size = size || 14;
+  return svgEl("svg", {
+    width: String(size),
+    height: String(size),
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: className || "btn-icon-svg",
+    "aria-hidden": "true"
+  }, [
+    svgEl("circle", { cx: "12", cy: "12", r: "3" }),
+    svgEl("path", { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" })
+  ]);
+}
+
+function makeShareIcon(size, className) {
+  size = size || 14;
+  return svgEl("svg", {
+    width: String(size),
+    height: String(size),
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: className || "btn-icon-svg",
+    "aria-hidden": "true"
+  }, [
+    svgEl("circle", { cx: "18", cy: "5", r: "3" }),
+    svgEl("circle", { cx: "6", cy: "12", r: "3" }),
+    svgEl("circle", { cx: "18", cy: "19", r: "3" }),
+    svgEl("line", { x1: "8.59", y1: "13.51", x2: "15.42", y2: "17.49" }),
+    svgEl("line", { x1: "15.41", y1: "6.51", x2: "8.59", y2: "10.49" })
+  ]);
+}
+
+function makeTrophyIcon(size, className) {
+  size = size || 18;
+  return svgEl("svg", {
+    width: String(size),
+    height: String(size),
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: className || "achievement-trophy-svg",
+    "aria-hidden": "true"
+  }, [
+    svgEl("path", { d: "M6 9H4.5a2.5 2.5 0 0 1 0-5H6" }),
+    svgEl("path", { d: "M18 9h1.5a2.5 2.5 0 0 0 0-5H18" }),
+    svgEl("path", { d: "M4 22h16" }),
+    svgEl("path", { d: "M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34" }),
+    svgEl("path", { d: "M18 2H6v7a6 6 0 0 0 12 0V2Z" })
+  ]);
+}
+
+function makeStreakFlameIcon(size, className) {
+  size = size || 24;
+  return svgEl("svg", {
+    width: String(size),
+    height: String(size),
+    viewBox: "0 0 24 24",
+    fill: "currentColor",
+    class: className || "streak-flame-svg",
+    "aria-hidden": "true",
+    style: "color: #f97316;"
+  }, [
+    svgEl("path", { d: "M12 23c6.075 0 11-4.925 11-11 0-5.04-3.41-9.3-8.08-10.63a.5.5 0 0 0-.61.54c.2 2.37-.62 4.67-2.26 6.32C10.74 9.53 9 11.23 9 13.5c0 .35.04.7.12 1.03-1.46-.86-2.58-2.29-3.03-3.99a.5.5 0 0 0-.82-.24C3.86 11.83 3 14.32 3 17c0 3.31 2.69 6 6 6h3z" })
+  ]);
+}
+
 function makeDatalists() {
   return [
     el("datalist", { id: "canonicalLanguagesList" }, CANONICAL_LANGUAGES.map(function (l) {
@@ -292,8 +370,25 @@ function renderPublicProfile(ctx, profileData, isMe) {
   });
 
   if (isMe) {
-    var settingsBtn = button("⚙️ Settings", "btn secondary btn-sm", { action: "goToSettings" });
-    var shareBtn = button("📋 Share", "btn secondary btn-sm", { action: "shareProfile", username: username });
+    var settingsBtn = el("button", {
+      type: "button",
+      class: "btn secondary btn-sm",
+      "data-action": "goToSettings",
+      "aria-label": "Settings"
+    }, [
+      makeGearIcon(14),
+      el("span", null, "Settings")
+    ]);
+    var shareBtn = el("button", {
+      type: "button",
+      class: "btn secondary btn-sm",
+      "data-action": "shareProfile",
+      "data-username": username,
+      "aria-label": "Share profile"
+    }, [
+      makeShareIcon(14),
+      el("span", null, "Share")
+    ]);
     actionsContainer.appendChild(settingsBtn);
     actionsContainer.appendChild(shareBtn);
     headerCardChildren.push(actionsContainer);
@@ -362,11 +457,16 @@ function renderPublicProfile(ctx, profileData, isMe) {
       }, "🚩 Report");
 
       var otherShareBtn = el("button", {
+        type: "button",
         class: "btn-safety",
         "data-action": "shareProfile",
         "data-username": username,
-        title: "Share profile link"
-      }, "📋 Share");
+        title: "Share profile link",
+        "aria-label": "Share profile"
+      }, [
+        makeShareIcon(14),
+        el("span", null, "Share")
+      ]);
 
       safetyBox.appendChild(blockBtn);
       safetyBox.appendChild(reportBtn);
@@ -377,7 +477,16 @@ function renderPublicProfile(ctx, profileData, isMe) {
         class: "btn primary follow-btn",
         onclick: function () { if (ctx.openAuthModal) ctx.openAuthModal(); }
       }, "+ Follow");
-      var guestShareBtn = button("📋 Share", "btn secondary btn-sm", { action: "shareProfile", username: username });
+      var guestShareBtn = el("button", {
+        type: "button",
+        class: "btn secondary btn-sm",
+        "data-action": "shareProfile",
+        "data-username": username,
+        "aria-label": "Share profile"
+      }, [
+        makeShareIcon(14),
+        el("span", null, "Share")
+      ]);
       actionsContainer.appendChild(guestFollowBtn);
       actionsContainer.appendChild(guestShareBtn);
     }
@@ -532,7 +641,8 @@ function renderAchievementsTab(ctx, view, user, isMe, achProgress, unlockedAchs)
   }, [
     el("div", null, [
       el("h3", { style: "margin: 0 0 4px 0; font-size: var(--text-lg); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;" }, [
-        "🏆 " + unlockedCount + " of " + totalCount + " Achievements Unlocked",
+        makeTrophyIcon(20, "achievement-trophy-icon"),
+        document.createTextNode(" " + unlockedCount + " of " + totalCount + " Achievements Unlocked"),
         el("span", "badge badge-pill badge-accent", completionPercent + "% Complete")
       ]),
       el("p", { style: "margin: 0; color: var(--muted); font-size: var(--text-sm);" },
@@ -544,7 +654,7 @@ function renderAchievementsTab(ctx, view, user, isMe, achProgress, unlockedAchs)
     el("div", {
       style: "display: flex; align-items: center; gap: 12px; background: var(--surface-2); padding: 8px 16px; border-radius: var(--radius-md); border: 1px solid var(--line);"
     }, [
-      el("span", { style: "font-size: 1.5rem;" }, "🔥"),
+      makeStreakFlameIcon(24),
       el("div", null, [
         el("div", { style: "font-size: var(--text-xs); color: var(--muted); font-weight: 600;" }, "Current Streak"),
         el("strong", { style: "font-size: var(--text-base); color: var(--ink);" }, streak + " " + (streak === 1 ? "Day" : "Days"))

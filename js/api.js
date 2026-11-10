@@ -101,12 +101,35 @@ export function apiDelete(path) {
   return api(path, { method: "DELETE" });
 }
 
-export function uploadFileWithProgress(path, file, onProgress) {
+export async function uploadFileWithProgress(path, file, onProgress) {
+  const now = Date.now();
+  let token = null;
+
+  if (tokenCache.token && now < tokenCache.expiresAt) {
+    token = tokenCache.token;
+  } else if (supabaseClient) {
+    try {
+      const {
+        data: { session }
+      } = await supabaseClient.auth.getSession();
+      token = session?.access_token || null;
+      state.accessToken = token;
+      if (token) {
+        tokenCache.token = token;
+        tokenCache.expiresAt = now + TOKEN_TTL_MS;
+      }
+    } catch (err) {
+      console.error(`[Upload ${path}] Failed to get session:`, err.message);
+      state.accessToken = null;
+    }
+  } else {
+    token = state.accessToken;
+  }
+
   return new Promise(function (resolve, reject) {
     var xhr = new XMLHttpRequest();
     xhr.open("POST", (window.KATHASANGAM_API_URL || "") + "/api" + path);
 
-    var token = state.accessToken || (tokenCache.token && Date.now() < tokenCache.expiresAt ? tokenCache.token : null);
     if (token) {
       xhr.setRequestHeader("Authorization", "Bearer " + token);
     }

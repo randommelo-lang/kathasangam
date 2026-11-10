@@ -7,8 +7,18 @@ use tokio::io::AsyncWriteExt;
 
 const MAX_UPLOAD_SIZE: usize = 10 * 1024 * 1024; // 10 MB
 
-const VALID_IMAGE_EXTENSIONS: [&str; 5] = ["webp", "png", "jpg", "jpeg", "gif"];
+const VALID_IMAGE_EXTENSIONS: [&str; 6] = ["webp", "png", "jpg", "jpeg", "gif", "jfif"];
 const STORAGE_BUCKET: &str = "kathasangam";
+
+/// Strips quotes, carriage returns, leading/trailing whitespace, and trailing slashes from environment variables.
+pub fn clean_storage_env(val: &str) -> String {
+    val.trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim()
+        .trim_end_matches('/')
+        .to_string()
+}
 
 /// Validates that a stored media reference is one this application could have produced.
 ///
@@ -60,10 +70,11 @@ pub fn is_valid_stored_media_url(url: &str) -> bool {
     }
 
     if let Ok(supabase_url) = std::env::var("SUPABASE_URL") {
-        if !supabase_url.is_empty() {
+        let clean_supabase_url = clean_storage_env(&supabase_url);
+        if !clean_supabase_url.is_empty() {
             let prefix = format!(
                 "{}/storage/v1/object/public/{}/",
-                supabase_url, STORAGE_BUCKET
+                clean_supabase_url, STORAGE_BUCKET
             );
             if let Some(filename) = url.strip_prefix(&prefix) {
                 return is_valid_filename(filename);
@@ -175,6 +186,7 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
             let raw_ext = filename.rsplit('.').next().unwrap_or("png").to_lowercase();
             let safe_ext = match raw_ext.as_str() {
                 "png" | "jpg" | "jpeg" | "webp" | "gif" => raw_ext,
+                "jfif" => "jpg".to_string(),
                 _ => {
                     return Err(AppError::bad_request(
                         "Unsupported file extension. Only PNG, JPEG, WebP, and GIF are allowed.",
@@ -183,13 +195,16 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
             };
 
             let uuid = Uuid::new_v4();
-            let raw_temp_path = format!("temp_raw_{}.{}", uuid, safe_ext);
-            let compressed_temp_path = format!("temp_compressed_{}.webp", uuid);
+            let temp_dir = std::env::temp_dir();
+            let raw_temp_path = temp_dir.join(format!("temp_raw_{}.{}", uuid, safe_ext));
+            let compressed_temp_path = temp_dir.join(format!("temp_compressed_{}.webp", uuid));
+            let raw_temp_str = raw_temp_path.to_string_lossy().to_string();
+            let compressed_temp_str = compressed_temp_path.to_string_lossy().to_string();
 
             let mut file = match tokio::fs::File::create(&raw_temp_path).await {
                 Ok(f) => f,
                 Err(e) => {
-                    tracing::error!("Failed to create temporary file: {:?}", e);
+                    tracing::error!("Failed to create temporary file at {:?}: {:?}", raw_temp_path, e);
                     return Err(AppError::internal_server_error("Failed to save uploaded file temporarily."));
                 }
             };
@@ -276,7 +291,7 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
             }
 
             // Attempt to compress image using Bun
-            let (final_ext, data) = match compress_image_with_bun(&raw_temp_path, &compressed_temp_path).await {
+            let (final_ext, data) = match compress_image_with_bun(&raw_temp_str, &compressed_temp_str).await {
                 Some(compressed_data) => ("webp".to_string(), compressed_data),
                 None => {
                     // Compression failed or skipped: verify magic bytes map to an allowed image extension
@@ -303,56 +318,55 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
             let _ = tokio::fs::remove_file(&raw_temp_path).await;
 
             let stored_name = format!("{}.{}", Uuid::new_v4(), final_ext);
-            let supabase_url = std::env::var("SUPABASE_URL").ok();
-            let service_role_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY").ok();
+            let supabase_url = std::env::var("SUPABASE_URL").ok().map(|s| clean_storage_env(&s)).filter(|s| !s.is_empty());
+            let service_role_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY").ok().map(|s| clean_storage_env(&s)).filter(|s| !s.is_empty());
 
             // Convert to Bytes to avoid cloning the large byte buffer
             let data_bytes = bytes::Bytes::from(data);
 
             if let (Some(url), Some(key)) = (supabase_url, service_role_key) {
-                if !url.is_empty() && !key.is_empty() {
-                    let bucket = "kathasangam";
-                    let upload_url = format!("{}/storage/v1/object/{}/{}", url, bucket, stored_name);
+                let bucket = STORAGE_BUCKET;
+                let upload_url = format!("{}/storage/v1/object/{}/{}", url, bucket, stored_name);
 
-                    let client = reqwest::Client::new();
-                    let content_type = match final_ext.to_lowercase().as_str() {
-                        "png" => "image/png",
-                        "jpg" | "jpeg" => "image/jpeg",
-                        "webp" => "image/webp",
-                        "gif" => "image/gif",
-                        _ => "application/octet-stream",
-                    };
+                let client = reqwest::Client::new();
+                let content_type = match final_ext.to_lowercase().as_str() {
+                    "png" => "image/png",
+                    "jpg" | "jpeg" => "image/jpeg",
+                    "webp" => "image/webp",
+                    "gif" => "image/gif",
+                    _ => "application/octet-stream",
+                };
 
-                    tracing::info!("🔶 Uploading to Supabase Storage bucket '{}': {}", bucket, stored_name);
-                    let res = client
-                        .post(&upload_url)
-                        .header("apikey", &key)
-                        .header("Authorization", format!("Bearer {}", key))
-                        .header("Content-Type", content_type)
-                        .body(data_bytes.clone())
-                        .send()
-                        .await;
+                tracing::info!("🔶 Uploading to Supabase Storage bucket '{}': {}", bucket, stored_name);
+                let res = client
+                    .post(&upload_url)
+                    .header("apikey", &key)
+                    .header("Authorization", format!("Bearer {}", key))
+                    .header("Content-Type", content_type)
+                    .body(data_bytes.clone())
+                    .send()
+                    .await;
 
-                    match res {
-                        Ok(resp) => {
-                            if resp.status().is_success() {
-                                let public_url = format!("{}/storage/v1/object/public/{}/{}", url, bucket, stored_name);
-                                tracing::info!("✅ Uploaded successfully to Supabase Storage: {}", public_url);
-                                return Ok(Json(UploadResponse { url: public_url }));
-                            } else {
-                                let err_status = resp.status();
-                                let err_text = resp.text().await.unwrap_or_default();
-                                tracing::error!("⚠️ Supabase Storage upload failed (status {}): {}. Falling back to local storage.", err_status, err_text);
-                            }
+                match res {
+                    Ok(resp) => {
+                        if resp.status().is_success() {
+                            let public_url = format!("{}/storage/v1/object/public/{}/{}", url, bucket, stored_name);
+                            tracing::info!("✅ Uploaded successfully to Supabase Storage: {}", public_url);
+                            return Ok(Json(UploadResponse { url: public_url }));
+                        } else {
+                            let err_status = resp.status();
+                            let err_text = resp.text().await.unwrap_or_default();
+                            tracing::error!("⚠️ Supabase Storage upload failed (status {}): {}. Falling back to local storage.", err_status, err_text);
                         }
-                        Err(e) => {
-                            tracing::error!("⚠️ Supabase Storage request failed: {}. Falling back to local storage.", e);
-                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("⚠️ Supabase Storage request failed: {}. Falling back to local storage.", e);
                     }
                 }
             }
 
             // Fallback: local disk storage
+            let _ = tokio::fs::create_dir_all("uploads").await;
             let path = format!("uploads/{}", stored_name);
             tokio::fs::write(&path, &data_bytes)
                 .await?;
@@ -403,54 +417,52 @@ pub async fn delete_uploaded_file(file_url: &str) {
     // Check if it's a Supabase Storage public URL
     // e.g., "https://vvljxgoprncblowdmfxi.supabase.co/storage/v1/object/public/kathasangam/some-uuid.webp"
     if file_url.contains("/storage/v1/object/public/") {
-        let supabase_url = std::env::var("SUPABASE_URL").ok();
-        let service_role_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY").ok();
+        let supabase_url = std::env::var("SUPABASE_URL").ok().map(|s| clean_storage_env(&s)).filter(|s| !s.is_empty());
+        let service_role_key = std::env::var("SUPABASE_SERVICE_ROLE_KEY").ok().map(|s| clean_storage_env(&s)).filter(|s| !s.is_empty());
 
         if let (Some(url), Some(key)) = (supabase_url, service_role_key) {
-            if !url.is_empty() && !key.is_empty() {
-                // Parse out the part after "/storage/v1/object/public/"
-                // E.g., from ".../storage/v1/object/public/kathasangam/some-uuid.webp"
-                // we want "kathasangam/some-uuid.webp"
-                if let Some(pos) = file_url.find("/storage/v1/object/public/") {
-                    let path_part = &file_url[pos + "/storage/v1/object/public/".len()..];
+            // Parse out the part after "/storage/v1/object/public/"
+            // E.g., from ".../storage/v1/object/public/kathasangam/some-uuid.webp"
+            // we want "kathasangam/some-uuid.webp"
+            if let Some(pos) = file_url.find("/storage/v1/object/public/") {
+                let path_part = &file_url[pos + "/storage/v1/object/public/".len()..];
 
-                    // SB-08 defence in depth: refuse anything that is not exactly
-                    // `<bucket>/<filename>`. This function issues a service-role DELETE,
-                    // so a `..` segment or a different bucket name would authorise
-                    // deleting objects the caller does not own.
-                    if !is_safe_storage_object_path(path_part) {
-                        tracing::warn!(
-                            "Refusing to delete storage object: path {:?} is outside the {} bucket or is not a plain filename",
-                            path_part,
-                            STORAGE_BUCKET
-                        );
-                        return;
+                // SB-08 defence in depth: refuse anything that is not exactly
+                // `<bucket>/<filename>`. This function issues a service-role DELETE,
+                // so a `..` segment or a different bucket name would authorise
+                // deleting objects the caller does not own.
+                if !is_safe_storage_object_path(path_part) {
+                    tracing::warn!(
+                        "Refusing to delete storage object: path {:?} is outside the {} bucket or is not a plain filename",
+                        path_part,
+                        STORAGE_BUCKET
+                    );
+                    return;
+                }
+
+                let delete_url = format!("{}/storage/v1/object/{}", url, path_part);
+
+                let client = reqwest::Client::new();
+                tracing::info!("🔶 Attempting to delete from Supabase Storage: {}", delete_url);
+                let res = client
+                    .delete(&delete_url)
+                    .header("apikey", &key)
+                    .header("Authorization", format!("Bearer {}", key))
+                    .send()
+                    .await;
+
+                match res {
+                    Ok(resp) => {
+                        if resp.status().is_success() {
+                            tracing::info!("✅ Deleted successfully from Supabase Storage: {}", file_url);
+                        } else {
+                            let status = resp.status();
+                            let text = resp.text().await.unwrap_or_default();
+                            tracing::error!("⚠️ Supabase Storage delete failed (status {}): {}", status, text);
+                        }
                     }
-
-                    let delete_url = format!("{}/storage/v1/object/{}", url, path_part);
-
-                    let client = reqwest::Client::new();
-                    tracing::info!("🔶 Attempting to delete from Supabase Storage: {}", delete_url);
-                    let res = client
-                        .delete(&delete_url)
-                        .header("apikey", &key)
-                        .header("Authorization", format!("Bearer {}", key))
-                        .send()
-                        .await;
-
-                    match res {
-                        Ok(resp) => {
-                            if resp.status().is_success() {
-                                tracing::info!("✅ Deleted successfully from Supabase Storage: {}", file_url);
-                            } else {
-                                let status = resp.status();
-                                let text = resp.text().await.unwrap_or_default();
-                                tracing::error!("⚠️ Supabase Storage delete failed (status {}): {}", status, text);
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!("⚠️ Supabase Storage delete request failed: {}", e);
-                        }
+                    Err(e) => {
+                        tracing::error!("⚠️ Supabase Storage delete request failed: {}", e);
                     }
                 }
             }
@@ -530,6 +542,14 @@ mod tests {
     fn media_url_validator_accepts_local_uploads() {
         assert!(is_valid_stored_media_url("/uploads/abc-123.webp"));
         assert!(is_valid_stored_media_url("/uploads/abc-123.png"));
+        assert!(is_valid_stored_media_url("/uploads/abc-123.jfif"));
+    }
+
+    #[test]
+    fn test_clean_storage_env() {
+        assert_eq!(clean_storage_env("  \"https://example.supabase.co/\"  "), "https://example.supabase.co");
+        assert_eq!(clean_storage_env("'secret_key'\r\n"), "secret_key");
+        assert_eq!(clean_storage_env("https://example.supabase.co///"), "https://example.supabase.co");
     }
 
     #[test]

@@ -175,7 +175,7 @@ export function handleStudioClick(ctx, action, target, e) {
     
     var fileInput = document.createElement("input");
     fileInput.type = "file";
-    fileInput.accept = "image/*";
+    fileInput.accept = "image/png,image/jpeg,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif,.jfif,image/*";
     fileInput.onchange = function(evt) {
       var file = evt.target.files[0];
       if (!file) return;
@@ -205,13 +205,13 @@ export function handleStudioClick(ctx, action, target, e) {
           ctx.render();
         }).catch(function(err) {
           console.error(err);
-          var errMsg = "Failed to upload cover.";
-          if (err.status === 413) {
-            errMsg = "Upload failed: File is too large (max 5MB).";
-          } else if (err.status === 415) {
+          var errMsg = (err && err.message) || "Failed to upload cover.";
+          if (err && err.status === 413) {
+            errMsg = "Upload failed: File is too large (max 10MB).";
+          } else if (err && err.status === 415) {
             errMsg = "Upload failed: Invalid format. Only PNG, JPG, WEBP, and GIF allowed.";
-          } else if (err.message) {
-            errMsg = err.message;
+          } else if (err && err.status === 401) {
+            errMsg = "Session expired. Please log in again to upload.";
           }
           ctx.notify(errMsg, "error", {
             onRetry: doUpload

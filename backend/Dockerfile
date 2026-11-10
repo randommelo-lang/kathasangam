@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy the compiled binary from builder
 COPY --from=builder /app/target/release/kathasangam-backend /app/kathasangam-backend
 COPY --from=builder /app/migrations /app/migrations
+RUN mkdir -p /app/uploads
 
 # Expose default port
 EXPOSE 3000

@@ -11,4 +11,8 @@ ignore = [
     "RUSTSEC-2026-0381",
     # RUSTSEC-2026-0382: rustls-webpki cert verification (upgraded to >=0.103.16)
     "RUSTSEC-2026-0382",
+    # RUSTSEC-2026-0459: libsqlite3-sys via C SQLite CVE-2026-119375
+    # Transitive dependency of sqlx-macros-core -> sqlx-sqlite.
+    # KathaSangam uses PostgreSQL; SQLite is never compiled or executed at runtime.
+    "RUSTSEC-2026-0459",
 ]

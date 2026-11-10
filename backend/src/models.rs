@@ -52,7 +52,7 @@ pub struct StoryResponse {
     pub likes: i32,
     pub earnings: i32,
     pub progress: i32,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
     pub chapters: Vec<ChapterResponse>,
     pub collaborators: Vec<CollaboratorResponse>,
     #[serde(rename = "isNsfw")]
@@ -183,7 +183,7 @@ pub struct ChapterResponse {
     #[serde(rename = "scheduledAt", skip_serializing_if = "Option::is_none")]
     pub scheduled_at: Option<DateTime<Utc>>,
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<NaiveDateTime>,
+    pub created_at: Option<DateTime<Utc>>,
     pub words: i32,
     pub reads: i32,
     pub likes: i32,

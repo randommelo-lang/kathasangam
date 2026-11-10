@@ -1,5 +1,15 @@
-import { button, el, formatNumber, getStoryRatingInfo, iconButton, normalizeStoryType, normalizeStoryStatus, progress, svgEl, t } from "../components.js";
+import { button, el, formatNumber, getStoryRatingInfo, iconButton, makeClockIcon, normalizeStoryType, normalizeStoryStatus, progress, svgEl, t } from "../components.js";
 import { state } from "../state.js";
+
+export function parseIsoDate(str) {
+  if (!str) return null;
+  var s = String(str).trim();
+  if (!s.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(s)) {
+    s += "Z";
+  }
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 export function storyGrid(ctx, stories, options) {
   var g = el("section", "story-grid");
@@ -24,7 +34,8 @@ export function getReleaseBadgeInfo(story) {
     var latestOrder = -1;
     chList.forEach(function (ch, idx) {
       var t = ch.scheduledAt || ch.scheduled_at || ch.createdAt || ch.created_at;
-      var ms = t ? new Date(t).getTime() : 0;
+      var d = parseIsoDate(t);
+      var ms = d ? d.getTime() : 0;
       var order = (ch.sort_order !== undefined && ch.sort_order !== null) ? ch.sort_order : idx;
       if (latestChapter === null || ms > latestTime || (ms === latestTime && order >= latestOrder)) {
         latestTime = ms;
@@ -38,11 +49,15 @@ export function getReleaseBadgeInfo(story) {
   }
 
   if ((!latestTime || latestTime === 0) && story.created_at) {
-    latestTime = new Date(story.created_at).getTime();
+    var sd = parseIsoDate(story.created_at);
+    latestTime = sd ? sd.getTime() : 0;
   }
 
   var now = Date.now();
   var diffMs = latestTime ? (now - latestTime) : (24 * 60 * 60 * 1000 + 1);
+  if (diffMs < 0 && diffMs > -10 * 60 * 1000) {
+    diffMs = 0;
+  }
   var isRecent = diffMs >= 0 && diffMs < 24 * 60 * 60 * 1000;
   var text = "";
 
@@ -115,9 +130,14 @@ export function storyCard(ctx, story, options) {
   var coverDateBadge = card.querySelector(".cover-date-badge");
   if (coverDateBadge) {
     if (badgeInfo.text) {
-      coverDateBadge.textContent = badgeInfo.isRecent ? ("🕒 " + badgeInfo.text) : badgeInfo.text;
+      coverDateBadge.textContent = "";
       if (badgeInfo.isRecent) {
+        coverDateBadge.appendChild(makeClockIcon("badge-clock-svg", 12));
+        coverDateBadge.appendChild(el("span", "badge-text", badgeInfo.text));
         coverDateBadge.classList.add("is-recent");
+      } else {
+        coverDateBadge.textContent = badgeInfo.text;
+        coverDateBadge.classList.remove("is-recent");
       }
       coverDateBadge.title = badgeInfo.isRecent ? ("Released " + badgeInfo.text + " ago") : ("Released on " + badgeInfo.text);
     } else {

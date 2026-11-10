@@ -723,6 +723,16 @@ h2 {
   box-shadow: 0 2px 8px rgba(229, 77, 46, 0.45);
 }
 
+.cover-date-badge .badge-clock-svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
 .cover-hover {
   position: absolute;
   inset: 0;

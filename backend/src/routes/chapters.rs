@@ -96,7 +96,7 @@ pub async fn publish_due_chapters(pool: &PgPool) -> Result<usize, sqlx::Error> {
     for (ch_id, story_id, title, sort_order) in &rows {
         // Atomic conditional update ensures we only publish if still scheduled and due
         let update_res = sqlx::query(
-            "UPDATE chapters SET status = 'published', scheduled_at = NULL \
+            "UPDATE chapters SET status = 'published', created_at = COALESCE(scheduled_at, NOW()), scheduled_at = NULL \
              WHERE id = $1 AND status = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= (NOW() AT TIME ZONE 'UTC')"
         )
         .bind(ch_id)
@@ -332,7 +332,7 @@ pub async fn list_chapters(
                 status: ch.status.clone(),
                 access: ch.access.clone(),
                 scheduled_at: ch.scheduled_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
-                created_at: ch.created_at,
+                created_at: ch.created_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
                 words: ch.words,
                 reads: ch.reads,
                 likes: ch.likes,
@@ -457,7 +457,13 @@ pub async fn toggle_chapter_status(
         _ => ("published", true),          // draft → published (clear any leftover scheduled_at)
     };
 
-    if clear_schedule {
+    if new_status == "published" {
+        sqlx::query("UPDATE chapters SET status = $1, scheduled_at = NULL, created_at = NOW() WHERE id = $2")
+            .bind(new_status)
+            .bind(chapter_id)
+            .execute(&pool)
+            .await?;
+    } else if clear_schedule {
         sqlx::query("UPDATE chapters SET status = $1, scheduled_at = NULL WHERE id = $2")
             .bind(new_status)
             .bind(chapter_id)
@@ -623,11 +629,19 @@ pub async fn update_chapter(
 
     // Update chapter title, status, and scheduled_at
     if let Some(ref status) = effective_status {
+        let is_becoming_published = status == "published" && row.status != "published";
         if parsed_scheduled_at.is_some() {
             sqlx::query("UPDATE chapters SET title = $1, status = $2, scheduled_at = $3 WHERE id = $4")
                 .bind(&body.title)
                 .bind(status)
                 .bind(parsed_scheduled_at)
+                .bind(chapter_id)
+                .execute(&mut *tx)
+                .await?;
+        } else if is_becoming_published {
+            sqlx::query("UPDATE chapters SET title = $1, status = $2, scheduled_at = NULL, created_at = NOW() WHERE id = $3")
+                .bind(&body.title)
+                .bind(status)
                 .bind(chapter_id)
                 .execute(&mut *tx)
                 .await?;

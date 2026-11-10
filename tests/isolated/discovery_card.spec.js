@@ -94,3 +94,73 @@ test('Discovery MangaPlus cards: DD.MM release date, latest chapter number, clic
   // Verify reader is showing Chapter 3
   await expect(page.locator('.bottom-page-indicator')).toContainText('Chapter 3 of 3');
 });
+
+test('Discovery MangaPlus cards: recent release badge uses SVG clock icon without emoji and calculates hours correctly', async ({ page }) => {
+  const storyId = '66666666-6666-4666-8666-666666666666';
+  // Chapter released 3 hours ago
+  const threeHoursAgoIso = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+  const mockStory = {
+    id: storyId,
+    author_id: 'author-test-1',
+    title: 'নৌকাডুবি',
+    author: 'Rabindranath Tagore',
+    type: 'Web Novel',
+    genre: 'Classic, Romance',
+    language: 'Bengali',
+    license: 'Public Domain',
+    status: 'published',
+    tags: ['classic'],
+    description: 'A classic story.',
+    cover: 'https://images.example.test/noukadubi.jpg',
+    followers: 120,
+    views: 4500,
+    likes: 80,
+    earnings: 0,
+    progress: 0,
+    created_at: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+    chapters: [
+      { id: 'ch-1', sort_order: 0, title: 'Chapter 1', status: 'published', access: 'free', createdAt: new Date(Date.now() - 20 * 3600 * 1000).toISOString(), words: 120, reads: 400, likes: 20, content: ['P1'], pages: null, comments: [] },
+      { id: 'ch-2', sort_order: 1, title: 'Chapter 2', status: 'published', access: 'free', createdAt: threeHoursAgoIso, words: 180, reads: 280, likes: 30, content: ['P2'], pages: null, comments: [] }
+    ],
+    collaborators: []
+  };
+
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/config') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ supabase_url: '', supabase_anon_key: '', admin_email: '', moderator_emails: [] }) });
+    }
+    if (url.pathname === '/api/stories') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [mockStory], next_cursor: null, has_more: false }) });
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
+  });
+
+  await page.addInitScript(() => {
+    localStorage.setItem('kathasangam_onboarding_dismissed', 'true');
+  });
+
+  await page.goto('/');
+
+  const card = page.locator('#storyGrid .story-card').first();
+  await expect(card).toBeVisible();
+
+  const dateBadge = card.locator('.cover-date-badge');
+  await expect(dateBadge).toBeVisible();
+  await expect(dateBadge).toHaveClass(/is-recent/);
+
+  // Must contain SVG clock icon
+  const svgClock = dateBadge.locator('svg.badge-clock-svg');
+  await expect(svgClock).toBeVisible();
+  await expect(svgClock.locator('circle')).toBeVisible();
+  await expect(svgClock.locator('polyline')).toBeVisible();
+
+  // Must NOT contain 🕒 emoji
+  const badgeHtml = await dateBadge.innerHTML();
+  expect(badgeHtml).not.toContain('🕒');
+
+  // Must show 3h
+  const badgeText = (await dateBadge.textContent()).trim();
+  expect(badgeText).toBe('3h');
+  expect(await dateBadge.getAttribute('title')).toBe('Released 3h ago');
+});

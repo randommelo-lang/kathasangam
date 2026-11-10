@@ -121,10 +121,10 @@ export function makeCalendarIcon(className = "icon") {
   ]);
 }
 
-export function makeClockIcon(className = "icon") {
+export function makeClockIcon(className = "icon", size = 16) {
   return svgEl("svg", {
-    width: "16",
-    height: "16",
+    width: String(size),
+    height: String(size),
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",

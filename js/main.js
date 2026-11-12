@@ -193,6 +193,7 @@ var ctx = {
   recordStoryCompleted: function (storyId) { return recordStoryCompleted(state.user, storyId); },
   recordLikeGiven: function () { return recordLikeGiven(state.user); }
 };
+window.ctx = ctx;
 
 // ── Bootstrap ──
 async function bootstrap() {
@@ -285,7 +286,7 @@ function loadAll() {
       repsArray.total = reps.total || repsArray.length;
       state.reports = repsArray;
       state.notifications = results[3] || [];
-      state.progress = results[5] || [];
+      state.progress = Array.isArray(results[5]) ? results[5] : [];
       var mfaRes = results[6] || { data: { all: [] } };
       state.mfaFactors = (mfaRes.data && mfaRes.data.all) || [];
       state.recommendations = results[7] || null;

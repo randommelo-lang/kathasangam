@@ -116,6 +116,62 @@ export function renderEditor(ctx) {
   }
 
   const isComic = story.type === "Chitrānk";
+
+  if (chapter._loadedChapterId !== chapter.id) {
+    ctx.view.innerHTML = "";
+    const loadingPanel = document.createElement("section");
+    loadingPanel.className = "panel editor-panel";
+    loadingPanel.innerHTML = `
+      <div class="editor-header">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <h2>Chapter Editor</h2>
+          <span class="editor-save-status saving">⏳ Syncing with cloud...</span>
+        </div>
+        <span class="mini-meta">Story: ${story.title || ""}</span>
+      </div>
+      <div style="padding: 48px; text-align: center; color: var(--text-muted);">
+        <p>Loading chapter from cloud...</p>
+      </div>
+    `;
+    ctx.view.appendChild(loadingPanel);
+
+    ctx.api("/chapters/" + chapter.id).then(function (chData) {
+      if (ctx.ui.currentView !== "editor" || ctx.ui.editingChapterId !== chapter.id) {
+        return;
+      }
+      if (chData) {
+        if (chData.title) chapter.title = chData.title;
+        if (chData.status) chapter.status = chData.status;
+        if (chData.access) chapter.access = chData.access;
+        if (chData.scheduled_at !== undefined) chapter.scheduled_at = chData.scheduled_at;
+        if (isComic) {
+          chapter.pages = Array.isArray(chData.pages) ? chData.pages : [];
+        } else {
+          chapter.content = Array.isArray(chData.content) ? chData.content : [];
+        }
+      }
+      chapter._loadedChapterId = chapter.id;
+      ctx.view.innerHTML = "";
+      if (isComic) {
+        renderComicEditor(ctx, story, chapter);
+      } else {
+        renderTextEditor(ctx, story, chapter);
+      }
+    }).catch(function (err) {
+      console.warn("Failed to load chapter from cloud, using local state:", err);
+      chapter._loadedChapterId = chapter.id;
+      if (!chapter.content) chapter.content = [];
+      if (!chapter.pages) chapter.pages = [];
+      ctx.view.innerHTML = "";
+      if (isComic) {
+        renderComicEditor(ctx, story, chapter);
+      } else {
+        renderTextEditor(ctx, story, chapter);
+      }
+    });
+    return;
+  }
+
   if (isComic) {
     renderComicEditor(ctx, story, chapter);
   } else {

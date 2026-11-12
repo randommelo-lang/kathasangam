@@ -492,13 +492,20 @@ export function handleStudioClick(ctx, action, target, e) {
     }
     
     var hasChanges = false;
-    if (titleEl && contentEl && chapter) {
-      var originalText = "";
-      if (chapter.content && chapter.content.length) {
-        originalText = chapter.content.join("\n\n");
-      }
-      if (titleEl.value !== chapter.title || contentEl.value !== originalText) {
+    if (titleEl && chapter) {
+      var originalTitle = (chapter.title || "").trim();
+      if (titleEl.value.trim() !== originalTitle) {
         hasChanges = true;
+      }
+      if (contentEl) {
+        var originalText = "";
+        if (chapter.content && chapter.content.length) {
+          originalText = chapter.content.join("\n\n").trim();
+        }
+        var currentContent = (contentEl.value !== undefined ? contentEl.value : contentEl.innerText || "").trim();
+        if (currentContent !== originalText) {
+          hasChanges = true;
+        }
       }
     }
     
@@ -511,6 +518,8 @@ export function handleStudioClick(ctx, action, target, e) {
       }).then(function (confirmed) {
         if (!confirmed) return;
         localStorage.removeItem("kathasangam_draft_" + ctx.ui.editingChapterId);
+        if (chapter) delete chapter._loadedChapterId;
+        ctx.ui.editingChapterId = "";
         ctx.ui.currentView = "studio";
         window.location.hash = "studio";
         ctx.render();
@@ -518,6 +527,8 @@ export function handleStudioClick(ctx, action, target, e) {
       return true;
     }
     localStorage.removeItem("kathasangam_draft_" + ctx.ui.editingChapterId);
+    if (chapter) delete chapter._loadedChapterId;
+    ctx.ui.editingChapterId = "";
     ctx.ui.currentView = "studio";
     window.location.hash = "studio";
     ctx.render();

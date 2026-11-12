@@ -6,7 +6,7 @@ let ctx = null;
 
 export function getStoryReadingProgress(storyId) {
   var prog = null;
-  if (state.user && state.progress) {
+  if (state.user && Array.isArray(state.progress)) {
     prog = state.progress.find(function (p) { return p.story_id === storyId; });
   } else {
     try {
@@ -27,7 +27,7 @@ export function saveReadingProgress(storyId, chapterId, pageIndex) {
       chapter_id: chapterId,
       page_index: pageIndex
     }).then(function () {
-      if (!state.progress) state.progress = [];
+      if (!Array.isArray(state.progress)) state.progress = [];
       var existing = state.progress.find(function (p) { return p.story_id === storyId; });
       if (existing) {
         existing.chapter_id = chapterId;

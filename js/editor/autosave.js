@@ -32,16 +32,33 @@ export function updateSaveStatus(statusText, statusType) {
   el.className = "editor-save-status " + (statusType || "saved");
 }
 
-export function setupAutosave(inputElements, draftKey, getDraftData, delay = 800) {
+export function setupAutosave(inputElements, draftKey, getDraftData, delay = 800, onCloudSync = null) {
   let timer = null;
+  let cloudTimer = null;
   const trigger = () => {
     updateSaveStatus("🟡 Unsaved changes", "unsaved");
     clearTimeout(timer);
+    clearTimeout(cloudTimer);
     timer = setTimeout(() => {
       const data = getDraftData();
       saveDraft(draftKey, data);
       const timeStr = formatSaveTime();
       updateSaveStatus("💾 Autosaved locally at " + timeStr, "saved");
+
+      if (typeof onCloudSync === "function") {
+        cloudTimer = setTimeout(() => {
+          updateSaveStatus("⏳ Syncing with cloud...", "saving");
+          onCloudSync(data, function onDone(success, err) {
+            if (success) {
+              const cloudTimeStr = formatSaveTime();
+              updateSaveStatus("🟢 Saved to cloud at " + cloudTimeStr, "saved");
+            } else {
+              if (err) console.warn("Cloud autosave sync skipped or failed:", err);
+              updateSaveStatus("💾 Autosaved locally at " + timeStr, "saved");
+            }
+          });
+        }, 1500);
+      }
     }, delay);
   };
   inputElements.forEach(el => {

@@ -69,6 +69,17 @@ export function saveTextChapter(ctx, title, paragraphs, status, scheduledAt) {
     return ctx.api("/stories");
   }).then(function (s) {
     ctx.state.stories = s;
+    const story = ctx.getCurrentStudioStory();
+    if (story && story.chapters) {
+      const ch = story.chapters.find(function (c) { return c.id === targetChapterId; });
+      if (ch) {
+        ch.title = title;
+        ch.content = paragraphs;
+        ch.status = status;
+        ch._loadedChapterId = targetChapterId;
+        if (scheduledAt) ch.scheduled_at = scheduledAt;
+      }
+    }
     setTimeout(function () {
       ctx.ui.currentView = "studio";
       window.location.hash = "studio";
@@ -185,8 +196,29 @@ export function renderTextEditor(ctx, story, chapter) {
     };
   };
 
+  const onCloudSync = (draftData, callback) => {
+    if (chapter.status === "published") {
+      callback(false, "Skipping cloud auto-sync for published chapters");
+      return;
+    }
+    const paragraphs = draftData.content ? draftData.content.split(/\n\s*\n/) : [];
+    const payload = {
+      title: draftData.title || chapter.title,
+      content: paragraphs,
+      status: "draft"
+    };
+    ctx.apiPut("/chapters/" + chapter.id, payload).then(function () {
+      chapter.title = payload.title;
+      chapter.content = paragraphs;
+      chapter._loadedChapterId = chapter.id;
+      callback(true);
+    }).catch(function (err) {
+      callback(false, err);
+    });
+  };
+
   const titleInputList = [titleInput, editorDiv];
-  const triggerAutoSave = setupAutosave(titleInputList, draftKey, getDraftData);
+  const triggerAutoSave = setupAutosave(titleInputList, draftKey, getDraftData, 800, onCloudSync);
 
   // Recovery banner check
   const currentTextString = (chapter.content || []).join("\n\n");
@@ -358,7 +390,7 @@ export function renderTextEditor(ctx, story, chapter) {
 
   const actionsRow = el("div", "editor-actions-row", actionsButtons);
 
-  const saveStatusPill = el("span", { id: "editorSaveStatus", class: "editor-save-status saved" }, "🟢 Saved to cloud");
+  const saveStatusPill = el("span", { id: "editorSaveStatus", class: "editor-save-status saved" }, "🟢 Cloud synced");
 
   const editorPanel = el("section", "panel editor-panel", [
     el("div", "editor-header", [

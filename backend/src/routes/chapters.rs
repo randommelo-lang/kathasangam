@@ -346,6 +346,109 @@ pub async fn list_chapters(
     Ok(Json(chapters))
 }
 
+/// GET /api/chapters/:chapter_id
+pub async fn get_chapter(
+    auth: OptionalAuthUser,
+    State(pool): State<PgPool>,
+    Path(chapter_id): Path<Uuid>,
+) -> Result<Json<ChapterResponse>, AppError> {
+    let ch: ChapterRow = sqlx::query_as("SELECT * FROM chapters WHERE id = $1")
+        .bind(chapter_id)
+        .fetch_optional(&pool)
+        .await?
+        .ok_or_else(|| AppError::not_found("Chapter not found."))?;
+
+    let story_opt: Option<(Option<Uuid>, String, bool)> = sqlx::query_as(
+        "SELECT author_id, status, is_nsfw FROM stories WHERE id = $1",
+    )
+    .bind(ch.story_id)
+    .fetch_optional(&pool)
+    .await?;
+
+    let (story_author_id, story_status, is_nsfw) = match story_opt {
+        Some(s) => s,
+        None => return Err(AppError::not_found("Story not found.")),
+    };
+
+    let is_collab = if let Some(uid) = auth.user_id {
+        crate::routes::collaborators::check_collaborator_access(&pool, uid, ch.story_id).await.unwrap_or(false)
+    } else {
+        false
+    };
+
+    let is_author_or_collab = auth.user_id.map(|uid| Some(uid) == story_author_id || is_collab).unwrap_or(false);
+
+    if !is_author_or_collab {
+        let status_lower = story_status.to_lowercase();
+        if status_lower == "draft" || status_lower == "unpublished" {
+            return Err(AppError::forbidden("This story is not published."));
+        }
+
+        let ch_status = ch.status.to_lowercase();
+        if ch_status == "draft" || ch_status == "scheduled" {
+            return Err(AppError::forbidden("You do not have permission to view this chapter."));
+        }
+
+        if is_nsfw {
+            let mut allowed = false;
+            if let Some(uid) = auth.user_id {
+                let is_18 = crate::routes::stories::is_user_eighteen_plus(&pool, uid).await;
+                let pref = crate::routes::stories::get_user_nsfw_preference(&pool, uid).await;
+                if is_18 && pref != "hide" {
+                    allowed = true;
+                }
+            }
+            if !allowed {
+                return Err(AppError::forbidden("Underage or unauthenticated accounts are not permitted to view NSFW content."));
+            }
+        }
+    }
+
+    let content_rows: Vec<ContentRow> = sqlx::query_as(
+        "SELECT * FROM chapter_content WHERE chapter_id = $1 ORDER BY sort_order",
+    )
+    .bind(chapter_id)
+    .fetch_all(&pool)
+    .await?;
+
+    let content = if content_rows.is_empty() {
+        None
+    } else {
+        Some(content_rows.into_iter().map(|c| c.paragraph).collect())
+    };
+
+    let page_rows: Vec<PageRow> = sqlx::query_as(
+        "SELECT * FROM chapter_pages WHERE chapter_id = $1 ORDER BY page_index",
+    )
+    .bind(chapter_id)
+    .fetch_all(&pool)
+    .await?;
+
+    let pages = if page_rows.is_empty() {
+        None
+    } else {
+        Some(page_rows.into_iter().map(|p| PageResponse { label: p.label, bg: p.bg }).collect())
+    };
+
+    let resp = ChapterResponse {
+        id: ch.id,
+        sort_order: ch.sort_order,
+        title: ch.title,
+        status: ch.status,
+        access: ch.access,
+        scheduled_at: ch.scheduled_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
+        created_at: ch.created_at.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
+        words: ch.words,
+        reads: ch.reads,
+        likes: ch.likes,
+        content,
+        pages,
+        comments: Vec::new(),
+    };
+
+    Ok(Json(resp))
+}
+
 pub async fn create_chapter(
     auth: AuthUser,
     headers: HeaderMap,

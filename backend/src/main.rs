@@ -182,7 +182,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )
         .route(
             "/chapters/:chapter_id",
-            put(routes::chapters::update_chapter)
+            get(routes::chapters::get_chapter)
+                .put(routes::chapters::update_chapter)
                 .delete(routes::chapters::delete_chapter),
         )
         // COLLABORATORS

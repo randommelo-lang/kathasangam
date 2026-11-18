@@ -117,6 +117,32 @@ export function handleDiscoverClick(ctx, action, target, e) {
     ctx.loadDiscoveryPage(true);
     return true;
   }
+  if (action === "scrollShelf") {
+    var shelfId = target.dataset.shelf;
+    var direction = target.dataset.direction;
+    var shelfRow = ctx.view.querySelector('.story-grid-row[data-shelf="' + shelfId + '"]');
+    if (shelfRow) {
+      var scrollContainer = shelfRow.querySelector(".shelf-scroll-container");
+      if (scrollContainer) {
+        var scrollAmount = Math.max(240, scrollContainer.clientWidth * 0.75);
+        scrollContainer.scrollBy({
+          left: direction === "next" ? scrollAmount : -scrollAmount,
+          behavior: "smooth"
+        });
+      }
+    }
+    return true;
+  }
+  if (action === "viewAllShelf") {
+    var shelfId = target.dataset.shelf;
+    var shelfRow = ctx.view.querySelector('.story-grid-row[data-shelf="' + shelfId + '"]');
+    if (shelfRow) {
+      shelfRow.classList.toggle("is-expanded");
+      var isExpanded = shelfRow.classList.contains("is-expanded");
+      target.textContent = isExpanded ? "Show Less ▴" : "View All ›";
+    }
+    return true;
+  }
   if (action === "openStory") {
     if (e && e.target && e.target.closest("a[href]")) return false;
     var storyId = target.dataset.id || target.dataset.storyId || (target.closest("[data-id]") && target.closest("[data-id]").dataset.id) || (target.closest("[data-story-id]") && target.closest("[data-story-id]").dataset.storyId);

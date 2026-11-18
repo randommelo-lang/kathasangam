@@ -173,7 +173,7 @@ test('gives editor and reader icon controls accessible names and story settings 
 test('keeps reader routes available and blocks moderation for reader role', async ({ page }) => {
   await installApiMocks(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Read', exact: true }).click();
+  await page.locator('.cover-button').first().click();
   await expect(page).toHaveURL(/#story\?id=/);
   await page.getByRole('button', { name: 'Start Reading' }).click();
   await expect(page).toHaveURL(/#reader$/);
@@ -287,7 +287,7 @@ test('improves Story Details hierarchy with metadata, scannable chapter search, 
   };
   await installApiMocks(page, { story: multiStory });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Read', exact: true }).click();
+  await page.locator('.cover-button').first().click();
   await expect(page).toHaveURL(/#story\?id=/);
 
   // Immediate visibility of key metadata
@@ -342,7 +342,7 @@ test('makes reading comfortable across devices with compact navigator, themes, a
   };
   await installApiMocks(page, { story: multiStory });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Read', exact: true }).click();
+  await page.locator('.cover-button').first().click();
   await page.getByRole('button', { name: 'Start Reading' }).click();
   await expect(page).toHaveURL(/#reader$/);
 
@@ -512,9 +512,9 @@ test('makes mobile layouts intentional across navigation, filters, story cards, 
   expect(gridColumns).toBe(1);
 
   // 3. Touch targets for story card action buttons are at least 44px
-  const readBtn = grid.getByRole('button', { name: 'Read', exact: true }).first();
-  const readBtnHeight = await readBtn.evaluate((el) => el.getBoundingClientRect().height);
-  expect(Math.round(readBtnHeight)).toBeGreaterThanOrEqual(44);
+  const coverBtn = grid.locator('.cover-button').first();
+  const coverBtnHeight = await coverBtn.evaluate((el) => el.getBoundingClientRect().height);
+  expect(Math.round(coverBtnHeight)).toBeGreaterThanOrEqual(44);
 
   // 4. Filter drawer adapts on mobile without horizontal scrolling
   const filterToggle = page.getByRole('button', { name: 'Toggle filter options' });
@@ -1284,7 +1284,7 @@ test('improves content discovery quality with recency filters, relevance sorting
   await expect(recShelf.getByText('Personalized')).toBeVisible();
 
   // 2. Promoted badge on story card
-  const promotedCard = page.locator('#storyGrid .story-card').filter({ hasText: 'Echoes of the Aether' });
+  const promotedCard = page.locator('#storyGrid .story-card').filter({ hasText: 'Echoes of the Aether' }).first();
   await expect(promotedCard.locator('.tag-promoted')).toBeVisible();
   await expect(promotedCard.locator('.tag-promoted')).toContainText('Promoted');
 
@@ -1715,24 +1715,22 @@ test('clicking resume button opens #reader and clicking story-body opens #story'
     if (window.ctx && window.ctx.render) window.ctx.render();
   }, { sId: storyId });
 
-  // 1. Verify Resume button exists inside story-body
+  // 1. Verify card and title exist
   const card = page.locator('.story-card').first();
-  const storyBody = card.locator('.story-body');
-  const resumeBtn = storyBody.locator('button:has-text("Resume")');
-  await expect(resumeBtn).toBeVisible();
-  await expect(resumeBtn).toHaveAttribute('data-action', 'openReader');
+  const titleEl = card.locator('.story-card-title');
+  await expect(titleEl).toBeVisible();
 
-  // 2. Click the Resume button -> must directly open #reader
-  await resumeBtn.click();
+  // 2. Click the story title -> directly opens #reader to read/resume
+  await titleEl.click();
   await expect.poll(async () => page.evaluate(() => window.location.hash)).toBe('#reader');
 
   // 3. Return to discover
   await page.evaluate(() => { window.location.hash = 'discover'; });
-  await expect(storyBody).toBeVisible();
+  const coverBtn = card.locator('.cover-button');
+  await expect(coverBtn).toBeVisible();
 
-  // 4. Click the story-body description paragraph -> must open #story
-  const desc = storyBody.locator('p');
-  await desc.click();
+  // 4. Click the cover button -> opens #story
+  await coverBtn.click();
   await expect.poll(async () => page.evaluate(() => window.location.hash)).toContain('story?id=' + storyId);
 });
 

@@ -309,6 +309,71 @@ export function getClassicsStories(ctx) {
   return classics.slice(0, 10);
 }
 
+export function renderShelfSection(ctx, config) {
+  var shelfId = config.id;
+  var title = config.title;
+  var items = config.stories || [];
+  if (!items.length) return null;
+
+  var showNav = items.length > 5;
+  var headerActions = el("div", "story-grid-header-actions");
+
+  if (showNav) {
+    var prevBtn = el("button", {
+      type: "button",
+      class: "shelf-nav-btn shelf-nav-prev",
+      "data-action": "scrollShelf",
+      "data-direction": "prev",
+      "data-shelf": shelfId,
+      "aria-label": "Previous stories in " + title
+    }, "<");
+
+    var nextBtn = el("button", {
+      type: "button",
+      class: "shelf-nav-btn shelf-nav-next",
+      "data-action": "scrollShelf",
+      "data-direction": "next",
+      "data-shelf": shelfId,
+      "aria-label": "Next stories in " + title
+    }, ">");
+
+    headerActions.appendChild(prevBtn);
+    headerActions.appendChild(nextBtn);
+  }
+
+  var viewAllBtn = el("button", {
+    type: "button",
+    class: "shelf-view-all-btn",
+    "data-action": "viewAllShelf",
+    "data-shelf": shelfId,
+    "aria-label": "View all " + title + " stories"
+  }, [
+    document.createTextNode("View All "),
+    el("span", { class: "shelf-chevron", "aria-hidden": "true" }, "›")
+  ]);
+  headerActions.appendChild(viewAllBtn);
+
+  var header = el("div", { class: "story-grid-header", "data-shelf": shelfId }, [
+    el("span", "story-grid-header-title", title),
+    headerActions
+  ]);
+
+  var scrollContainer = el("div", "shelf-scroll-container", [
+    el("div", "shelf-row", items.map(function (s) {
+      return storyCard(ctx, s, { shelf: true, shelfSub: config.isShelfSub });
+    }))
+  ]);
+
+  var row = el("div", { class: "story-grid-row", "data-shelf": shelfId }, [
+    scrollContainer
+  ]);
+
+  var frag = document.createDocumentFragment();
+  frag.appendChild(header);
+  frag.appendChild(row);
+  return frag;
+}
+
 export function renderRecommendedSection(ctx) {
   var recData = ctx.state.recommendations;
   if (!recData || !recData.items || !recData.items.length) return null;
@@ -812,44 +877,38 @@ export function renderDiscover(ctx) {
   if (!hasActiveFilters && stories.length) {
     var newlyAddedItems = getNewlyAddedStories(ctx);
     if (newlyAddedItems.length) {
-      grid.appendChild(el("div", "story-grid-header", [
-        el("span", "story-grid-header-title", "Newly Added")
-      ]));
-      var newlyAddedRow = el("div", { class: "story-grid-row", "data-shelf": "newly-added" }, [
-        el("div", "shelf-scroll-container", [
-          el("div", "shelf-row", newlyAddedItems.map(function (s) {
-            return storyCard(ctx, s, { shelf: true });
-          }))
-        ])
-      ]);
-      grid.appendChild(newlyAddedRow);
+      var newlyAddedShelf = renderShelfSection(ctx, {
+        id: "newly-added",
+        title: "Newly Added",
+        stories: newlyAddedItems,
+        isShelfSub: true
+      });
+      if (newlyAddedShelf) grid.appendChild(newlyAddedShelf);
     }
 
     var classicsItems = getClassicsStories(ctx);
     if (classicsItems.length) {
-      grid.appendChild(el("div", "story-grid-header", [
-        el("span", "story-grid-header-title", "Classics")
-      ]));
-      var classicsRow = el("div", { class: "story-grid-row", "data-shelf": "classics" }, [
-        el("div", "shelf-scroll-container", [
-          el("div", "shelf-row", classicsItems.map(function (s) {
-            return storyCard(ctx, s, { shelf: true });
-          }))
-        ])
-      ]);
-      grid.appendChild(classicsRow);
+      var classicsShelf = renderShelfSection(ctx, {
+        id: "classics",
+        title: "Classics",
+        stories: classicsItems,
+        isShelfSub: true
+      });
+      if (classicsShelf) grid.appendChild(classicsShelf);
     }
 
-    if (newlyAddedItems.length || classicsItems.length) {
-      grid.appendChild(el("div", "story-grid-header", [
-        el("span", "story-grid-header-title", "All Stories")
-      ]));
-    }
+    var allStoriesShelf = renderShelfSection(ctx, {
+      id: "all-stories",
+      title: "All Stories",
+      stories: stories,
+      isShelfSub: false
+    });
+    if (allStoriesShelf) grid.appendChild(allStoriesShelf);
+  } else {
+    stories.forEach(function (story) {
+      grid.appendChild(storyCard(ctx, story, { shelf: true }));
+    });
   }
-
-  stories.forEach(function (story) {
-    grid.appendChild(storyCard(ctx, story));
-  });
 
   if (ctx.state.discoveryError && !stories.length) {
     mainCol.appendChild(el("div", { class: "empty-state", role: "alert" }, [

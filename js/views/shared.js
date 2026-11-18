@@ -222,20 +222,19 @@ export function storyCard(ctx, story, options) {
   }
 
   if (options.shelf) {
-    card.classList.remove("story-card");
     card.classList.add("shelf-card");
-    var titleH2 = card.querySelector("h2");
-    if (titleH2) {
+  }
+  var titleEl = card.querySelector("h2");
+  if (titleEl) {
+    if (options.shelfSub) {
       var shelfTitleEl = el("div", "story-card-title", story.title);
       shelfTitleEl.title = "Read latest: " + badgeInfo.chapterTitle;
       shelfTitleEl.dataset.action = options.manage ? "manageStory" : "openLatestChapter";
       shelfTitleEl.dataset.id = story.id;
       shelfTitleEl.style.cursor = "pointer";
-      titleH2.replaceWith(shelfTitleEl);
-    }
-  } else {
-    var titleEl = card.querySelector("h2");
-    if (titleEl) {
+      titleEl.replaceWith(shelfTitleEl);
+    } else {
+      titleEl.classList.add("story-card-title");
       titleEl.textContent = story.title;
       titleEl.title = "Read latest: " + badgeInfo.chapterTitle;
       titleEl.dataset.action = options.manage ? "manageStory" : "openLatestChapter";

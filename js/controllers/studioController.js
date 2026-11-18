@@ -4,9 +4,8 @@ import { setFormFeedback, setButtonLoading, formatDateTime } from "../components
 
 export function handleStudioClick(ctx, action, target, e) {
   if (action === "switchStudioStory") {
-    ctx.ui.currentStoryId = target.value;
-    ctx.render();
-    return true;
+    // Dropdowns/selects should not re-render on click/tap, only on 'change' input.
+    return false;
   }
   if (action === "setStudioChapterTab") {
     ctx.ui.studioChapterTab = target.dataset.tab;

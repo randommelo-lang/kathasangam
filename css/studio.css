@@ -1481,6 +1481,9 @@ h2 svg.icon {
   color: var(--text);
   cursor: pointer;
   max-width: 280px;
+  touch-action: manipulation;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .studio-switcher-badge {

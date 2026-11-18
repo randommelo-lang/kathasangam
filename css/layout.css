@@ -918,8 +918,13 @@ h2 {
 }
 
 /* MangaPlus shelf cards (Newly Added & Classics rows): cover, title, and subline only */
-.shelf-card .tag-row,
-.shelf-row .tag-row {
+.shelf-card .tag-row:not(:has(.tag-promoted)),
+.shelf-row .tag-row:not(:has(.tag-promoted)) {
+  display: none !important;
+}
+
+.shelf-card .tag-row:has(.tag-promoted) .tag:not(.tag-promoted),
+.shelf-row .tag-row:has(.tag-promoted) .tag:not(.tag-promoted) {
   display: none !important;
 }
 
@@ -1016,10 +1021,87 @@ h2 {
   letter-spacing: 0.3px;
 }
 
+.story-grid-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shelf-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.15));
+  background: var(--surface, rgba(255, 255, 255, 0.06));
+  color: var(--text, #ffffff);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.shelf-nav-btn:hover {
+  background: var(--accent, #f36b15);
+  color: #ffffff;
+  border-color: var(--accent, #f36b15);
+}
+
+.shelf-view-all-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent, #f36b15);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: opacity 0.2s;
+  touch-action: manipulation;
+}
+
+.shelf-view-all-btn:hover {
+  opacity: 0.85;
+  text-decoration: underline;
+}
+
+.shelf-chevron {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
 .story-grid-row {
   grid-column: 1 / -1;
   width: 100%;
   margin-bottom: 6px;
+}
+
+.story-grid-row.is-expanded .shelf-row {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)) !important;
+  gap: 22px 18px !important;
+  overflow: visible !important;
+  padding: 8px 2px !important;
+}
+
+.story-grid-row.is-expanded .shelf-row .shelf-card,
+.story-grid-row.is-expanded .shelf-row .story-card {
+  flex: none !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+.story-grid-row.is-expanded .shelf-scroll-container {
+  overflow: visible !important;
 }
 
 .discover-shelf {
@@ -1068,6 +1150,11 @@ h2 {
   .shelf-row .story-card {
     flex: 0 0 135px;
     max-width: 135px;
+  }
+
+  .story-grid-row.is-expanded .shelf-row {
+    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)) !important;
+    gap: 16px 12px !important;
   }
 }
 
@@ -2310,6 +2397,22 @@ h2 {
 
 :root.light .mobile-nav-item.active {
   color: var(--accent) !important;
+}
+
+:root.light .story-grid-header-title {
+  color: var(--ink) !important;
+}
+
+:root.light .shelf-nav-btn {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+:root.light .shelf-nav-btn:hover {
+  background: var(--accent) !important;
+  color: #ffffff !important;
+  border-color: var(--accent) !important;
 }
 
 /* ─── Reader Onboarding Pop-Up Modal ─── */

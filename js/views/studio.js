@@ -125,7 +125,6 @@ export function renderStudio(ctx) {
   var switcherElements = [];
   if (userStories.length > 0 && active) {
     var storySelector = el("select", "studio-story-switcher-select");
-    storySelector.dataset.action = "switchStudioStory";
     storySelector.setAttribute("aria-label", "Switch active series");
     userStories.forEach(function (s) {
       var opt = el("option", null, s.title);
@@ -154,7 +153,7 @@ export function renderStudio(ctx) {
     switcherElements.push(switcherBar);
   }
 
-  var headerTitleArea = el("div", null, [
+  var headerTitleArea = el("div", "studio-header-title-area", [
     el("div", null, [
       el("h2", null, "Author Studio"),
       el("p", null, "Manage your series, outline chapters, and track readership")

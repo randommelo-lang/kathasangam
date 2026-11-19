@@ -849,11 +849,12 @@ h2 {
   cursor: pointer;
 }
 
-.story-card-title {
-  font-size: 0.95rem;
+.story-card-title,
+.story-body h2.story-card-title {
+  font-size: 0.95rem !important;
   font-weight: 700;
   color: #ffffff;
-  margin: 0;
+  margin: 6px 0 2px 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1082,6 +1083,8 @@ h2 {
 .story-grid-row {
   grid-column: 1 / -1;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin-bottom: 6px;
 }
 
@@ -1114,6 +1117,11 @@ h2 {
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 4px 0 12px 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
@@ -1130,31 +1138,42 @@ h2 {
 
 .shelf-row {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   gap: 16px;
   padding: 4px 2px;
+  width: max-content;
+  min-width: 100%;
 }
 
 .shelf-row .shelf-card,
 .shelf-row .story-card {
   flex: 0 0 170px;
+  min-width: 170px;
   max-width: 170px;
+  width: 170px;
+  flex-shrink: 0;
 }
 
 @media (max-width: 640px) {
   .story-grid {
-    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+    grid-template-columns: 1fr;
     gap: 16px 12px;
   }
 
   .shelf-row .shelf-card,
   .shelf-row .story-card {
-    flex: 0 0 135px;
-    max-width: 135px;
+    flex: 0 0 135px !important;
+    min-width: 135px !important;
+    max-width: 135px !important;
+    width: 135px !important;
+    flex-shrink: 0 !important;
   }
 
   .story-grid-row.is-expanded .shelf-row {
     grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)) !important;
     gap: 16px 12px !important;
+    width: 100% !important;
   }
 }
 
@@ -1594,13 +1613,13 @@ h2 {
     justify-content: center;
   }
 
-  .story-card .story-actions {
+  .story-card:not(.shelf-card) .story-actions {
     display: flex;
     gap: 8px;
     width: 100%;
   }
 
-  .story-card .story-actions .btn {
+  .story-card:not(.shelf-card) .story-actions .btn {
     flex: 1;
     min-height: 44px;
     justify-content: center;

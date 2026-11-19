@@ -1472,8 +1472,8 @@ h2 svg.icon {
 }
 
 .studio-story-switcher-select {
-  padding: 6px 12px;
-  font-size: 0.9rem;
+  padding: 8px 12px;
+  font-size: 16px;
   font-weight: 600;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
@@ -1481,8 +1481,12 @@ h2 svg.icon {
   color: var(--text);
   cursor: pointer;
   max-width: 280px;
-  touch-action: manipulation;
-  pointer-events: auto;
+  touch-action: auto !important;
+  pointer-events: auto !important;
+  -webkit-appearance: menulist !important;
+  appearance: auto !important;
+  position: relative;
+  z-index: 10;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -1848,6 +1852,11 @@ h2 svg.icon {
     gap: 12px;
   }
 
+  .studio-header-title-area {
+    width: 100%;
+    min-width: 0;
+  }
+
   .studio-story-switcher-bar {
     flex-direction: column;
     align-items: stretch;
@@ -1858,8 +1867,9 @@ h2 svg.icon {
   .studio-story-switcher-select {
     max-width: 100%;
     width: 100%;
-    min-height: 44px;
+    min-height: 48px;
     font-size: 16px;
+    display: block;
   }
 
   .studio-switcher-badge {

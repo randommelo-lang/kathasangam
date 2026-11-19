@@ -226,21 +226,12 @@ export function storyCard(ctx, story, options) {
   }
   var titleEl = card.querySelector("h2");
   if (titleEl) {
-    if (options.shelfSub) {
-      var shelfTitleEl = el("div", "story-card-title", story.title);
-      shelfTitleEl.title = "Read latest: " + badgeInfo.chapterTitle;
-      shelfTitleEl.dataset.action = options.manage ? "manageStory" : "openLatestChapter";
-      shelfTitleEl.dataset.id = story.id;
-      shelfTitleEl.style.cursor = "pointer";
-      titleEl.replaceWith(shelfTitleEl);
-    } else {
-      titleEl.classList.add("story-card-title");
-      titleEl.textContent = story.title;
-      titleEl.title = "Read latest: " + badgeInfo.chapterTitle;
-      titleEl.dataset.action = options.manage ? "manageStory" : "openLatestChapter";
-      titleEl.dataset.id = story.id;
-      titleEl.style.cursor = "pointer";
-    }
+    titleEl.classList.add("story-card-title");
+    titleEl.textContent = story.title;
+    titleEl.title = "Read latest: " + badgeInfo.chapterTitle;
+    titleEl.dataset.action = options.manage ? "manageStory" : "openLatestChapter";
+    titleEl.dataset.id = story.id;
+    titleEl.style.cursor = "pointer";
   }
   card.querySelector("p").textContent = story.description;
 

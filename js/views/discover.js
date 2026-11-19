@@ -901,7 +901,7 @@ export function renderDiscover(ctx) {
       id: "all-stories",
       title: "All Stories",
       stories: stories,
-      isShelfSub: false
+      isShelfSub: true
     });
     if (allStoriesShelf) grid.appendChild(allStoriesShelf);
   } else {

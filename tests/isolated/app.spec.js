@@ -50,7 +50,7 @@ test('publishes only the public frontend and routes safely to the app', async ({
   await installApiMocks(page);
   const response = await page.goto('/');
   expect(response.status()).toBe(200);
-  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' })).toBeVisible();
+  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' }).first()).toBeVisible();
   for (const path of ['/Plan.md', '/backend/src/main.rs', '/tests/smoke.spec.js', '/README.md']) {
     expect((await request.get(path)).status(), `${path} should not be public`).toBe(404);
   }
@@ -61,7 +61,7 @@ test('removed direct messaging route returns users to Discover', async ({ page }
   await page.goto('/');
   await page.evaluate(() => { window.location.hash = 'messages'; });
   await expect(page).toHaveURL(/#discover$/);
-  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' })).toBeVisible();
+  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Messages' })).toHaveCount(0);
 });
 
@@ -79,9 +79,9 @@ test('uses an explicit page cursor and can reveal more stories', async ({ page }
     }) });
   } });
   await page.goto('/');
-  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' })).toBeVisible();
+  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Load more stories' }).click();
-  await expect(page.getByRole('heading', { name: 'Another Chronicle' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Another Chronicle' }).first()).toBeVisible();
   expect(pageCalls).toBe(2);
 });
 
@@ -96,7 +96,7 @@ test('shows retry and sign-in actions for service errors and expired sessions', 
   await page.goto('/');
   await expect(page.getByText('Stories could not be loaded')).toBeVisible();
   await page.getByRole('button', { name: 'Try again' }).click();
-  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' })).toBeVisible();
+  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' }).first()).toBeVisible();
 
   await page.route('**/api/stories**', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ message: 'Session expired' }) }));
   await page.getByLabel('Search stories, authors, and tags').fill('expired');
@@ -140,7 +140,7 @@ test('supports keyboard use of the featured carousel and honors reduced motion',
 test('gives every visible Discover button an accessible name', async ({ page }) => {
   await installApiMocks(page);
   await page.goto('/');
-  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' })).toBeVisible();
+  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' }).first()).toBeVisible();
   const unnamed = await page.locator('button:visible').evaluateAll((buttons) => buttons
     .filter((button) => !(button.getAttribute('aria-label') || button.getAttribute('title') || button.innerText.trim() || button.querySelector('img[alt]:not([alt=""])')))
     .map((button) => button.outerHTML.slice(0, 180)));
@@ -192,7 +192,7 @@ test('lets an authenticated author create a story from the editor flow', async (
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [story], genres: ['Fantasy'], has_more: false }) });
   } });
   await page.goto('/');
-  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' })).toBeVisible();
+  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' }).first()).toBeVisible();
   await page.evaluate(() => {
     window.state.user = { id: 'author-1', email: 'writer@example.test' };
     window.state.role = 'author';
@@ -240,7 +240,7 @@ test('supports active filter chips, URL synchronization, and distinct empty stat
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [story], next_cursor: null, has_more: false }) });
   } });
   await page.goto('/');
-  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' })).toBeVisible();
+  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' }).first()).toBeVisible();
 
   // Filter format to Web Novel
   await page.getByRole('button', { name: 'Web Novel', exact: true }).click();
@@ -254,7 +254,7 @@ test('supports active filter chips, URL synchronization, and distinct empty stat
 
   // Reset filters
   await page.getByRole('button', { name: 'Reset all filters' }).click();
-  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' })).toBeVisible();
+  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Test Chronicle' }).first()).toBeVisible();
   await expect(page.getByText('No stories found matching your filters')).toBeHidden();
 });
 
@@ -505,7 +505,7 @@ test('makes mobile layouts intentional across navigation, filters, story cards, 
 
   // 2. Story grid reflows to 1 column on mobile
   const grid = page.locator('#storyGrid');
-  await expect(grid.getByRole('heading', { name: 'The Test Chronicle' })).toBeVisible();
+  await expect(grid.getByRole('heading', { name: 'The Test Chronicle' }).first()).toBeVisible();
   const gridColumns = await grid.evaluate((el) => {
     return window.getComputedStyle(el).gridTemplateColumns.split(' ').length;
   });
@@ -1161,7 +1161,7 @@ test('fetches full chapter content when opening chapters from table of contents 
   });
 
   await page.goto('/');
-  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Unfolding Saga' })).toBeVisible();
+  await expect(page.locator('#storyGrid').getByRole('heading', { name: 'The Unfolding Saga' }).first()).toBeVisible();
 
   // Navigate to story details
   await page.evaluate(() => { window.location.hash = 'story?id=story-meta-only-999'; });

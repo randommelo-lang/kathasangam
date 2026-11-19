@@ -163,7 +163,11 @@ test.describe('Studio Switcher Touch and Discover MangaPlus Shelves', () => {
 
     // Verify pointer-events and touch-action styling on switcher
     const touchAction = await switcher.evaluate((el) => window.getComputedStyle(el).touchAction);
-    expect(touchAction).toBe('manipulation');
+    expect(touchAction).toBe('auto');
+
+    // Verify selector does NOT have data-action attribute to prevent click delegation interference
+    const hasDataAction = await switcher.evaluate((el) => el.hasAttribute('data-action'));
+    expect(hasDataAction).toBe(false);
 
     // Simulate clicking / tapping on the select element:
     // In buggy version, clicking the select fired a click event which triggered ctx.render() and destroyed the node.
@@ -281,5 +285,111 @@ test.describe('Studio Switcher Touch and Discover MangaPlus Shelves', () => {
     // Shelf row must remove .is-expanded and restore "View All ›"
     await expect(allShelf).not.toHaveClass(/is-expanded/);
     await expect(viewAllBtn).toHaveText(/View All/);
+  });
+
+  test('5. Mobile portrait: side-scrolling enabled and MangaPlus format parity across all shelves', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/');
+    await page.evaluate(() => { window.location.hash = 'discover'; });
+
+    const shelves = ['newly-added', 'classics', 'all-stories'];
+
+    for (const shelfId of shelves) {
+      const shelfRow = page.locator(`.story-grid-row[data-shelf="${shelfId}"]`);
+      await expect(shelfRow).toBeVisible();
+
+      const scrollContainer = shelfRow.locator('.shelf-scroll-container');
+      await expect(scrollContainer).toBeVisible();
+
+      // Verify container width is constrained to viewport (not blown out to 1196px)
+      const clientWidth = await scrollContainer.evaluate((el) => el.clientWidth);
+      expect(clientWidth).toBeLessThanOrEqual(375);
+
+      // Verify touch attributes
+      const touchAction = await scrollContainer.evaluate((el) => window.getComputedStyle(el).touchAction);
+      expect(touchAction).toBe('pan-x pan-y');
+
+      // Check first card in each shelf
+      const firstCard = shelfRow.locator('.story-card').first();
+      await expect(firstCard).toHaveClass(/shelf-card/);
+
+      // Verify card width on mobile is 135px
+      const cardWidth = await firstCard.evaluate((el) => window.getComputedStyle(el).width);
+      expect(cardWidth).toBe('135px');
+
+      // Verify title tag is H2 for all shelves (format parity)
+      const titleTag = await firstCard.locator('.story-card-title').evaluate((el) => el.tagName);
+      expect(titleTag).toBe('H2');
+
+      // Verify tags and action buttons are hidden on shelf cards
+      const actionsDisplay = await firstCard.locator('.story-actions').evaluate((el) => window.getComputedStyle(el).display);
+      expect(actionsDisplay).toBe('none');
+    }
+
+    // Verify side-scrolling on All Stories shelf (which has 6 stories, scrollWidth > clientWidth)
+    const allScrollContainer = page.locator('.story-grid-row[data-shelf="all-stories"] .shelf-scroll-container');
+    const scrollMetrics = await allScrollContainer.evaluate((el) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+      canScroll: el.scrollWidth > el.clientWidth
+    }));
+    expect(scrollMetrics.canScroll).toBe(true);
+  });
+
+  test('6. Mobile portrait: Studio story switcher select has touch-action auto and full-width touch target', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/');
+
+    await page.evaluate(({ s1Id, s2Id, stories }) => {
+      window.state.user = { id: 'test-author-id', email: 'author@example.test' };
+      window.state.profile = { id: 'test-author-id', username: 'author_one', role: 'author' };
+      window.state.role = 'author';
+      window.state.stories = stories;
+      window.ui.currentStoryId = s1Id;
+      window.render();
+      window.location.hash = 'studio';
+    }, { s1Id: story1Id, s2Id: story2Id, stories: mockStories });
+
+    const switcher = page.locator('.studio-story-switcher-select');
+    await expect(switcher).toBeVisible();
+
+    // Verify touch action is auto for mobile OS picker
+    const touchAction = await switcher.evaluate((el) => window.getComputedStyle(el).touchAction);
+    expect(touchAction).toBe('auto');
+
+    // Verify touch target height is at least 44px
+    const rect = await switcher.boundingBox();
+    expect(rect.height).toBeGreaterThanOrEqual(44);
+
+    // Verify font-size is 16px to prevent iOS auto-zoom
+    const fontSize = await switcher.evaluate((el) => window.getComputedStyle(el).fontSize);
+    expect(fontSize).toBe('16px');
+
+    // Verify changing value works cleanly
+    await switcher.selectOption(story2Id);
+    const updatedId = await page.evaluate(() => window.ui.currentStoryId);
+    expect(updatedId).toBe(story2Id);
+  });
+
+  test('7. Mobile landscape: shelves maintain side-scrolling and format parity', async ({ page }) => {
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto('/');
+    await page.evaluate(() => { window.location.hash = 'discover'; });
+
+    const allScrollContainer = page.locator('.story-grid-row[data-shelf="all-stories"] .shelf-scroll-container');
+    await expect(allScrollContainer).toBeVisible();
+
+    const scrollMetrics = await allScrollContainer.evaluate((el) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+      canScroll: el.scrollWidth > el.clientWidth
+    }));
+    expect(scrollMetrics.canScroll).toBe(true);
+
+    // Verify format parity: all stories first card has H2 titleTag
+    const allTitleTag = await page.locator('.story-grid-row[data-shelf="all-stories"] .story-card-title').first().evaluate((el) => el.tagName);
+    const newlyAddedTitleTag = await page.locator('.story-grid-row[data-shelf="newly-added"] .story-card-title').first().evaluate((el) => el.tagName);
+    expect(allTitleTag).toBe('H2');
+    expect(newlyAddedTitleTag).toBe('H2');
   });
 });

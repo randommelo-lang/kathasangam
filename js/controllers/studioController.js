@@ -3,10 +3,6 @@ import { importTextFile as importTextFileModule } from "../editor/importers.js";
 import { setFormFeedback, setButtonLoading, formatDateTime } from "../components.js";
 
 export function handleStudioClick(ctx, action, target, e) {
-  if (action === "switchStudioStory") {
-    // Dropdowns/selects should not re-render on click/tap, only on 'change' input.
-    return false;
-  }
   if (action === "setStudioChapterTab") {
     ctx.ui.studioChapterTab = target.dataset.tab;
     ctx.render();
@@ -885,7 +881,7 @@ export function handleStudioInput(ctx, action, target, e) {
     }, 180);
     return true;
   }
-  if (action === "switchStudioStory" || target.dataset.action === "switchStudioStory") {
+  if (action === "switchStudioStory" || (target && target.classList && target.classList.contains("studio-story-switcher-select"))) {
     ctx.ui.currentStoryId = target.value;
     ctx.render();
     return true;

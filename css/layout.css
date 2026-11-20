@@ -1116,9 +1116,8 @@ h2 {
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
   touch-action: pan-x pan-y;
-  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -1144,6 +1143,7 @@ h2 {
   padding: 4px 2px;
   width: max-content;
   min-width: 100%;
+  touch-action: pan-x pan-y;
 }
 
 .shelf-row .shelf-card,
@@ -1153,6 +1153,27 @@ h2 {
   max-width: 170px;
   width: 170px;
   flex-shrink: 0;
+  content-visibility: visible;
+  scroll-snap-align: start;
+  touch-action: pan-x pan-y;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.shelf-row .cover-button {
+  touch-action: pan-x pan-y;
+  -webkit-user-drag: none;
+}
+
+.shelf-row .cover-art,
+.shelf-row .cover-img,
+.shelf-row .cover-badge,
+.shelf-row .cover-date-badge {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 @media (max-width: 640px) {
@@ -1168,6 +1189,26 @@ h2 {
     max-width: 135px !important;
     width: 135px !important;
     flex-shrink: 0 !important;
+  }
+
+  .shelf-row .cover-badge,
+  .shelf-row .cover-date-badge {
+    font-size: 0.58rem;
+    padding: 2px 5px;
+    top: 5px;
+    letter-spacing: 0.1px;
+  }
+
+  .shelf-row .cover-badge {
+    left: 5px;
+    max-width: 58px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .shelf-row .cover-date-badge {
+    right: 5px;
   }
 
   .story-grid-row.is-expanded .shelf-row {
@@ -1520,6 +1561,11 @@ h2 {
   .story-grid {
     grid-template-columns: 1fr;
     gap: 14px;
+  }
+
+  .story-grid:has(> .story-card) {
+    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+    gap: 16px 12px;
   }
 
   .panel {

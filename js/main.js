@@ -773,7 +773,7 @@ function handleViewClick(e) {
 
 function handleViewInput(e) {
   var action = e.target.dataset.action;
-  if (!action && !e.target.classList.contains("studio-chapter-search")) return;
+  if (!action && !e.target.classList.contains("studio-chapter-search") && !e.target.classList.contains("studio-story-switcher-select")) return;
   if (handleStoryInput(ctx, action, e.target, e)) return;
   if (handleStudioInput(ctx, action, e.target, e)) return;
   if (handleReaderInput(ctx, action, e.target, e)) return;

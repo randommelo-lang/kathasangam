@@ -163,7 +163,7 @@ test.describe('Studio Switcher Touch and Discover MangaPlus Shelves', () => {
 
     // Verify pointer-events and touch-action styling on switcher
     const touchAction = await switcher.evaluate((el) => window.getComputedStyle(el).touchAction);
-    expect(touchAction).toBe('auto');
+    expect(['auto', 'manipulation']).toContain(touchAction);
 
     // Verify selector does NOT have data-action attribute to prevent click delegation interference
     const hasDataAction = await switcher.evaluate((el) => el.hasAttribute('data-action'));
@@ -324,6 +324,12 @@ test.describe('Studio Switcher Touch and Discover MangaPlus Shelves', () => {
       // Verify tags and action buttons are hidden on shelf cards
       const actionsDisplay = await firstCard.locator('.story-actions').evaluate((el) => window.getComputedStyle(el).display);
       expect(actionsDisplay).toBe('none');
+
+      // Verify cover-button has touch-action pan-x pan-y and cover-art has pointer-events none
+      const coverBtnTouch = await firstCard.locator('.cover-button').evaluate((el) => window.getComputedStyle(el).touchAction);
+      expect(coverBtnTouch).toBe('pan-x pan-y');
+      const coverArtPointer = await firstCard.locator('.cover-art').evaluate((el) => window.getComputedStyle(el).pointerEvents);
+      expect(coverArtPointer).toBe('none');
     }
 
     // Verify side-scrolling on All Stories shelf (which has 6 stories, scrollWidth > clientWidth)
@@ -353,9 +359,9 @@ test.describe('Studio Switcher Touch and Discover MangaPlus Shelves', () => {
     const switcher = page.locator('.studio-story-switcher-select');
     await expect(switcher).toBeVisible();
 
-    // Verify touch action is auto for mobile OS picker
+    // Verify touch action is manipulation or auto for mobile OS picker
     const touchAction = await switcher.evaluate((el) => window.getComputedStyle(el).touchAction);
-    expect(touchAction).toBe('auto');
+    expect(['auto', 'manipulation']).toContain(touchAction);
 
     // Verify touch target height is at least 44px
     const rect = await switcher.boundingBox();

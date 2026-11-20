@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +32,33 @@ for (const directory of ["css", "icons", "js"]) {
     recursive: true,
     filter: (source) => !source.endsWith(".map") && !source.endsWith("README.md"),
   });
+}
+
+// Propagate the index.html asset version query string to all relative ES module
+// imports in dist/public/js so mobile browsers cannot reuse stale cached sub-modules.
+const indexHtml = readFileSync(resolve(publicDir, "index.html"), "utf8");
+const versionMatch = indexHtml.match(/\/js\/main\.js\?v=([a-zA-Z0-9._-]+)/);
+if (versionMatch) {
+  const assetVersion = versionMatch[1];
+  const rewriteJsImports = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "vendor") continue;
+        rewriteJsImports(fullPath);
+      } else if (entry.name.endsWith(".js")) {
+        const src = readFileSync(fullPath, "utf8");
+        const updated = src.replace(
+          /(\bfrom\s+["'])(\.\.?\/[^"']+?\.js)(["'])/g,
+          `$1$2?v=${assetVersion}$3`
+        );
+        if (updated !== src) {
+          writeFileSync(fullPath, updated, "utf8");
+        }
+      }
+    }
+  };
+  rewriteJsImports(resolve(publicDir, "js"));
 }
 
 console.log(`Frontend published to ${publicDir}`);

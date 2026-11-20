@@ -1472,7 +1472,7 @@ h2 svg.icon {
 }
 
 .studio-story-switcher-select {
-  padding: 8px 12px;
+  padding: 8px 32px 8px 12px;
   font-size: 16px;
   font-weight: 600;
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1481,10 +1481,8 @@ h2 svg.icon {
   color: var(--text);
   cursor: pointer;
   max-width: 280px;
-  touch-action: auto !important;
-  pointer-events: auto !important;
-  -webkit-appearance: menulist !important;
-  appearance: auto !important;
+  touch-action: manipulation;
+  pointer-events: auto;
   position: relative;
   z-index: 10;
   -webkit-tap-highlight-color: transparent;
@@ -1870,6 +1868,8 @@ h2 svg.icon {
     min-height: 48px;
     font-size: 16px;
     display: block;
+    touch-action: manipulation;
+    pointer-events: auto;
   }
 
   .studio-switcher-badge {

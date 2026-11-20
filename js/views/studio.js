@@ -133,6 +133,7 @@ export function renderStudio(ctx) {
       storySelector.appendChild(opt);
     });
     storySelector.addEventListener("change", function (e) {
+      e.stopPropagation();
       ctx.ui.currentStoryId = e.target.value;
       ctx.render();
     });

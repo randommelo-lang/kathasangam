@@ -122,6 +122,14 @@ test.describe('Studio Switcher Touch and Discover MangaPlus Shelves', () => {
   ];
 
   test.beforeEach(async ({ page }) => {
+    await page.route('https://images.example.test/**', async (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180"><rect width="300" height="180" fill="#333"/></svg>'
+      });
+    });
+
     await page.route('**/api/**', async (route) => {
       const url = new URL(route.request().url());
       if (url.pathname === '/api/config') {
@@ -151,9 +159,10 @@ test.describe('Studio Switcher Touch and Discover MangaPlus Shelves', () => {
       window.state.role = 'author';
       window.state.stories = stories;
       window.ui.currentStoryId = s1Id;
-      window.render();
       window.location.hash = 'studio';
+      window.render();
     }, { s1Id: story1Id, s2Id: story2Id, stories: mockStories });
+    await expect(page).toHaveURL(/#studio/);
 
     const switcher = page.locator('.studio-story-switcher-select');
     await expect(switcher).toBeVisible();
@@ -352,9 +361,10 @@ test.describe('Studio Switcher Touch and Discover MangaPlus Shelves', () => {
       window.state.role = 'author';
       window.state.stories = stories;
       window.ui.currentStoryId = s1Id;
-      window.render();
       window.location.hash = 'studio';
+      window.render();
     }, { s1Id: story1Id, s2Id: story2Id, stories: mockStories });
+    await expect(page).toHaveURL(/#studio/);
 
     const switcher = page.locator('.studio-story-switcher-select');
     await expect(switcher).toBeVisible();

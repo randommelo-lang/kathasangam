@@ -29,6 +29,14 @@ test('Discovery MangaPlus cards: DD.MM release date, latest chapter number, clic
     collaborators: []
   };
 
+  await page.route('https://images.example.test/**', async (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180"><rect width="300" height="180" fill="#333"/></svg>'
+    });
+  });
+
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/config') {
@@ -123,6 +131,14 @@ test('Discovery MangaPlus cards: recent release badge uses SVG clock icon withou
     ],
     collaborators: []
   };
+
+  await page.route('https://images.example.test/**', async (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180"><rect width="300" height="180" fill="#333"/></svg>'
+    });
+  });
 
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());

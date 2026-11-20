@@ -14,8 +14,8 @@ test.describe('About Section, Social Media & Notification Persistence', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          supabase_url: 'https://mock.supabase.co',
-          supabase_anon_key: 'mock-key',
+          supabase_url: '',
+          supabase_anon_key: '',
           social_links: {
             nyburs: 'https://www.nyburs.com/home',
             vync: 'https://vync.live/',
@@ -207,8 +207,12 @@ test.describe('About Section, Social Media & Notification Persistence', () => {
     // Verify PATCH was called to mark as read
     expect(patchedReadId).toContain('notif-101/read');
 
+    // Wait for route to settle if navigation occurred
+    await expect(page).toHaveURL(/#(library|discover)/);
+
     // 6. Open bell dropdown again -> Verify notification is STILL there! (Persistent!)
-    await bellBtn.click();
+    const heroBell = page.locator('.hero-bell-btn');
+    await heroBell.click();
     await expect(page.locator('.notification-dropdown')).toBeVisible();
     await expect(page.locator('.notification-dropdown').locator('text=New chapter in Sacred Blade')).toBeVisible();
 
@@ -221,7 +225,7 @@ test.describe('About Section, Social Media & Notification Persistence', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ supabase_url: 'https://mock.supabase.co', supabase_anon_key: 'mock-key' })
+        body: JSON.stringify({ supabase_url: '', supabase_anon_key: '' })
       });
     });
 

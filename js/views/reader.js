@@ -591,6 +591,13 @@ function settingsDrawer(ctx) {
     modeControls
   ]));
 
+  if (!isComic && ctx.ui.readerMode === "pages") {
+    drawerContent.push(el("div", "drawer-section page-density-section", [
+      el("label", null, "Page Density"),
+      el("p", { style: "font-size: 0.85rem; color: var(--text-muted); margin: 4px 0 0;" }, "Balanced ~15 lines (150 words) per page")
+    ]));
+  }
+
   var themeControls = el("div", "segmented-controls theme-toggles", [
     button("☀️ Light", ctx.ui.readerTheme === "light" ? "btn active" : "btn", { action: "readerThemeSelect", value: "light", "aria-label": "Light reading surface" }),
     button("🌙 Dark", ctx.ui.readerTheme === "dark" ? "btn active" : "btn", { action: "readerThemeSelect", value: "dark", "aria-label": "Dark low-light surface" }),
@@ -1141,7 +1148,18 @@ export function renderReader(ctx) {
       var tPages = ctx.paginateText(chapter.content);
       ctx.clampTextPage(tPages);
       var tIdx = ctx.ui.currentTextPageIndex;
-      pageIndicatorText = tPages.length ? ((tIdx + 1) + " / " + tPages.length) : "";
+      if (tIdx < tPages.length - 1) {
+        var activePageSegments = tPages[tIdx] || [];
+        var pageWords = activePageSegments.reduce(function (sum, item) {
+          if (item.isEndCard || !item.text) return sum;
+          if (typeof item.wordCount === "number") return sum + item.wordCount;
+          return sum + item.text.trim().split(/\s+/).filter(Boolean).length;
+        }, 0);
+        var textPagesCount = Math.max(1, tPages.length - 1);
+        pageIndicatorText = (tIdx + 1) + " / " + textPagesCount + " · " + pageWords + " words";
+      } else {
+        pageIndicatorText = "End Card";
+      }
 
       sideNavPrev = button("‹", "reader-side-nav prev", { action: "textPage", step: "-1" }, tIdx === 0);
       sideNavPrev.setAttribute("aria-label", "Previous page");
@@ -1223,6 +1241,37 @@ export function renderReader(ctx) {
     bottomNav,
     inlineCommentsDrawer(ctx, story, chapter)
   ].filter(Boolean));
+
+  if (ctx.ui.readerMode === "pages") {
+    var touchStartX = 0;
+    var touchStartY = 0;
+    var touchStartTime = 0;
+
+    frame.addEventListener("touchstart", function (e) {
+      if (e.touches && e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+      }
+    }, { passive: true });
+
+    frame.addEventListener("touchend", function (e) {
+      if (e.changedTouches && e.changedTouches.length === 1) {
+        var dx = e.changedTouches[0].clientX - touchStartX;
+        var dy = e.changedTouches[0].clientY - touchStartY;
+        var dt = Date.now() - touchStartTime;
+        if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 600) {
+          if (dx < 0) {
+            if (isComic) ctx.moveComicPage(2);
+            else ctx.moveTextPage(1);
+          } else {
+            if (isComic) ctx.moveComicPage(-2);
+            else ctx.moveTextPage(-1);
+          }
+        }
+      }
+    }, { passive: true });
+  }
 
   var layoutTwo = el("div", "layout-two", [
     el("section", "panel", [

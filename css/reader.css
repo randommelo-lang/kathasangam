@@ -2018,9 +2018,51 @@ figure.comic-page {
     font-size: 0.8rem !important;
   }
 
-  /* Hide side overlay arrows on mobile to prevent blocking reading text */
+  /* Mobile touch-friendly side overlay navigation arrows */
   .reader-side-nav {
-    display: none !important;
+    display: inline-flex !important;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 62px !important;
+    font-size: 1.9rem !important;
+    line-height: 1;
+    border-radius: var(--radius-sm, 8px);
+    background: var(--surface-2);
+    color: var(--ink);
+    opacity: 0.88;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+    z-index: 25;
+    touch-action: manipulation;
+  }
+
+  .reader-side-nav.prev {
+    left: 4px !important;
+  }
+
+  .reader-side-nav.next {
+    right: 4px !important;
+  }
+
+  .reader-side-nav:active:not(:disabled) {
+    transform: translateY(-50%) scale(0.95) !important;
+    opacity: 1 !important;
+  }
+
+  .reader-side-nav:disabled {
+    opacity: 0.18 !important;
+    pointer-events: none;
+    box-shadow: none;
+  }
+
+  /* Safe padding for paginated reading on mobile so text never overlaps side buttons */
+  .reader-frame.mode-pages .reader-content {
+    padding-left: clamp(44px, 10vw, 54px) !important;
+    padding-right: clamp(44px, 10vw, 54px) !important;
   }
 
   /* Force single column for paginated mode on mobile */
@@ -2063,12 +2105,29 @@ figure.comic-page {
   .inline-comments-drawer {
     width: 100% !important;
   }
+  .reader-side-nav {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 56px !important;
+    font-size: 1.7rem !important;
+  }
+  .reader-side-nav.prev {
+    left: 2px !important;
+  }
+  .reader-side-nav.next {
+    right: 2px !important;
+  }
+  .reader-frame.mode-pages .reader-content {
+    padding-left: 42px !important;
+    padding-right: 42px !important;
+  }
 }
 
 /* Side Overlay Navigation Arrows (< and >) */
 .reader-side-nav {
   position: absolute;
   top: 50%;
+  transform: translateY(-50%);
   z-index: 10;
   width: 56px;
   height: 84px;
@@ -2100,7 +2159,7 @@ figure.comic-page {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--surface);
-  transform: scale(1.05);
+  transform: translateY(-50%) scale(1.05);
 }
 
 .reader-side-nav:disabled {

@@ -868,12 +868,47 @@ function clampComicPage(pages) {
   }
 }
 
+function splitIntoSentences(text) {
+  if (!text) return [];
+  var re = /[^.!?।॥…\n]+(?:[.!?।॥…]+(?:["'”’)]*)|\n+|$)/g;
+  var matches = text.match(re);
+  if (!matches || !matches.length) return [text];
+  return matches.map(function (s) { return s.trim(); }).filter(Boolean);
+}
+
 function paginateText(content) {
-  if (!content || !content.length) return [[{ text: "", align: "left", originalIndex: 0 }]];
+  if (!content || !content.length) return [[{ text: "", align: "left", originalIndex: 0, wordCount: 0 }]];
   var pages = [];
   var currentPage = [];
   var currentWordCount = 0;
+  var currentLineCount = 0;
+  var TARGET_WORDS = 150;
+  var TARGET_LINES = 15;
+
+  function pushCurrentPage() {
+    if (currentPage.length > 0) {
+      pages.push(currentPage);
+      currentPage = [];
+      currentWordCount = 0;
+      currentLineCount = 0;
+    }
+  }
+
+  function addSegmentToCurrentPage(text, align, originalIndex, wordCount, isNewPara) {
+    if (!text) return;
+    var lineCost = Math.max(1, Math.ceil(wordCount / 10)) + (isNewPara ? 1 : 0);
+    currentPage.push({
+      text: text,
+      align: align,
+      originalIndex: originalIndex,
+      wordCount: wordCount
+    });
+    currentWordCount += wordCount;
+    currentLineCount += lineCost;
+  }
+
   content.forEach(function (para, idx) {
+    if (typeof para !== "string") return;
     var align = "left";
     var cleanText = para;
     if (para.startsWith("[center]")) {
@@ -886,43 +921,60 @@ function paginateText(content) {
       align = "left";
       cleanText = para.substring(6);
     }
-    var words = cleanText.trim().split(/\s+/).filter(Boolean);
-    var wordCount = words.length;
-    if (wordCount === 0) {
+
+    var trimmed = cleanText.trim();
+    if (!trimmed) {
       if (currentPage.length === 0) {
-        currentPage.push({ text: "", align: align, originalIndex: idx });
+        currentPage.push({ text: "", align: align, originalIndex: idx, wordCount: 0 });
       }
       return;
     }
-    if (currentWordCount + wordCount > 150 && currentWordCount > 0) {
-      pages.push(currentPage);
-      currentPage = [];
-      currentWordCount = 0;
-    }
-    if (words.length > 150) {
-      var wordOffset = 0;
-      while (wordOffset < words.length) {
-        var limit = 150 - currentWordCount;
-        var chunk = words.slice(wordOffset, wordOffset + limit);
-        currentPage.push({ text: chunk.join(" "), align: align, originalIndex: idx });
-        currentWordCount += chunk.length;
-        wordOffset += chunk.length;
-        if (currentWordCount >= 150 || wordOffset < words.length) {
-          pages.push(currentPage);
-          currentPage = [];
-          currentWordCount = 0;
+
+    var sentences = splitIntoSentences(trimmed);
+    var isNewParaForFirst = true;
+
+    sentences.forEach(function (sentence) {
+      var sWords = sentence.split(/\s+/).filter(Boolean);
+      var sWordCount = sWords.length;
+      if (sWordCount === 0) return;
+
+      var sLineCost = Math.max(1, Math.ceil(sWordCount / 10)) + (isNewParaForFirst ? 1 : 0);
+      var overflows = (currentWordCount + sWordCount > TARGET_WORDS || currentLineCount + sLineCost > TARGET_LINES);
+      var pageHasSufficientContent = (currentWordCount >= 75 || currentLineCount >= 8);
+
+      if (overflows && pageHasSufficientContent) {
+        pushCurrentPage();
+        isNewParaForFirst = false;
+      }
+
+      if (sWordCount > TARGET_WORDS || (overflows && !pageHasSufficientContent)) {
+        var wordOffset = 0;
+        while (wordOffset < sWords.length) {
+          var remainingWords = Math.max(30, TARGET_WORDS - currentWordCount);
+          var chunkWords = sWords.slice(wordOffset, wordOffset + remainingWords);
+          var chunkText = chunkWords.join(" ");
+          addSegmentToCurrentPage(chunkText, align, idx, chunkWords.length, isNewParaForFirst && wordOffset === 0);
+          wordOffset += chunkWords.length;
+          if (currentWordCount >= TARGET_WORDS || currentLineCount >= TARGET_LINES) {
+            pushCurrentPage();
+            isNewParaForFirst = false;
+          }
+        }
+      } else {
+        addSegmentToCurrentPage(sentence, align, idx, sWordCount, isNewParaForFirst);
+        isNewParaForFirst = false;
+
+        if (currentWordCount >= TARGET_WORDS || currentLineCount >= TARGET_LINES) {
+          pushCurrentPage();
         }
       }
-    } else {
-      currentPage.push({ text: cleanText, align: align, originalIndex: idx });
-      currentWordCount += wordCount;
-    }
+    });
   });
-  if (currentPage.length > 0) {
-    pages.push(currentPage);
-  }
+
+  pushCurrentPage();
+
   if (pages.length === 0) {
-    pages.push([{ text: "", align: "left" }]);
+    pages.push([{ text: "", align: "left", originalIndex: 0, wordCount: 0 }]);
   }
   pages.push([{ isEndCard: true }]);
   return pages;

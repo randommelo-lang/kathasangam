@@ -12,8 +12,90 @@
 .about-doc-header {
   text-align: left;
   margin-bottom: 36px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--line);
+  padding: 28px 28px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: radial-gradient(circle at top right, rgba(229, 124, 51, 0.12), transparent 55%), var(--surface);
+}
+
+.about-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 24px;
+}
+
+.about-cta-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 18px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+.about-pillars-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.about-pillar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+}
+
+.pillar-value {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.pillar-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.about-scripts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -10px 0 24px;
+}
+
+.about-script-chip {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.about-card-subnote {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.about-card-accent-note {
+  margin-top: 10px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .about-hero-badge {
@@ -316,6 +398,32 @@
 }
 
 /* ── Rules List ── */
+.rules-ethos-banner {
+  background: linear-gradient(135deg, rgba(229, 124, 51, 0.1), rgba(229, 124, 51, 0.02));
+  border: 1px solid rgba(229, 124, 51, 0.28);
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin-bottom: 22px;
+}
+
+.rules-ethos-title {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  font-family: var(--font-mono, monospace);
+  margin-bottom: 6px;
+}
+
+.rules-ethos-banner p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
 .rules-list {
   display: flex;
   flex-direction: column;
@@ -327,10 +435,21 @@
   gap: 18px;
   background: var(--surface);
   border: 1px solid var(--line);
+  border-left-width: 4px;
   border-radius: 14px;
   padding: 22px;
   align-items: flex-start;
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
+
+.rule-card:hover {
+  transform: translateY(-1px);
+}
+
+.rule-card.severity-accent-border { border-left-color: var(--accent); }
+.rule-card.severity-warn-border { border-left-color: #f59e0b; }
+.rule-card.severity-info-border { border-left-color: #38bdf8; }
+.rule-card.severity-danger-border { border-left-color: #ef4444; }
 
 .rule-badge {
   font-size: 0.75rem;
@@ -345,11 +464,56 @@
   font-family: var(--font-mono, monospace);
 }
 
+.rule-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.rule-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
 .rule-content h4 {
-  font-size: 1.1rem;
+  font-size: 1.08rem;
   font-weight: 700;
   color: var(--ink);
-  margin: 0 0 8px;
+  margin: 0;
+}
+
+.rule-severity-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+}
+
+.rule-severity-tag.severity-accent {
+  background: rgba(229, 124, 51, 0.14);
+  color: var(--accent);
+}
+
+.rule-severity-tag.severity-warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.rule-severity-tag.severity-info {
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
+}
+
+.rule-severity-tag.severity-danger {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
 }
 
 .rule-content p {
@@ -357,6 +521,93 @@
   font-size: 0.92rem;
   line-height: 1.6;
   margin: 0;
+}
+
+.rule-bullets {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rule-bullets li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--ink);
+  opacity: 0.9;
+}
+
+.rule-bullets li::before {
+  content: "›";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+/* ── Moderation & Appeals Strip ── */
+.moderation-process-box {
+  margin-top: 26px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.moderation-process-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 16px;
+}
+
+.moderation-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.moderation-step {
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+}
+
+.mod-step-num {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  font-family: var(--font-mono, monospace);
+  margin-bottom: 6px;
+}
+
+.moderation-step h4 {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+
+.moderation-step p {
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--muted);
+  margin: 0;
+}
+
+.about-inline-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ── Technology Attribution Grid ── */
@@ -554,6 +805,7 @@
 }
 
 /* ── Light Theme Overrides for About View ── */
+:root.light .about-doc-header,
 :root.light .about-card,
 :root.light .about-format-card,
 :root.light .about-feature-box,
@@ -561,11 +813,22 @@
 :root.light .tech-card,
 :root.light .social-channel-card,
 :root.light .about-manifesto-quote,
+:root.light .about-script-chip,
+:root.light .moderation-process-box,
 :root.light .toc-pill {
   background: var(--surface) !important;
   border-color: var(--line) !important;
   box-shadow: 0 2px 12px rgba(44, 34, 30, 0.04);
 }
+
+:root.light .rule-card.severity-accent-border { border-left-color: var(--accent) !important; }
+:root.light .rule-card.severity-warn-border { border-left-color: #d97706 !important; }
+:root.light .rule-card.severity-info-border { border-left-color: #0284c7 !important; }
+:root.light .rule-card.severity-danger-border { border-left-color: #dc2626 !important; }
+
+:root.light .rule-severity-tag.severity-warn { color: #b45309; }
+:root.light .rule-severity-tag.severity-info { color: #0369a1; }
+:root.light .rule-severity-tag.severity-danger { color: #b91c1c; }
 
 :root.light .about-hero-title,
 :root.light .about-subheading,
@@ -574,6 +837,11 @@
 :root.light .about-format-card h3,
 :root.light .about-feature-box h4,
 :root.light .rule-content h4,
+:root.light .rule-bullets li,
+:root.light .rules-ethos-banner p,
+:root.light .pillar-value,
+:root.light .moderation-process-title,
+:root.light .moderation-step h4,
 :root.light .tech-card h4,
 :root.light .social-card-name,
 :root.light .about-manifesto-quote {
@@ -586,6 +854,12 @@
 }
 
 /* ── Responsive adjustments ── */
+@media (max-width: 768px) {
+  .about-pillars-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 640px) {
   .about-page-wrapper.about-md-document {
     padding: 20px 16px calc(84px + env(safe-area-inset-bottom, 0px));
@@ -600,11 +874,18 @@
     padding: 18px 14px;
   }
   .about-doc-header {
-    padding-bottom: 16px;
+    padding: 20px 16px 18px;
     margin-bottom: 24px;
+  }
+  .about-hero-actions .about-cta-btn {
+    flex: 1 1 100%;
   }
   .rule-card {
     flex-direction: column;
     gap: 10px;
+    padding: 18px 14px;
+  }
+  .moderation-process-box {
+    padding: 18px 14px;
   }
 }

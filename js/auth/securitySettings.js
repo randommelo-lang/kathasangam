@@ -6,16 +6,13 @@ import { apiPut, getSupabaseClient } from "../api.js";
 /** @typedef {{ notify: (message: string) => void, render?: () => void }} SecurityEffects */
 /** @param {SecurityEffects} effects */
 export async function openMfaSetup({ notify }) {
-  console.log("[DEBUG 2FA] openMfaSetup called");
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) {
-    console.warn("[DEBUG 2FA] supabaseClient is null in openMfaSetup");
     return;
   }
 
   var modal = document.getElementById("mfaSetupModal");
   if (!modal) {
-    console.warn("[DEBUG 2FA] mfaSetupModal not found in openMfaSetup");
     return;
   }
 
@@ -50,11 +47,17 @@ export async function openMfaSetup({ notify }) {
     window.mfaEnrollFactorId = data.id;
 
     if (qrContainer) {
-      qrContainer.innerHTML = data.totp.qr_code;
-      var svg = qrContainer.querySelector("svg");
-      if (svg) {
-        svg.setAttribute("width", "160");
-        svg.setAttribute("height", "160");
+      qrContainer.innerHTML = "";
+      var rawQr = String((data && data.totp && data.totp.qr_code) || "").trim();
+      if (rawQr) {
+        var qrImg = document.createElement("img");
+        qrImg.alt = "Two-factor authentication QR code";
+        qrImg.width = 160;
+        qrImg.height = 160;
+        qrImg.src = rawQr.startsWith("data:image/")
+          ? rawQr
+          : "data:image/svg+xml;charset=utf-8," + encodeURIComponent(rawQr);
+        qrContainer.appendChild(qrImg);
       }
     }
 

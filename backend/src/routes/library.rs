@@ -4,15 +4,15 @@ use uuid::Uuid;
 
 use crate::db::AuthUser;
 use crate::models::*;
-use crate::routes::stories::build_story_responses_batch;
+use crate::routes::stories::build_story_metadata_responses_batch;
 use crate::errors::AppError;
 
-/// GET /api/library
+/// GET /api/library (metadata only)
 pub async fn get_library(
     State(pool): State<PgPool>,
     auth: AuthUser,
 ) -> Result<Json<Vec<StoryResponse>>, AppError> {
-    let story_ids: Vec<(Uuid,)> = sqlx::query_as("SELECT story_id FROM library WHERE user_id = $1")
+    let story_ids: Vec<(Uuid,)> = sqlx::query_as("SELECT story_id FROM library WHERE user_id = $1 LIMIT 200")
         .bind(auth.user_id)
         .fetch_all(&pool)
         .await?;
@@ -34,7 +34,7 @@ pub async fn get_library(
     .fetch_all(&pool)
     .await?;
 
-    let results = build_story_responses_batch(&pool, &rows, Some(auth.user_id))
+    let results = build_story_metadata_responses_batch(&pool, &rows, Some(auth.user_id))
         .await?;
 
     Ok(Json(results))

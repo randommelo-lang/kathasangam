@@ -174,6 +174,34 @@ export async function uploadFileWithProgress(path, file, onProgress) {
 }
 
 
+let refreshInFlightPromise = null;
+
+async function refreshSessionOnce() {
+  if (!supabaseClient) return null;
+  if (!refreshInFlightPromise) {
+    refreshInFlightPromise = supabaseClient.auth
+      .refreshSession()
+      .then((refreshed) => {
+        const session = refreshed && refreshed.data && refreshed.data.session;
+        if (session && session.access_token) {
+          tokenCache.token = session.access_token;
+          tokenCache.expiresAt = Date.now() + TOKEN_TTL_MS;
+          state.accessToken = session.access_token;
+          return session.access_token;
+        }
+        return null;
+      })
+      .catch((refreshError) => {
+        log.debug("Session refresh failed after an unauthorized response", refreshError);
+        return null;
+      })
+      .finally(() => {
+        refreshInFlightPromise = null;
+      });
+  }
+  return refreshInFlightPromise;
+}
+
 export async function api(path, options = {}) {
   const now = Date.now();
   let token = null;
@@ -212,19 +240,9 @@ export async function api(path, options = {}) {
   if (!response.ok) {
     if (response.status === 401 && !options.__sessionRetry) {
       clearTokenCache();
-      if (supabaseClient) {
-        try {
-          const refreshed = await supabaseClient.auth.refreshSession();
-          const session = refreshed && refreshed.data && refreshed.data.session;
-          if (session && session.access_token) {
-            tokenCache.token = session.access_token;
-            tokenCache.expiresAt = Date.now() + TOKEN_TTL_MS;
-            state.accessToken = session.access_token;
-            return api(path, { ...options, __sessionRetry: true });
-          }
-        } catch (refreshError) {
-          log.debug("Session refresh failed after an unauthorized response", refreshError);
-        }
+      const refreshedToken = await refreshSessionOnce();
+      if (refreshedToken) {
+        return api(path, { ...options, __sessionRetry: true });
       }
       state.accessToken = null;
     }
@@ -245,7 +263,17 @@ export async function api(path, options = {}) {
   }
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : {};
+  let payload = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch (parseErr) {
+      console.error(`[API ${path}] Invalid JSON response:`, parseErr);
+      const err = /** @type {Error & { status: number }} */ (new Error("Invalid server response."));
+      err.status = response.status;
+      throw err;
+    }
+  }
   // Mutation flows historically consumed the unfiltered story list as an array.
   // Preserve that shape while page-aware discovery requests keep their metadata.
   if (path === "/stories" && payload && Array.isArray(payload.items)) return payload.items;

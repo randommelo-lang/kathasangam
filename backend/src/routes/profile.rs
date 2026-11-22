@@ -768,16 +768,17 @@ pub async fn delete_profile(
         .execute(&mut *tx)
         .await?;
 
-    // 14. Delete user from auth.users (non-fatal, ignore errors if db connection doesn't have privileges)
-    let _ = sqlx::query("DELETE FROM auth.users WHERE id = $1")
-        .bind(auth.user_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| {
-            tracing::warn!("Non-fatal: failed to delete from auth.users: {:?}", e);
-        });
-
     tx.commit().await?;
+
+    // 14. Delete user from auth.users AFTER commit (non-fatal: running a failing query inside
+    //     the Postgres transaction would abort the entire transaction with 25P02).
+    if let Err(e) = sqlx::query("DELETE FROM auth.users WHERE id = $1")
+        .bind(auth.user_id)
+        .execute(&pool)
+        .await
+    {
+        tracing::warn!("Non-fatal: failed to delete from auth.users: {:?}", e);
+    }
 
     // F-005 & F-016: Delete story covers asynchronously only if unreferenced
     for cover_opt in story_covers {

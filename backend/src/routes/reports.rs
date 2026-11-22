@@ -55,8 +55,8 @@ pub async fn list_reports(
     };
 
     let sort = params.sort.as_deref().unwrap_or("newest");
-    let limit = params.limit.unwrap_or(10);
-    let offset = params.offset.unwrap_or(0);
+    let limit = params.limit.unwrap_or(10).clamp(1, 100);
+    let offset = params.offset.unwrap_or(0).max(0);
 
     let count_sql = "SELECT COUNT(*) FROM ( \
           SELECT 1 FROM reports \
@@ -196,8 +196,8 @@ pub async fn list_audit_logs(
         return Err(AppError::forbidden("You do not have staff permissions to perform this action."));
     }
 
-    let limit = params.limit.unwrap_or(10);
-    let offset = params.offset.unwrap_or(0);
+    let limit = params.limit.unwrap_or(10).clamp(1, 100);
+    let offset = params.offset.unwrap_or(0).max(0);
 
     let action_filter = match params.action.as_deref() {
         Some("all") | None => None,
@@ -483,6 +483,26 @@ pub async fn ban_user(
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !check_is_staff(&pool, auth.user_id).await? {
         return Err(AppError::forbidden("You do not have staff permissions to perform this action."));
+    }
+
+    if body.user_id == auth.user_id {
+        return Err(AppError::bad_request("You cannot ban your own account."));
+    }
+
+    let actor_role: Option<String> = sqlx::query_scalar("SELECT role::text FROM profiles WHERE id = $1")
+        .bind(auth.user_id)
+        .fetch_optional(&pool)
+        .await?;
+    let target_role: Option<String> = sqlx::query_scalar("SELECT role::text FROM profiles WHERE id = $1")
+        .bind(body.user_id)
+        .fetch_optional(&pool)
+        .await?;
+
+    if target_role.is_none() {
+        return Err(AppError::not_found("User profile not found."));
+    }
+    if target_role.as_deref() == Some("admin") && actor_role.as_deref() != Some("admin") {
+        return Err(AppError::forbidden("Moderators cannot ban administrator accounts."));
     }
 
     let result = sqlx::query("UPDATE profiles SET is_banned = true, ban_reason = $1 WHERE id = $2")

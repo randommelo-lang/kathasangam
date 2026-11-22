@@ -222,14 +222,6 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
                 if total_written + chunk.len() > MAX_UPLOAD_SIZE {
                     drop(file);
                     let _ = tokio::fs::remove_file(&raw_temp_path).await;
-
-                    // Drain remaining chunks of the current field
-                    while let Ok(Some(_)) = field.chunk().await {}
-                    // Drain any remaining fields in the multipart form
-                    while let Ok(Some(mut next_field)) = multipart.next_field().await {
-                        while let Ok(Some(_)) = next_field.chunk().await {}
-                    }
-
                     return Err(AppError::bad_request("Upload size limit exceeded. Max 10MB allowed."));
                 }
 
@@ -241,14 +233,6 @@ pub async fn upload_image(_auth: AuthUser, mut multipart: Multipart) -> Result<J
                         if !validate_image_magic_bytes(&magic_buffer) {
                             drop(file);
                             let _ = tokio::fs::remove_file(&raw_temp_path).await;
-
-                            // Drain remaining chunks of the current field
-                            while let Ok(Some(_)) = field.chunk().await {}
-                            // Drain any remaining fields in the multipart form
-                            while let Ok(Some(mut next_field)) = multipart.next_field().await {
-                                while let Ok(Some(_)) = next_field.chunk().await {}
-                            }
-
                             return Err(AppError::bad_request("Unsupported image format. Please upload PNG, JPEG, WebP, or GIF."));
                         }
                         magic_validated = true;

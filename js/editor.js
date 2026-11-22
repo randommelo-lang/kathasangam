@@ -121,18 +121,33 @@ export function renderEditor(ctx) {
     ctx.view.innerHTML = "";
     const loadingPanel = document.createElement("section");
     loadingPanel.className = "panel editor-panel";
-    loadingPanel.innerHTML = `
-      <div class="editor-header">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <h2>Chapter Editor</h2>
-          <span class="editor-save-status saving">⏳ Syncing with cloud...</span>
-        </div>
-        <span class="mini-meta">Story: ${story.title || ""}</span>
-      </div>
-      <div style="padding: 48px; text-align: center; color: var(--text-muted);">
-        <p>Loading chapter from cloud...</p>
-      </div>
-    `;
+    const headerDiv = document.createElement("div");
+    headerDiv.className = "editor-header";
+    const titleGroup = document.createElement("div");
+    titleGroup.style.display = "flex";
+    titleGroup.style.alignItems = "center";
+    titleGroup.style.gap = "12px";
+    const h2 = document.createElement("h2");
+    h2.textContent = "Chapter Editor";
+    const statusSpan = document.createElement("span");
+    statusSpan.className = "editor-save-status saving";
+    statusSpan.textContent = "⏳ Syncing with cloud...";
+    titleGroup.appendChild(h2);
+    titleGroup.appendChild(statusSpan);
+    const metaSpan = document.createElement("span");
+    metaSpan.className = "mini-meta";
+    metaSpan.textContent = "Story: " + (story.title || "");
+    headerDiv.appendChild(titleGroup);
+    headerDiv.appendChild(metaSpan);
+    const bodyDiv = document.createElement("div");
+    bodyDiv.style.padding = "48px";
+    bodyDiv.style.textAlign = "center";
+    bodyDiv.style.color = "var(--text-muted)";
+    const loadingP = document.createElement("p");
+    loadingP.textContent = "Loading chapter from cloud...";
+    bodyDiv.appendChild(loadingP);
+    loadingPanel.appendChild(headerDiv);
+    loadingPanel.appendChild(bodyDiv);
     ctx.view.appendChild(loadingPanel);
 
     ctx.api("/chapters/" + chapter.id).then(function (chData) {

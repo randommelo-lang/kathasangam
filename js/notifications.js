@@ -196,7 +196,10 @@ export function updateHeroNotificationUI() {
                 if (ctx) ctx.notify("Could not find the specific chapter in this story.");
               }
             } else {
-              if (ctx) ctx.notify("Story not found.");
+              // Story not currently in the loaded catalog page; navigate directly to its details page
+              ui.currentStoryId = n.story_id;
+              window.location.hash = "story?id=" + encodeURIComponent(n.story_id);
+              if (ctx) ctx.render();
             }
           } else {
             window.location.hash = "library";
@@ -238,6 +241,8 @@ export function startNotificationPolling() {
   if (_pollingIntervalId !== null) return;
 
   _pollingIntervalId = setInterval(function () {
+    // Pause background polling when the browser tab is hidden
+    if (typeof document !== "undefined" && document.hidden) return;
     // F-034: Only poll when user ID is established and valid
     if (state.user && state.user.id) {
       var pollingUserId = state.user.id;

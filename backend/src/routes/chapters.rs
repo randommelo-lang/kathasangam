@@ -925,10 +925,21 @@ pub async fn list_scheduled_chapters(
     Ok(Json(result))
 }
 
-/// POST /api/chapters/publish-due
+/// POST /api/chapters/publish-due (Staff only)
 pub async fn trigger_publish_due(
+    auth: AuthUser,
     State(pool): State<PgPool>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let role: Option<String> = sqlx::query_scalar("SELECT role::text FROM profiles WHERE id = $1")
+        .bind(auth.user_id)
+        .fetch_optional(&pool)
+        .await?;
+    if !matches!(role.as_deref(), Some("admin") | Some("moderator")) {
+        return Err(AppError::forbidden(
+            "Staff permissions required to trigger chapter publishing.",
+        ));
+    }
+
     let published_count = publish_due_chapters(&pool).await.map_err(|e| {
         tracing::error!("Manual or triggered publish_due failed: {:?}", e);
         AppError::internal_server_error("Failed to auto-publish due chapters.")

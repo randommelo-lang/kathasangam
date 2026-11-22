@@ -5,7 +5,7 @@ export default [
     ignores: ["node_modules/**", "dist/**", "backend/target/**", "js/vendor/**"]
   },
   {
-    files: ["js/auth/**/*.js", "js/auth.js", "js/achievements.js", "js/i18n.js", "js/perf.js"],
+    files: ["js/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -14,7 +14,9 @@ export default [
     rules: {
       "no-constant-condition": "error",
       "no-debugger": "error",
-      "no-unreachable": "error"
+      "no-unreachable": "error",
+      "no-dupe-keys": "error",
+      "no-duplicate-case": "error"
     }
   }
 ];

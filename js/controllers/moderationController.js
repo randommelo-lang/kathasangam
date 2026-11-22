@@ -485,7 +485,27 @@ export function handleModerationClick(ctx, action, target, e) {
           res.details.forEach(function (det) {
             var li = document.createElement("li");
             li.style.marginBottom = "8px";
-            li.innerHTML = "Report ID: <code style='font-family: monospace; color: var(--brand);'>" + det.report_id.slice(0,8) + "…</code> targetting <strong>" + det.target_type.toUpperCase() + "</strong> matches keyword: <span class='report-badge severity-high' style='font-size: 0.7rem; font-weight:bold;'>" + det.matched_term.toUpperCase() + "</span>";
+
+            var codeEl = document.createElement("code");
+            codeEl.style.fontFamily = "monospace";
+            codeEl.style.color = "var(--brand)";
+            codeEl.textContent = String(det.report_id || "").slice(0, 8) + "…";
+
+            var strongEl = document.createElement("strong");
+            strongEl.textContent = String(det.target_type || "").toUpperCase();
+
+            var badgeEl = document.createElement("span");
+            badgeEl.className = "report-badge severity-high";
+            badgeEl.style.fontSize = "0.7rem";
+            badgeEl.style.fontWeight = "bold";
+            badgeEl.textContent = String(det.matched_term || "").toUpperCase();
+
+            li.appendChild(document.createTextNode("Report ID: "));
+            li.appendChild(codeEl);
+            li.appendChild(document.createTextNode(" targeting "));
+            li.appendChild(strongEl);
+            li.appendChild(document.createTextNode(" matches keyword: "));
+            li.appendChild(badgeEl);
             listEl.appendChild(li);
           });
         } else {
@@ -557,6 +577,9 @@ export function handleModerationClick(ctx, action, target, e) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 0);
         ctx.notify("Reports queue exported successfully!");
       })
       .catch(function (err) {

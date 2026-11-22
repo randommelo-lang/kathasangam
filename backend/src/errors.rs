@@ -14,6 +14,7 @@ pub enum AppError {
     BadRequest(String),
     Conflict(String),
     InternalServerError(String),
+    ServiceUnavailable(String),
     TooManyRequests(String),
 }
 
@@ -32,6 +33,7 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "bad_request", msg),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, "conflict", msg),
             AppError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_server_error", msg),
+            AppError::ServiceUnavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, "service_unavailable", msg),
             AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, "too_many_requests", msg),
         };
 
@@ -53,6 +55,7 @@ impl fmt::Display for AppError {
             AppError::BadRequest(m) => write!(f, "Bad Request: {}", m),
             AppError::Conflict(m) => write!(f, "Conflict: {}", m),
             AppError::InternalServerError(m) => write!(f, "Internal Server Error: {}", m),
+            AppError::ServiceUnavailable(m) => write!(f, "Service Unavailable: {}", m),
             AppError::TooManyRequests(m) => write!(f, "Too Many Requests: {}", m),
         }
     }
@@ -83,6 +86,10 @@ impl AppError {
 
     pub fn internal_server_error<T: Into<String>>(msg: T) -> Self {
         AppError::InternalServerError(msg.into())
+    }
+
+    pub fn service_unavailable<T: Into<String>>(msg: T) -> Self {
+        AppError::ServiceUnavailable(msg.into())
     }
 
     pub fn too_many_requests<T: Into<String>>(msg: T) -> Self {

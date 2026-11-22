@@ -238,30 +238,63 @@ pub async fn list_stories(
                 "newest".to_string()
             }
         });
-    let sanitized_query = query.replace('\'', "''");
-    let relevance_calc = format!(
-        "(CASE WHEN lower(stories.title) = lower('{q}') THEN 100 \
-               WHEN lower(stories.title) LIKE lower('{q}') || '%' THEN 60 \
-               WHEN lower(stories.title) LIKE '%' || lower('{q}') || '%' THEN 30 \
-               ELSE 0 END \
-         + CASE WHEN lower(stories.tags::text) LIKE '%' || lower('{q}') || '%' THEN 20 ELSE 0 END \
-         + CASE WHEN lower(stories.genre) LIKE '%' || lower('{q}') || '%' THEN 15 ELSE 0 END \
-         + CASE WHEN lower(stories.description) LIKE '%' || lower('{q}') || '%' THEN 5 ELSE 0 END)",
-        q = sanitized_query
-    );
-    let sort_expression = match sort.as_str() {
-        "newest" => "stories.created_at".to_string(),
-        "reads" => "stories.views".to_string(),
-        "likes" => "stories.likes".to_string(),
-        "rating" => "COALESCE((SELECT AVG(rating)::float8 FROM story_ratings WHERE story_ratings.story_id = stories.id), 0.0)".to_string(),
+    let escaped_like_query = query
+        .to_lowercase()
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+    let exact_query = query.to_lowercase();
+    let prefix_query = format!("{}%", escaped_like_query);
+    let contains_query = format!("%{}%", escaped_like_query);
+
+    let effective_sort = match sort.as_str() {
+        "newest" => "newest",
+        "reads" => "reads",
+        "likes" => "likes",
+        "rating" => "rating",
         "relevance" => {
             if !query.is_empty() {
-                relevance_calc
+                "relevance"
             } else {
-                "stories.created_at".to_string()
+                "newest"
             }
         }
         _ => return Err(AppError::bad_request("sort_by must be newest, reads, likes, rating, or relevance.")),
+    };
+
+    let push_sort_expr = |qb: &mut sqlx::QueryBuilder<'_, sqlx::Postgres>| {
+        match effective_sort {
+            "newest" => {
+                qb.push("stories.created_at");
+            }
+            "reads" => {
+                qb.push("stories.views");
+            }
+            "likes" => {
+                qb.push("stories.likes");
+            }
+            "rating" => {
+                qb.push("COALESCE((SELECT AVG(rating)::float8 FROM story_ratings WHERE story_ratings.story_id = stories.id), 0.0)");
+            }
+            "relevance" => {
+                qb.push("(CASE WHEN lower(stories.title) = ")
+                    .push_bind(exact_query.clone())
+                    .push(" THEN 100 WHEN lower(stories.title) LIKE ")
+                    .push_bind(prefix_query.clone())
+                    .push(" ESCAPE '\\' THEN 60 WHEN lower(stories.title) LIKE ")
+                    .push_bind(contains_query.clone())
+                    .push(" ESCAPE '\\' THEN 30 ELSE 0 END + CASE WHEN lower(stories.tags::text) LIKE ")
+                    .push_bind(contains_query.clone())
+                    .push(" ESCAPE '\\' THEN 20 ELSE 0 END + CASE WHEN lower(stories.genre) LIKE ")
+                    .push_bind(contains_query.clone())
+                    .push(" ESCAPE '\\' THEN 15 ELSE 0 END + CASE WHEN lower(stories.description) LIKE ")
+                    .push_bind(contains_query.clone())
+                    .push(" ESCAPE '\\' THEN 5 ELSE 0 END)");
+            }
+            _ => {
+                qb.push("stories.created_at");
+            }
+        }
     };
     let limit = params.limit.unwrap_or(24);
     if !(1..=100).contains(&limit) {
@@ -340,12 +373,19 @@ pub async fn list_stories(
 
     if let Some(cursor_id) = cursor_id {
         // Tie-break by UUID so records with equal sort values are never skipped.
-        sql.push(" AND ((").push(&sort_expression).push(" < (SELECT ").push(&sort_expression)
-            .push(" FROM stories WHERE id = ").push_bind(cursor_id).push(") ) OR ((")
-            .push(&sort_expression).push(" = (SELECT ").push(&sort_expression).push(" FROM stories WHERE id = ")
-            .push_bind(cursor_id).push(") ) AND stories.id > ").push_bind(cursor_id).push("))");
+        sql.push(" AND ((");
+        push_sort_expr(&mut sql);
+        sql.push(" < (SELECT ");
+        push_sort_expr(&mut sql);
+        sql.push(" FROM stories WHERE id = ").push_bind(cursor_id).push(") ) OR ((");
+        push_sort_expr(&mut sql);
+        sql.push(" = (SELECT ");
+        push_sort_expr(&mut sql);
+        sql.push(" FROM stories WHERE id = ").push_bind(cursor_id).push(") ) AND stories.id > ").push_bind(cursor_id).push("))");
     }
-    sql.push(" ORDER BY ").push(&sort_expression).push(" DESC, stories.id ASC LIMIT ").push_bind(limit + 1);
+    sql.push(" ORDER BY ");
+    push_sort_expr(&mut sql);
+    sql.push(" DESC, stories.id ASC LIMIT ").push_bind(limit + 1);
     let mut rows = sql.build_query_as::<StoryRow>().fetch_all(&pool).await?;
     let has_more = rows.len() > limit as usize;
     rows.truncate(limit as usize);
@@ -906,7 +946,7 @@ pub async fn build_story_responses_batch(
     build_story_responses_batch_mode(pool, rows, auth, true).await
 }
 
-async fn build_story_metadata_responses_batch(
+pub async fn build_story_metadata_responses_batch(
     pool: &PgPool,
     rows: &[StoryRow],
     auth: Option<Uuid>,

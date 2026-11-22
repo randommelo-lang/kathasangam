@@ -301,7 +301,7 @@ pub async fn security_headers_middleware(
                    script-src 'self' https://checkout.razorpay.com; \
                    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
                    font-src 'self' https://fonts.gstatic.com data:; \
-                   img-src 'self' data: blob: https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.onrender.com https://onrender.com https:; \
+                   img-src 'self' data: blob: https://*.supabase.co https://*.kathasangam.co.in https://kathasangam.co.in https://*.onrender.com https://onrender.com; \
                    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com; \
                    frame-src 'self' https://api.razorpay.com; \
                    worker-src 'self' blob:; \

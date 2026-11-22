@@ -674,7 +674,7 @@ function applyAttrs(node, attrs) {
       node.setAttribute("id", attrs[k]);
     }
     else if (k === "storyId") node.dataset.storyId = attrs[k];
-    else if (k === "required") node.required = true;
+    else if (k === "required") node.required = Boolean(attrs[k]);
     else if (k === "disabled") {
       if (attrs[k]) node.disabled = true;
       else node.removeAttribute("disabled");

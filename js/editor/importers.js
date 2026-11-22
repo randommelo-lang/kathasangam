@@ -1,5 +1,56 @@
+const _vendorLoadPromises = {};
+
+function loadVendorScript(src, integrity, globalName) {
+  if (window[globalName]) return Promise.resolve(window[globalName]);
+  if (_vendorLoadPromises[src]) return _vendorLoadPromises[src];
+
+  _vendorLoadPromises[src] = new Promise(function (resolve, reject) {
+    var script = document.createElement("script");
+    script.src = src;
+    if (integrity) {
+      script.integrity = integrity;
+      script.crossOrigin = "anonymous";
+    }
+    script.async = true;
+    script.onload = function () {
+      if (window[globalName]) resolve(window[globalName]);
+      else reject(new Error(globalName + " did not initialize after loading " + src));
+    };
+    script.onerror = function () {
+      delete _vendorLoadPromises[src];
+      reject(new Error("Failed to load " + src));
+    };
+    document.head.appendChild(script);
+  });
+  return _vendorLoadPromises[src];
+}
+
+function ensurePdfJs() {
+  return loadVendorScript(
+    "/js/vendor/pdf.min.js",
+    "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e",
+    "pdfjsLib"
+  );
+}
+
+function ensureMammoth() {
+  return loadVendorScript(
+    "/js/vendor/mammoth.browser.min.js",
+    "sha384-nFoSjZIoH3CCp8W639jJyQkuPHinJ2NHe7on1xvlUA7SuGfJAfvMldrsoAVm6ECz",
+    "mammoth"
+  );
+}
+
 export async function importComicPdf(file, ctx, uploadStatus, onPageAdded) {
   if (!file) return;
+  uploadStatus.textContent = "Loading PDF engine...";
+  try {
+    await ensurePdfJs();
+  } catch (err) {
+    console.error(err);
+    uploadStatus.textContent = "Failed to load PDF.js library.";
+    return;
+  }
   uploadStatus.textContent = "Processing " + file.name + "...";
 
   const reader = new FileReader();
@@ -143,59 +194,57 @@ export function importTextFile(file, uploadStatus, onLoadParagraphs) {
         console.warn("Could not inspect zip entry sizes:", zipErr);
       }
 
-      if (window.mammoth) {
-        window.mammoth.extractRawText({ arrayBuffer: arrayBuffer })
-          .then(function (result) {
-            const paras = result.value ? result.value.split(/\n\s*\n/).slice(0, MAX_PARAGRAPHS) : [];
-            onLoadParagraphs(paras.map(p => p.trim()));
-            uploadStatus.textContent = "Extracted text from " + file.name;
-          })
-          .catch(function (err) {
-            console.error(err);
-            uploadStatus.textContent = "Extraction failed: " + err.message;
-          });
-      } else {
-        uploadStatus.textContent = "Mammoth.js library is not loaded.";
-      }
+      ensureMammoth()
+        .then(function (mammothLib) {
+          return mammothLib.extractRawText({ arrayBuffer: arrayBuffer });
+        })
+        .then(function (result) {
+          const paras = result.value ? result.value.split(/\n\s*\n/).slice(0, MAX_PARAGRAPHS) : [];
+          onLoadParagraphs(paras.map(p => p.trim()));
+          uploadStatus.textContent = "Extracted text from " + file.name;
+        })
+        .catch(function (err) {
+          console.error(err);
+          uploadStatus.textContent = "Extraction failed: " + err.message;
+        });
     };
     reader.readAsArrayBuffer(file);
   } else if (file.name.endsWith(".pdf")) {
     reader.onload = function (evt) {
       const arrayBuffer = evt.target.result;
-      if (window.pdfjsLib) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js";
-        window.pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false }).promise
-          .then(function (pdf) {
-            const numPages = pdf.numPages;
-            const pagePromises = [];
-            for (let i = 1; i <= numPages; i++) {
-              pagePromises.push(
-                pdf.getPage(i).then(function (page) {
-                  return page.getTextContent().then(function (textContent) {
-                    const lastItems = [];
-                    textContent.items.forEach(function (item) {
-                      lastItems.push(item.str);
-                    });
-                    return lastItems.join(" ");
+      ensurePdfJs()
+        .then(function (pdfjsLib) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = "js/vendor/pdf.worker.min.js";
+          return pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false }).promise;
+        })
+        .then(function (pdf) {
+          const numPages = pdf.numPages;
+          const pagePromises = [];
+          for (let i = 1; i <= numPages; i++) {
+            pagePromises.push(
+              pdf.getPage(i).then(function (page) {
+                return page.getTextContent().then(function (textContent) {
+                  const lastItems = [];
+                  textContent.items.forEach(function (item) {
+                    lastItems.push(item.str);
                   });
-                })
-              );
-            }
-            return Promise.all(pagePromises);
-          })
-          .then(function (pageTexts) {
-            const fullText = pageTexts.join("\n\n");
-            const paras = fullText ? fullText.split(/\n\s*\n/).slice(0, MAX_PARAGRAPHS) : [];
-            onLoadParagraphs(paras.map(p => p.trim()).filter(Boolean));
-            uploadStatus.textContent = "Extracted text from " + file.name;
-          })
-          .catch(function (err) {
-            console.error(err);
-            uploadStatus.textContent = "Extraction failed: " + err.message;
-          });
-      } else {
-        uploadStatus.textContent = "PDF.js library is not loaded.";
-      }
+                  return lastItems.join(" ");
+                });
+              })
+            );
+          }
+          return Promise.all(pagePromises);
+        })
+        .then(function (pageTexts) {
+          const fullText = pageTexts.join("\n\n");
+          const paras = fullText ? fullText.split(/\n\s*\n/).slice(0, MAX_PARAGRAPHS) : [];
+          onLoadParagraphs(paras.map(p => p.trim()).filter(Boolean));
+          uploadStatus.textContent = "Extracted text from " + file.name;
+        })
+        .catch(function (err) {
+          console.error(err);
+          uploadStatus.textContent = "Extraction failed: " + err.message;
+        });
     };
     reader.readAsArrayBuffer(file);
   } else {

@@ -293,7 +293,10 @@ export function renderAbout(ctx) {
               height: "28"
             })
           ]),
-          el("span", "social-open-icon", { innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>' })
+          el("span", {
+            class: "social-open-icon",
+            innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>'
+          })
         ]),
         el("h3", "social-card-name", "Nyburs"),
         el("p", "social-card-desc", "Connect with local storytelling circles, participate in regional literary communities, and discover vernacular Indian readers."),
@@ -317,7 +320,10 @@ export function renderAbout(ctx) {
               height: "28"
             })
           ]),
-          el("span", "social-open-icon", { innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>' })
+          el("span", {
+            class: "social-open-icon",
+            innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>'
+          })
         ]),
         el("h3", "social-card-name", "Vync"),
         el("p", "social-card-desc", "Join live conversation rooms, real-time discussion stages, and talk directly with fellow readers during new chapter drops."),
@@ -341,7 +347,10 @@ export function renderAbout(ctx) {
               height: "24"
             })
           ]),
-          el("span", "social-open-icon", { innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>' })
+          el("span", {
+            class: "social-open-icon",
+            innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>'
+          })
         ]),
         el("h3", "social-card-name", "Twitter / X"),
         el("p", "social-card-desc", "Catch official platform announcements, daily chapter spotlights, featured author highlights, and release notes."),
@@ -365,7 +374,10 @@ export function renderAbout(ctx) {
               height: "26"
             })
           ]),
-          el("span", "social-open-icon", { innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>' })
+          el("span", {
+            class: "social-open-icon",
+            innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>'
+          })
         ]),
         el("h3", "social-card-name", "GitHub"),
         el("p", "social-card-desc", "Explore our open-source codebase, review our database schemas, report bugs, and propose new features."),
@@ -387,7 +399,10 @@ export function renderAbout(ctx) {
               height: "26"
             })
           ]),
-          el("span", "social-open-icon", { innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>' })
+          el("span", {
+            class: "social-open-icon",
+            innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>'
+          })
         ]),
         el("h3", "social-card-name", "Support Email"),
         el("p", "social-card-desc", "Have questions regarding creator onboarding, payment inquiries, or feedback? Drop us a line directly."),

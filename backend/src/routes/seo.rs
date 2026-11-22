@@ -9,8 +9,19 @@ use uuid::Uuid;
 const BASE_HTML_TEMPLATE: &str = include_str!("../index_template.html");
 const DEFAULT_CANONICAL_DOMAIN: &str = "https://kathasangam.co.in";
 
+fn is_safe_host(host: &str) -> bool {
+    !host.is_empty()
+        && host.len() <= 253
+        && host
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b':')
+        && !host.starts_with('.')
+        && !host.starts_with('-')
+        && !host.contains("..")
+}
+
 /// Determines the canonical public base URL for links and OG tags.
-/// Checks `APP_BASE_URL` env var first, then falls back to `X-Forwarded-*` / `Host` headers,
+/// Checks `APP_BASE_URL` env var first, then falls back to validated `X-Forwarded-*` / `Host` headers,
 /// and finally defaults to `https://kathasangam.co.in`.
 pub fn resolve_base_url(headers: &HeaderMap) -> String {
     if let Ok(base) = std::env::var("APP_BASE_URL") {
@@ -22,12 +33,19 @@ pub fn resolve_base_url(headers: &HeaderMap) -> String {
 
     if let Some(host_val) = headers.get("x-forwarded-host").or_else(|| headers.get("host")) {
         if let Ok(host) = host_val.to_str() {
-            let host = host.trim();
-            if !host.is_empty() {
-                let proto = headers
+            let host = host.split(',').next().unwrap_or("").trim();
+            if is_safe_host(host) {
+                let raw_proto = headers
                     .get("x-forwarded-proto")
                     .and_then(|p| p.to_str().ok())
+                    .and_then(|p| p.split(',').next())
+                    .map(str::trim)
                     .unwrap_or("https");
+                let proto = if raw_proto.eq_ignore_ascii_case("http") {
+                    "http"
+                } else {
+                    "https"
+                };
                 return format!("{}://{}", proto, host);
             }
         }
@@ -87,16 +105,17 @@ pub fn render_story_html(
     let raw_desc = story.description.as_deref().unwrap_or("Read this story on KathaSangam.");
     let clean_desc = escape_html(&truncate_description(raw_desc, 220));
 
+    let safe_base_url = escape_html(base_url.trim_end_matches('/'));
     let cover_raw = story.cover.as_deref().unwrap_or("").trim();
     let cover_url = if cover_raw.starts_with("http://") || cover_raw.starts_with("https://") {
         escape_html(cover_raw)
     } else if cover_raw.starts_with('/') {
-        escape_html(&format!("{}{}", base_url, cover_raw))
+        format!("{}{}", safe_base_url, escape_html(cover_raw))
     } else {
-        format!("{}/icons/kathasangam-banner.jpg", base_url)
+        format!("{}/icons/kathasangam-banner.jpg", safe_base_url)
     };
 
-    let story_url = format!("{}/story/{}", base_url, story.id);
+    let story_url = format!("{}/story/{}", safe_base_url, story.id);
 
     template
         .replace(
@@ -150,13 +169,13 @@ pub fn render_story_html(
 /// GET /
 /// Serves the single-page application homepage HTML with default Open Graph and Twitter Card tags.
 pub async fn serve_home_page() -> impl IntoResponse {
-    let html = if let Ok(content) = std::fs::read_to_string("dist/public/index.html") {
+    let html = if let Ok(content) = tokio::fs::read_to_string("dist/public/index.html").await {
         content
-    } else if let Ok(content) = std::fs::read_to_string("../dist/public/index.html") {
+    } else if let Ok(content) = tokio::fs::read_to_string("../dist/public/index.html").await {
         content
-    } else if let Ok(content) = std::fs::read_to_string("index.html") {
+    } else if let Ok(content) = tokio::fs::read_to_string("index.html").await {
         content
-    } else if let Ok(content) = std::fs::read_to_string("../index.html") {
+    } else if let Ok(content) = tokio::fs::read_to_string("../index.html").await {
         content
     } else {
         BASE_HTML_TEMPLATE.to_string()
@@ -200,7 +219,9 @@ pub async fn serve_story_page(
                  COALESCE(NULLIF(profiles.display_name, ''), profiles.username, 'Author') AS author_name \
                  FROM stories \
                  LEFT JOIN profiles ON profiles.id = stories.author_id \
-                 WHERE stories.id = $1",
+                 WHERE stories.id = $1 \
+                   AND lower(stories.status) NOT IN ('draft', 'unpublished') \
+                   AND COALESCE(stories.is_nsfw, false) = false",
             )
             .bind(uuid)
             .fetch_optional(&pool)
@@ -271,11 +292,12 @@ pub async fn serve_sitemap_xml(
     State(pool): State<PgPool>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let base_url = resolve_base_url(&headers);
+    let base_url = escape_html(&resolve_base_url(&headers));
 
     let rows: Vec<SitemapStory> = sqlx::query_as(
         "SELECT id, created_at FROM stories \
-         WHERE status NOT IN ('draft', 'unpublished') \
+         WHERE lower(status) NOT IN ('draft', 'unpublished') \
+           AND COALESCE(is_nsfw, false) = false \
          ORDER BY created_at DESC NULLS LAST \
          LIMIT 50000",
     )

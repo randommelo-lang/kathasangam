@@ -112,26 +112,51 @@ pub async fn create_tip_order(
         match resp {
             Ok(res) if res.status().is_success() => {
                 let json: serde_json::Value = res.json().await.map_err(|e| {
-                    AppError::internal_server_error(format!("Failed to parse Razorpay response: {}", e))
+                    tracing::error!("Failed to parse Razorpay response: {:?}", e);
+                    AppError::internal_server_error("Failed to parse payment gateway response.")
                 })?;
                 json.get("id")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string())
-                    .ok_or_else(|| AppError::internal_server_error("Order ID missing from Razorpay response."))?
+                    .ok_or_else(|| AppError::internal_server_error("Order ID missing from payment gateway response."))?
             }
             Ok(res) => {
                 let err_text = res.text().await.unwrap_or_default();
                 tracing::error!("Razorpay order creation returned error: {}", err_text);
-                // Fallback to simulated test order if gateway test keys reject
-                format!("order_sim_{}", &tip_id.to_string().replace("-", "")[..14])
+                let allow_simulation = std::env::var("ALLOW_PAYMENT_SIMULATION")
+                    .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+                    .unwrap_or(false);
+                if allow_simulation {
+                    format!("order_sim_{}", &tip_id.to_string().replace("-", "")[..14])
+                } else {
+                    return Err(AppError::service_unavailable(
+                        "Payment gateway could not create order. Please try again shortly.",
+                    ));
+                }
             }
             Err(e) => {
-                tracing::warn!("Razorpay connection failed ({}), using fallback simulation", e);
-                format!("order_sim_{}", &tip_id.to_string().replace("-", "")[..14])
+                tracing::error!("Razorpay connection failed: {:?}", e);
+                let allow_simulation = std::env::var("ALLOW_PAYMENT_SIMULATION")
+                    .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+                    .unwrap_or(false);
+                if allow_simulation {
+                    format!("order_sim_{}", &tip_id.to_string().replace("-", "")[..14])
+                } else {
+                    return Err(AppError::service_unavailable(
+                        "Payment gateway is temporarily unreachable. Please try again shortly.",
+                    ));
+                }
             }
         }
     } else {
-        // Mock simulation mode when keys are not configured yet
+        let allow_simulation = std::env::var("ALLOW_PAYMENT_SIMULATION")
+            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+            .unwrap_or(false);
+        if !allow_simulation {
+            return Err(AppError::service_unavailable(
+                "Payment gateway is not configured.",
+            ));
+        }
         format!("order_sim_{}", &tip_id.to_string().replace("-", "")[..14])
     };
 
@@ -219,12 +244,18 @@ pub async fn verify_tip(
         }
 
         let message = format!("{}|{}", body.order_id, body.payment_id);
-        let mut mac = HmacSha256::new_from_slice(key_secret.as_bytes())
-            .map_err(|e| AppError::internal_server_error(format!("HMAC initialization failed: {}", e)))?;
+        let mut mac = HmacSha256::new_from_slice(key_secret.as_bytes()).map_err(|e| {
+            tracing::error!("HMAC initialization failed: {:?}", e);
+            AppError::internal_server_error("Payment verification initialization failed.")
+        })?;
         mac.update(message.as_bytes());
-        let expected_signature = hex::encode(mac.finalize().into_bytes());
+        let decoded_sig = hex::decode(body.signature.trim());
+        let signature_valid = match decoded_sig {
+            Ok(sig_bytes) => mac.verify_slice(&sig_bytes).is_ok(),
+            Err(_) => false,
+        };
 
-        if !expected_signature.eq_ignore_ascii_case(&body.signature) {
+        if !signature_valid {
             sqlx::query("UPDATE tips SET status = 'failed' WHERE id = $1")
                 .bind(tip_id)
                 .execute(&pool)

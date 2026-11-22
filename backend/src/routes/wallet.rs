@@ -5,7 +5,7 @@ use axum::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::db::AuthUser;
+use crate::db::{AuthUser, MfaAuthUser};
 use crate::errors::AppError;
 use crate::models::*;
 
@@ -101,7 +101,7 @@ pub async fn get_wallet_transactions(
 /// Updates the user's registered UPI ID for withdrawals.
 pub async fn update_payout_upi(
     State(pool): State<PgPool>,
-    AuthUser { user_id, .. }: AuthUser,
+    MfaAuthUser { user_id, .. }: MfaAuthUser,
     Json(body): Json<UpdatePayoutUpiRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let upi = body.payout_upi_id.trim();
@@ -129,7 +129,7 @@ pub async fn update_payout_upi(
 /// Requests a withdrawal of available balance to the creator's UPI ID.
 pub async fn request_payout(
     State(pool): State<PgPool>,
-    AuthUser { user_id, .. }: AuthUser,
+    MfaAuthUser { user_id, .. }: MfaAuthUser,
     Json(body): Json<PayoutWithdrawalRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let min_payout: f64 = std::env::var("MIN_PAYOUT_AMOUNT")
@@ -269,7 +269,7 @@ pub async fn list_admin_payouts(
 /// Marks a payout request as completed and increments total_withdrawn (Admin only).
 pub async fn complete_admin_payout(
     State(pool): State<PgPool>,
-    AuthUser { user_id, .. }: AuthUser,
+    MfaAuthUser { user_id, .. }: MfaAuthUser,
     Path(payout_id): Path<Uuid>,
     Json(body): Json<CompletePayoutRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -370,7 +370,7 @@ pub async fn complete_admin_payout(
 /// Rejects a payout request and refunds the money back to the creator's wallet balance (Admin only).
 pub async fn reject_admin_payout(
     State(pool): State<PgPool>,
-    AuthUser { user_id, .. }: AuthUser,
+    MfaAuthUser { user_id, .. }: MfaAuthUser,
     Path(payout_id): Path<Uuid>,
     Json(body): Json<RejectPayoutRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {

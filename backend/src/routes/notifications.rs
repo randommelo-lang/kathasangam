@@ -10,17 +10,13 @@ pub async fn list_notifications(
     auth: AuthUser,
     State(pool): State<PgPool>,
 ) -> Result<Json<Vec<NotificationRow>>, AppError> {
-    // 1. Auto-prune notifications older than 3 months
-    let _ = sqlx::query("DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '3 months'")
-        .execute(&pool)
-        .await;
-
-    // 2. Fetch active notifications within the 3-month window
+    // Fetch active notifications within the 3-month window (capped at 100; pruning runs in background)
     let rows: Vec<NotificationRow> = sqlx::query_as(
         "SELECT id, user_id, message, is_read, story_id, chapter_sort_order, created_at \
          FROM notifications \
          WHERE user_id = $1 AND COALESCE(created_at, NOW()) >= NOW() - INTERVAL '3 months' \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC \
+         LIMIT 100",
     )
     .bind(auth.user_id)
     .fetch_all(&pool)

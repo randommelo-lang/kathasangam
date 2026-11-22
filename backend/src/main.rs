@@ -108,6 +108,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
+    // Background maintenance: prune notifications older than 3 months once per day
+    let notif_prune_pool = pool.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(86_400));
+        loop {
+            interval.tick().await;
+            if let Err(e) = sqlx::query(
+                "DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '3 months'",
+            )
+            .execute(&notif_prune_pool)
+            .await
+            {
+                tracing::warn!("Background notification prune failed: {:?}", e);
+            }
+        }
+    });
+
 
 
     let api = Router::new()
@@ -398,7 +415,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route(
             "/upload/image",
             post(routes::upload::upload_image)
-                .layer(axum::extract::DefaultBodyLimit::disable()),
+                .layer(axum::extract::DefaultBodyLimit::max(11 * 1024 * 1024)),
         )
 
 

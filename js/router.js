@@ -146,7 +146,7 @@ export function render(ctx) {
   if (siteFooter) {
     siteFooter.hidden = (ctx.ui.currentView === "reader" || ctx.ui.currentView === "editor");
   }
-  ctx.pageTitle.textContent = {
+  var viewLabel = {
     discover: "Discover",
     library: "Library",
     reader: "Reader",
@@ -157,7 +157,13 @@ export function render(ctx) {
     settings: "Settings",
     story: "Story Details",
     about: "About KathaSangam"
-  }[ctx.ui.currentView];
+  }[ctx.ui.currentView] || "Discover";
+  ctx.pageTitle.textContent = viewLabel;
+  if (typeof document !== "undefined") {
+    document.title = viewLabel === "Discover"
+      ? "KathaSangam – Stories in Motion"
+      : viewLabel + " – KathaSangam";
+  }
 
   var savedScrollY = (typeof window !== "undefined") ? window.scrollY : 0;
   if (ctx.ui.currentView !== "studio" && typeof window !== "undefined" && window._studioCountdownInterval) {

@@ -1,0 +1,13 @@
+target/
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+*.log
+server_log.txt
+uploads/*
+!uploads/.gitkeep
+temp_compressed_*
+temp_raw_*
+test_output.webp

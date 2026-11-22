@@ -1079,3 +1079,13 @@ function notify(message, type, options) {
 
 window.notify = notify;
 
+// Global error boundaries to prevent silent failures on uncaught sync/async errors
+if (typeof window !== "undefined") {
+  window.addEventListener("error", function (event) {
+    console.error("[Global Error]", event.error || event.message);
+  });
+  window.addEventListener("unhandledrejection", function (event) {
+    console.error("[Unhandled Rejection]", event.reason);
+  });
+}
+

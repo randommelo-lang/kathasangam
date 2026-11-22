@@ -4,10 +4,10 @@ use uuid::Uuid;
 
 use crate::db::AuthUser;
 use crate::models::{StoryResponse, BookmarkRequest, StoryRow};
-use crate::routes::stories::build_story_responses_batch;
+use crate::routes::stories::build_story_metadata_responses_batch;
 use crate::errors::AppError;
 
-/// GET /api/bookmarks – List all bookmarked stories
+/// GET /api/bookmarks – List all bookmarked stories (metadata only)
 pub async fn list_bookmarks(
     auth: AuthUser,
     State(pool): State<PgPool>,
@@ -21,13 +21,14 @@ pub async fn list_bookmarks(
          JOIN public.bookmarks b ON b.story_id = stories.id \
          LEFT JOIN public.profiles ON profiles.id = stories.author_id \
          WHERE b.user_id = $1 \
-         ORDER BY b.created_at DESC"
+         ORDER BY b.created_at DESC \
+         LIMIT 200"
     )
     .bind(auth.user_id)
     .fetch_all(&pool)
     .await?;
 
-    let results = build_story_responses_batch(&pool, &rows, Some(auth.user_id)).await?;
+    let results = build_story_metadata_responses_batch(&pool, &rows, Some(auth.user_id)).await?;
     Ok(Json(results))
 }
 
